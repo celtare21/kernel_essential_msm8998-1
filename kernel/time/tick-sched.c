@@ -23,7 +23,6 @@
 #include <linux/module.h>
 #include <linux/irq_work.h>
 #include <linux/posix-timers.h>
-#include <linux/perf_event.h>
 #include <linux/context_tracking.h>
 #include <linux/rq_stats.h>
 #include <linux/mm.h>
@@ -235,11 +234,6 @@ static bool can_stop_full_tick(struct tick_sched *ts)
 		return false;
 	}
 
-	if (!perf_event_can_stop_tick()) {
-		trace_tick_stop(0, TICK_DEP_MASK_PERF_EVENTS);
-		return false;
-	}
-
 #ifdef CONFIG_HAVE_UNSTABLE_SCHED_CLOCK
 	/*
 	 * sched_clock_tick() needs us?
@@ -277,7 +271,7 @@ static DEFINE_PER_CPU(struct irq_work, nohz_full_kick_work) = {
  * This kick, unlike tick_nohz_full_kick_cpu() and tick_nohz_full_kick_all(),
  * is NMI safe.
  */
-void tick_nohz_full_kick(void)
+static void tick_nohz_full_kick(void)
 {
 	if (!tick_nohz_full_cpu(smp_processor_id()))
 		return;
