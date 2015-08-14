@@ -270,7 +270,7 @@ static void sem_rcu_free(struct rcu_head *head)
 #define ipc_smp_acquire__after_spin_is_unlocked()	smp_rmb()
 
 /*
- * Enter the mode suitable for non-simple operations:
+ * Wait until all currently ongoing simple ops have completed.
  * Caller must own sem_perm.lock.
  */
 static void complexmode_enter(struct sem_array *sma)
@@ -359,13 +359,15 @@ static inline int sem_lock(struct sem_array *sma, struct sembuf *sops,
 		 */
 		spin_lock(&sem->lock);
 
-		/*
-		 * See 51d7d5205d33
-		 * ("powerpc: Add smp_mb() to arch_spin_is_locked()"):
-		 * A full barrier is required: the write of sem->lock
-		 * must be visible before the read is executed
-		 */
-		smp_mb();
+		/* Then check that the global lock is free */
+		if (!spin_is_locked(&sma->sem_perm.lock)) {
+			/*
+			 * We need a memory barrier with acquire semantics,
+			 * otherwise we can race with another thread that does:
+			 *	complex_count++;
+			 *	spin_unlock(sem_perm.lock);
+			 */
+			ipc_smp_acquire__after_spin_is_unlocked();
 
 		if (!smp_load_acquire(&sma->complex_mode)) {
 			/* fast path successful! */
