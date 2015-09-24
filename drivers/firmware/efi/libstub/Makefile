@@ -73,3 +73,11 @@ quiet_cmd_stubcopy = STUBCPY $@
 		     $(OBJDUMP) -r $@ | grep $(STUBCOPY_RELOC-y)	\
 		     && (echo >&2 "$@: absolute symbol references not allowed in the EFI stub"; \
 			 rm -f $@; /bin/false); else /bin/false; fi
+
+#
+# ARM discards the .data section because it disallows r/w data in the
+# decompressor. So move our .data to .data.efistub, which is preserved
+# explicitly by the decompressor linker script.
+#
+STUBCOPY_FLAGS-$(CONFIG_ARM)	+= --rename-section .data=.data.efistub
+STUBCOPY_RELOC-$(CONFIG_ARM)	:= R_ARM_ABS
