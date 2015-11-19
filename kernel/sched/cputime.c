@@ -818,7 +818,7 @@ cputime_t task_gtime(struct task_struct *t)
 	unsigned int seq;
 	cputime_t gtime;
 
-	if (!context_tracking_is_enabled())
+	if (!vtime_accounting_enabled())
 		return t->gtime;
 
 	do {
@@ -883,7 +883,7 @@ void task_cputime(struct task_struct *t, cputime_t *utime, cputime_t *stime)
 {
 	cputime_t udelta, sdelta;
 
-	if (!context_tracking_is_enabled()) {
+	if (!vtime_accounting_enabled()) {
 		if (utime)
 			*utime = t->utime;
 		if (stime)
@@ -904,7 +904,7 @@ void task_cputime_scaled(struct task_struct *t,
 {
 	cputime_t udelta, sdelta;
 
-	if (!context_tracking_is_enabled()) {
+	if (!vtime_accounting_enabled()) {
 		if (utimescaled)
 			*utimescaled = t->utimescaled;
 		if (stimescaled)
