@@ -825,7 +825,7 @@ cputime_t task_gtime(struct task_struct *t)
 		seq = read_seqcount_begin(&t->vtime_seqcount);
 
 		gtime = t->gtime;
-		if (t->flags & PF_VCPU)
+		if (t->vtime_snap_whence == VTIME_SYS && t->flags & PF_VCPU)
 			gtime += vtime_delta(t);
 
 	} while (read_seqcount_retry(&t->vtime_seqcount, seq));
