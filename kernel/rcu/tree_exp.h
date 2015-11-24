@@ -482,7 +482,14 @@ void synchronize_sched_expedited(void)
  	/* If only one CPU, this is automatically a grace period. */	
 	if (rcu_blocking_is_gp())	
 		return;	
- 	/* Take a snapshot of the sequence number.  */	
+
+ 	/* If expedited grace periods are prohibited, fall back to normal. */
+ 	if (rcu_gp_is_normal()) {
+ 		wait_rcu_gp(call_rcu_sched);
+ 		return;
+ 	}
+
+	/* Take a snapshot of the sequence number.  */	
 	s = rcu_exp_gp_seq_snap(rsp);	
  	if (exp_funnel_lock(rsp, s))
 		return;  /* Someone else did our work for us. */	
@@ -547,6 +554,13 @@ void synchronize_rcu_expedited(void)
 {	
 	struct rcu_state *rsp = rcu_state_p;	
 	unsigned long s;	
+
+ 	/* If expedited grace periods are prohibited, fall back to normal. */
+ 	if (rcu_gp_is_normal()) {
+ 		wait_rcu_gp(call_rcu);
+ 		return;
+ 	}
+
  	s = rcu_exp_gp_seq_snap(rsp);	
  	if (exp_funnel_lock(rsp, s))
 		return;  /* Someone else did our work for us. */	
