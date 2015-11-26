@@ -63,6 +63,9 @@
 module_param(rcu_expedited, int, 0);
 module_param(rcu_normal, int, 0);
 
+static int rcu_normal_after_boot;
+module_param(rcu_normal_after_boot, int, 0);
+
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 /**
  * rcu_read_lock_sched_held() - might we be in RCU-sched read-side critical section?
@@ -180,6 +183,8 @@ EXPORT_SYMBOL_GPL(rcu_unexpedite_gp);
 void rcu_end_inkernel_boot(void)
 {
 	rcu_unexpedite_gp();
+	if (rcu_normal_after_boot)
+		WRITE_ONCE(rcu_normal, 1);
 }
 
 #ifdef CONFIG_PREEMPT_RCU
