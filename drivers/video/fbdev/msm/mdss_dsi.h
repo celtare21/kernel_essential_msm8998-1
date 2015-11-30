@@ -583,6 +583,7 @@ struct mdss_dsi_ctrl_pdata {
 	/* DBA data */
 	struct workqueue_struct *workq;
 	struct delayed_work dba_work;
+	struct timespec wait_until_ts;
 	char bridge_name[MSM_DBA_CHIP_NAME_MAX_LEN];
 	uint32_t bridge_index;
 	bool ds_registered;
