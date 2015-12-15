@@ -38,19 +38,24 @@
  * If an architecture overrides __atomic_op_acquire() it will probably want
  * to define smp_mb__after_spinlock().
  */
+#ifndef __atomic_op_acquire
 #define __atomic_op_acquire(op, args...)				\
 ({									\
 	typeof(op##_relaxed(args)) __ret  = op##_relaxed(args);		\
 	smp_mb__after_atomic();						\
 	__ret;								\
 })
+#endif
 
+#ifndef __atomic_op_release
 #define __atomic_op_release(op, args...)				\
 ({									\
 	smp_mb__before_atomic();					\
 	op##_relaxed(args);						\
 })
+#endif
 
+#ifndef __atomic_op_fence
 #define __atomic_op_fence(op, args...)					\
 ({									\
 	typeof(op##_relaxed(args)) __ret;				\
@@ -59,6 +64,7 @@
 	smp_mb__after_atomic();						\
 	__ret;								\
 })
+#endif
 
 /* atomic_add_return_relaxed */
 #ifndef atomic_add_return_relaxed
