@@ -113,6 +113,7 @@ enum tick_dep_bits {
 #define TICK_DEP_MASK_CLOCK_UNSTABLE	(1 << TICK_DEP_BIT_CLOCK_UNSTABLE)
 
 #ifdef CONFIG_NO_HZ_COMMON
+extern int tick_nohz_enabled;
 extern int tick_nohz_tick_stopped(void);
 extern void tick_nohz_idle_enter(void);
 extern void tick_nohz_idle_exit(void);
@@ -122,6 +123,7 @@ extern unsigned long tick_nohz_get_idle_calls(void);
 extern u64 get_cpu_idle_time_us(int cpu, u64 *last_update_time);
 extern u64 get_cpu_iowait_time_us(int cpu, u64 *last_update_time);
 #else /* !CONFIG_NO_HZ_COMMON */
+#define tick_nohz_enabled (0)
 static inline int tick_nohz_tick_stopped(void) { return 0; }
 static inline void tick_nohz_idle_enter(void) { }
 static inline void tick_nohz_idle_exit(void) { }
