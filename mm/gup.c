@@ -232,7 +232,7 @@ struct page *follow_page_mask(struct vm_area_struct *vma,
 		return no_page_table(vma, flags);
 	if (pmd_trans_huge(*pmd)) {
 		if (flags & FOLL_SPLIT) {
-			split_huge_page_pmd(vma, address, pmd);
+			split_huge_pmd(vma, pmd, address);
 			return follow_page_pte(vma, address, pmd, flags);
 		}
 		ptl = pmd_lock(mm, pmd);
