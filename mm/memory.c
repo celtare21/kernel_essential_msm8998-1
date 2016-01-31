@@ -2468,11 +2468,6 @@ static int wp_page_shared(struct fault_env *fe, pte_t orig_pte,
 
 	get_page(old_page);
 
-	/*
-	 * Only catch write-faults on shared writable pages,
-	 * read-only shared pages can get COWed by
-	 * get_user_pages(.write=1, .force=1).
-	 */
 	if (vma->vm_ops && vma->vm_ops->page_mkwrite) {
 		int tmp;
 
