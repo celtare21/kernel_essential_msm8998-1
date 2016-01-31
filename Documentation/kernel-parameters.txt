@@ -3297,6 +3297,12 @@ bytes respectively. Such letter suffixes can also be entirely omitted.
 			Lazy RCU callbacks are those which RCU can
 			prove do nothing more than free memory.
 
+	rcuperf.holdoff= [KNL]
+			Set test-start holdoff period.  The purpose of
+			this parameter is to delay the start of the
+			test until boot completes in order to avoid
+			interference.
+
 	rcutorture.cbflood_inter_holdoff= [KNL]
 			Set holdoff time (jiffies) between successive
 			callback-flood tests.
