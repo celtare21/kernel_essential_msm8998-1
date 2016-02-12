@@ -238,6 +238,7 @@ extern pgprot_t protection_map[16];
 /* Speculative fault, not holding mmap_sem */
 #define FAULT_FLAG_SPECULATIVE	0x200
 #define FAULT_FLAG_PREFAULT_OLD 0x400   /* Make faultaround ptes old */
+#define FAULT_FLAG_REMOTE	0x80	/* faulting for non current tsk/mm */
 
 /*
  * vm_fault is filled by the the pagefault handler and passed to the vma's

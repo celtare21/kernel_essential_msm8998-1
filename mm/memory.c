@@ -3774,7 +3774,8 @@ static int __handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 	pgd_t *pgd;
 	pud_t *pud;
 
-	if (!arch_vma_access_permitted(vma, flags & FAULT_FLAG_WRITE))
+	if (!arch_vma_access_permitted(vma, flags & FAULT_FLAG_WRITE,
+					    flags & FAULT_FLAG_REMOTE))
 		return VM_FAULT_SIGSEGV;
 
 	pgd = pgd_offset(mm, address);
