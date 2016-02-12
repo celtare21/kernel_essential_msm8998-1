@@ -3775,6 +3775,7 @@ static int __handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 	pud_t *pud;
 
 	if (!arch_vma_access_permitted(vma, flags & FAULT_FLAG_WRITE,
+					    flags & FAULT_FLAG_INSTRUCTION,
 					    flags & FAULT_FLAG_REMOTE))
 		return VM_FAULT_SIGSEGV;
 
