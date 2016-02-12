@@ -216,7 +216,7 @@ static struct page *get_arg_page(struct linux_binprm *bprm, unsigned long pos,
 	if (write)
 		gup_flags |= FOLL_WRITE;
 
-	ret = get_user_pages(current, bprm->mm, pos, 1, gup_flags,
+	ret = get_user_pages_remote(current, bprm->mm, pos, 1, gup_flags,
 			&page, NULL);
 	if (ret <= 0)
 		return NULL;

@@ -103,7 +103,7 @@ static int process_vm_rw_single_vec(unsigned long addr,
 		size_t bytes;
 
 		/* Get the pages we're interested in */
-		pages = get_user_pages_unlocked(task, mm, pa, pages,
+		pages = __get_user_pages_unlocked(task, mm, pa, pages,
 						process_pages, flags);
 		if (pages <= 0)
 			return -EFAULT;
