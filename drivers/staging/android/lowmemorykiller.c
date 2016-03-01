@@ -554,7 +554,9 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 			     p->comm, p->pid, oom_score_adj, tasksize);
 	}
 	if (selected) {
-		long cache_size, cache_limit, free;
+		long cache_size = other_file * (long)(PAGE_SIZE / 1024);
+		long cache_limit = minfree * (long)(PAGE_SIZE / 1024);
+		long free = other_free * (long)(PAGE_SIZE / 1024);
 
 		if (test_task_flag(selected, TIF_MEMDIE) &&
 		    (test_task_state(selected, TASK_UNINTERRUPTIBLE))) {
@@ -577,9 +579,6 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 			}
 		}
 		task_unlock(selected);
-		cache_size = other_file * (long)(PAGE_SIZE / 1024);
-		cache_limit = minfree * (long)(PAGE_SIZE / 1024);
-		free = other_free * (long)(PAGE_SIZE / 1024);
 		trace_lowmemory_kill(selected, cache_size, cache_limit, free);
 		lowmem_print(1, "Killing '%s' (%d) (tgid %d), adj %hd,\n" \
 			        "   to free %ldkB on behalf of '%s' (%d) because\n" \
