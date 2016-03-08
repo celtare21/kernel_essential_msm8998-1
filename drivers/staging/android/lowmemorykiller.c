@@ -133,7 +133,7 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		if (!p)
 			continue;
 
-		if (test_tsk_thread_flag(p, TIF_MEMDIE) &&
+		if (task_lmk_waiting(p) && p->mm &&
 		    time_before_eq(jiffies, lowmem_deathpending_timeout)) {
 			task_unlock(p);
 			rcu_read_unlock();
@@ -168,11 +168,6 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 
 		task_lock(selected);
 		send_sig(SIGKILL, selected, 0);
-		/*
-		 * FIXME: lowmemorykiller shouldn't abuse global OOM killer
-		 * infrastructure. There is no real reason why the selected
-		 * task should have access to the memory reserves.
-		 */
 		if (selected->mm)
 			task_set_lmk_waiting(selected);
 		task_unlock(selected);
