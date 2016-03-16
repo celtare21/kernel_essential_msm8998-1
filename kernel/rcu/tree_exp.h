@@ -255,7 +255,7 @@ static bool exp_funnel_lock(struct rcu_state *rsp, unsigned long s)
 
  			/* Someone else doing GP, so wait for them. */
  			spin_unlock(&rnp->exp_lock);
- 			wait_event(rnp->exp_wq[(s >> 1) & 0x1],
+ 			wait_event(rnp->exp_wq[(s >> 1) & 0x3],
  				   sync_exp_work_done(rsp,
  						      &rdp->exp_workdone2, s));
  			return true;
@@ -439,7 +439,15 @@ static void rcu_exp_wait_wake(struct rcu_state *rsp, unsigned long s)
 
  	synchronize_sched_expedited_wait(rsp);
 	rcu_exp_gp_seq_end(rsp);
- 	rcu_for_each_node_breadth_first(rsp, rnp) {
+
+ 	/*
+ 	 * Switch over to wakeup mode, allowing the next GP, but -only- the
+ 	 * next GP, to proceed.
+ 	 */
+ 	mutex_lock(&rsp->exp_wake_mutex);
+ 	mutex_unlock(&rsp->exp_mutex);
+
+	rcu_for_each_node_breadth_first(rsp, rnp) {
 		if (ULONG_CMP_LT(READ_ONCE(rnp->exp_seq_rq), s)) {
 			spin_lock(&rnp->exp_lock);
 			/* Recheck, avoid hang in case someone just arrived. */
@@ -447,9 +455,9 @@ static void rcu_exp_wait_wake(struct rcu_state *rsp, unsigned long s)
 				rnp->exp_seq_rq = s;
 			spin_unlock(&rnp->exp_lock);
 		}
-		wake_up_all(&rnp->exp_wq[(rsp->expedited_sequence >> 1) & 0x1]);
+		wake_up_all(&rnp->exp_wq[(rsp->expedited_sequence >> 1) & 0x3]);
 	}
- 	mutex_unlock(&rsp->exp_mutex);
+ 	mutex_unlock(&rsp->exp_wake_mutex);
 }
 
  /**	

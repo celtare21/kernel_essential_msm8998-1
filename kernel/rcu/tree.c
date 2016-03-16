@@ -103,6 +103,7 @@ struct rcu_state sname##_state = { \
 	.name = RCU_STATE_NAME(sname), \
 	.abbr = sabbr, \
 	.exp_mutex = __MUTEX_INITIALIZER(sname##_state.exp_mutex), \
+	.exp_wake_mutex = __MUTEX_INITIALIZER(sname##_state.exp_wake_mutex), \
 }
 
 RCU_STATE_INITIALIZER(rcu_sched, 's', call_rcu_sched);
@@ -4016,6 +4017,8 @@ static void __init rcu_init_one(struct rcu_state *rsp)
 			rcu_init_one_nocb(rnp);
 			init_waitqueue_head(&rnp->exp_wq[0]);
 			init_waitqueue_head(&rnp->exp_wq[1]);
+			init_waitqueue_head(&rnp->exp_wq[2]);
+			init_waitqueue_head(&rnp->exp_wq[3]);
 			spin_lock_init(&rnp->exp_lock);
 		}
 	}
