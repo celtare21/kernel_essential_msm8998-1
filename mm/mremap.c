@@ -228,8 +228,7 @@ unsigned long move_page_tables(struct vm_area_struct *vma,
 			}
 			VM_BUG_ON(pmd_trans_huge(*old_pmd));
 		}
-		if (pmd_none(*new_pmd) && __pte_alloc(new_vma->vm_mm, new_vma,
-						      new_pmd, new_addr))
+		if (pte_alloc(new_vma->vm_mm, new_pmd, new_addr))
 			break;
 		next = (new_addr + PMD_SIZE) & PMD_MASK;
 		if (extent > next - new_addr)
