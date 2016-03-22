@@ -1371,7 +1371,7 @@ void graph_trace_open(struct trace_iterator *iter)
  out_err_free:
 	kfree(data);
  out_err:
-	pr_warning("function graph tracer: not enough memory\n");
+	pr_warn("function graph tracer: not enough memory\n");
 }
 
 void graph_trace_close(struct trace_iterator *iter)
