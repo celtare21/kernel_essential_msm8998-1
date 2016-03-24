@@ -638,26 +638,6 @@ static inline int atomic_fetch_or(atomic_t *p, int mask)
 }
 #endif
 
-/**
- * fetch_or - perform *ptr |= mask and return old value of *ptr
- * @ptr: pointer to value
- * @mask: mask to OR on the value
- *
- * cmpxchg based fetch_or, macro so it works for different integer types
- */
-#ifndef fetch_or
-#define fetch_or(ptr, mask)						\
-({	typeof(*(ptr)) __old, __val = *(ptr);				\
-	for (;;) {							\
-		__old = cmpxchg((ptr), __val, __val | (mask));		\
-		if (__old == __val)					\
-			break;						\
-		__val = __old;						\
-	}								\
-	__old;								\
-})
-#endif
-
 #define atomic_cond_read_acquire(v, c)	smp_cond_load_acquire(&(v)->counter, (c))
 
 #ifdef CONFIG_GENERIC_ATOMIC64
