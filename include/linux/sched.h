@@ -784,7 +784,7 @@ struct signal_struct {
 	struct task_cputime cputime_expires;
 
 #ifdef CONFIG_NO_HZ_FULL
-	unsigned long tick_dep_mask;
+	atomic_t tick_dep_mask;
 #endif
 
 	struct list_head cpu_timers[3];
@@ -1785,7 +1785,7 @@ struct task_struct {
 #endif
 
 #ifdef CONFIG_NO_HZ_FULL
-	unsigned long tick_dep_mask;
+	atomic_t tick_dep_mask;
 #endif
 	unsigned long nvcsw, nivcsw; /* context switch counts */
 	u64 start_time;		/* monotonic time in nsec */
