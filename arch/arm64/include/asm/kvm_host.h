@@ -349,7 +349,10 @@ static inline void __cpu_init_hyp_mode(phys_addr_t boot_pgd_ptr,
 
 static inline void __cpu_init_stage2(void)
 {
-	kvm_call_hyp(__init_stage2_translation);
+	u32 parange = kvm_call_hyp(__init_stage2_translation);
+
+ 	WARN_ONCE(parange < 40,
+		  "PARange is %d bits, unsupported configuration!", parange);
 }
 
 static inline void __cpu_reset_hyp_mode(phys_addr_t boot_pgd_ptr,
