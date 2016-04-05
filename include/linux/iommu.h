@@ -31,6 +31,7 @@
 #define IOMMU_NOEXEC	(1 << 3)
 #define IOMMU_PRIV	(1 << 4)
 #define IOMMU_DEVICE	(1 << 5) /* Indicates access to device memory */
+#define IOMMU_MMIO	(1 << 6) /* e.g. things like MSI doorbells */
 
 struct iommu_ops;
 struct iommu_group;
