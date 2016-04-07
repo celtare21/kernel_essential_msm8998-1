@@ -54,7 +54,7 @@ static inline void set_dma_ops(struct device *dev,
 }
 
 void arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
-			struct iommu_ops *iommu, bool coherent);
+			const struct iommu_ops *iommu, bool coherent);
 #define arch_setup_dma_ops	arch_setup_dma_ops
 
 #ifdef CONFIG_IOMMU_DMA
