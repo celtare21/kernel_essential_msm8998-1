@@ -88,6 +88,7 @@ struct iommu_pgtbl_info {
 struct iommu_domain {
 	unsigned type;
 	const struct iommu_ops *ops;
+	unsigned long pgsize_bitmap;	/* Bitmap of page sizes in use */
 	iommu_fault_handler_t handler;
 	void *handler_token;
 	struct iommu_domain_geometry geometry;
@@ -177,7 +178,7 @@ struct iommu_dm_region {
  * @domain_get_attr: Query domain attributes
  * @domain_set_attr: Change domain attributes
  * @of_xlate: add OF master IDs to iommu grouping
- * @pgsize_bitmap: bitmap of supported page sizes
+ * @pgsize_bitmap: bitmap of all possible supported page sizes
  * @get_pgsize_bitmap: gets a bitmap of supported page sizes for a domain
  *                     This takes precedence over @pgsize_bitmap.
  * @trigger_fault: trigger a fault on the device attached to an iommu domain

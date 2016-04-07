@@ -340,9 +340,9 @@ static int iommu_group_create_direct_mappings(struct iommu_group *group,
 	if (!domain || domain->type != IOMMU_DOMAIN_DMA)
 		return 0;
 
-	BUG_ON(!domain->ops->pgsize_bitmap);
+	BUG_ON(!domain->pgsize_bitmap);
 
-	pg_size = 1UL << __ffs(domain->ops->pgsize_bitmap);
+	pg_size = 1UL << __ffs(domain->pgsize_bitmap);
 	INIT_LIST_HEAD(&mappings);
 
 	iommu_get_dm_regions(dev, &mappings);
@@ -1128,6 +1128,8 @@ static struct iommu_domain *__iommu_domain_alloc(struct bus_type *bus,
 
 	domain->ops  = bus->iommu_ops;
 	domain->type = type;
+	/* Assume all sizes by default; the driver may override this later */
+	domain->pgsize_bitmap  = bus->iommu_ops->pgsize_bitmap;
 
 	return domain;
 }
@@ -1364,7 +1366,7 @@ static unsigned long iommu_get_pgsize_bitmap(struct iommu_domain *domain)
 {
 	if (domain->ops->get_pgsize_bitmap)
 		return domain->ops->get_pgsize_bitmap(domain);
-	return domain->ops->pgsize_bitmap;
+	return domain->pgsize_bitmap;
 }
 
 size_t iommu_pgsize(unsigned long pgsize_bitmap,
@@ -1413,7 +1415,7 @@ int iommu_map(struct iommu_domain *domain, unsigned long iova,
 
 	trace_map_start(iova, paddr, size);
 	if (unlikely(domain->ops->map == NULL ||
-		     (domain->ops->pgsize_bitmap == 0UL &&
+		     (domain->pgsize_bitmap == 0UL &&
 		      !domain->ops->get_pgsize_bitmap))) {
 		trace_map_end(iova, paddr, size);
 		return -ENODEV;
@@ -1474,7 +1476,7 @@ size_t iommu_unmap(struct iommu_domain *domain, unsigned long iova, size_t size)
 
 	trace_unmap_start(iova, 0, size);
 	if (unlikely(domain->ops->unmap == NULL ||
-		     (domain->ops->pgsize_bitmap == 0UL &&
+		     (domain->pgsize_bitmap == 0UL &&
 		      !domain->ops->get_pgsize_bitmap))) {
 		trace_unmap_end(iova, 0, size);
 		return -ENODEV;
@@ -1535,7 +1537,7 @@ size_t default_iommu_map_sg(struct iommu_domain *domain, unsigned long iova,
 	int ret;
 	unsigned long pgsize_bitmap;
 
-	if (unlikely(domain->ops->pgsize_bitmap == 0UL &&
+	if (unlikely(domain->pgsize_bitmap == 0UL &&
 		     !domain->ops->get_pgsize_bitmap))
 		return 0;
 
