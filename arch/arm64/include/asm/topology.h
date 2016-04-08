@@ -35,6 +35,16 @@ extern unsigned long cpufreq_scale_min_freq_capacity(struct sched_domain *sd, in
 #define arch_scale_cpu_capacity scale_cpu_capacity
 extern unsigned long scale_cpu_capacity(struct sched_domain *sd, int cpu);
 
+#ifdef CONFIG_NUMA
+
+struct pci_bus;
+int pcibus_to_node(struct pci_bus *bus);
+#define cpumask_of_pcibus(bus)	(pcibus_to_node(bus) == -1 ?		\
+				 cpu_all_mask :				\
+				 cpumask_of_node(pcibus_to_node(bus)))
+
+#endif /* CONFIG_NUMA */
+
 #include <asm-generic/topology.h>
 
 #endif /* _ASM_ARM_TOPOLOGY_H */
