@@ -123,4 +123,7 @@ config OF_BATTERYDATA
 	help
 	  OpenFirmware BatteryData accessors
 
+config OF_NUMA
+	bool
+
 endif # OF
