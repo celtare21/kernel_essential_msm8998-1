@@ -81,6 +81,7 @@ static inline void arm64_apply_bp_hardening(void)	{ }
 #endif	/* CONFIG_HARDEN_BRANCH_PREDICTOR */
 
 extern void paging_init(void);
+extern void bootmem_init(void);
 extern void __iomem *early_io_map(phys_addr_t phys, unsigned long virt);
 extern void init_mem_pgprot(void);
 extern void create_pgd_mapping(struct mm_struct *mm, phys_addr_t phys,
