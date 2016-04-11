@@ -373,10 +373,7 @@ EXPORT_SYMBOL_GPL(sched_clock_idle_wakeup_event);
  */
 u64 cpu_clock(int cpu)
 {
-	if (!sched_clock_stable())
-		return sched_clock_cpu(cpu);
-
-	return sched_clock();
+	return sched_clock_cpu(cpu);
 }
 
 /*
@@ -388,10 +385,7 @@ u64 cpu_clock(int cpu)
  */
 u64 local_clock(void)
 {
-	if (!sched_clock_stable())
-		return sched_clock_cpu(raw_smp_processor_id());
-
-	return sched_clock();
+	return sched_clock_cpu(raw_smp_processor_id());
 }
 
 #else /* CONFIG_HAVE_UNSTABLE_SCHED_CLOCK */
