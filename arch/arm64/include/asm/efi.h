@@ -53,7 +53,9 @@ int efi_create_mapping(struct mm_struct *mm, efi_memory_desc_t *md);
 #define EFI_FDT_ALIGN	SZ_2M   /* used by allocate_new_fdt_and_exit_boot() */
 #define MAX_FDT_OFFSET	SZ_512M
 
-#define efi_call_early(f, ...) sys_table_arg->boottime->f(__VA_ARGS__)
+#define efi_call_early(f, ...)		sys_table_arg->boottime->f(__VA_ARGS__)
+#define __efi_call_early(f, ...)	f(__VA_ARGS__)
+#define efi_is_64bit()			(true)
 
 #define alloc_screen_info(x...)		&screen_info
 #define free_screen_info(x...)
