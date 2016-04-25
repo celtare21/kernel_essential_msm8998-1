@@ -53,6 +53,9 @@ int efi_create_mapping(struct mm_struct *mm, efi_memory_desc_t *md);
 
 #define efi_call_early(f, ...) sys_table_arg->boottime->f(__VA_ARGS__)
 
+#define alloc_screen_info(x...)		&screen_info
+#define free_screen_info(x...)
+
 #define EFI_ALLOC_ALIGN		SZ_64K
 
 /*
