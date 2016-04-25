@@ -966,7 +966,7 @@ quiet_cmd_link-vmlinux = LINK    $@
 # execute if the rest of the kernel build went well.
 vmlinux: scripts/link-vmlinux.sh $(vmlinux-deps) FORCE
 ifdef CONFIG_TRIM_UNUSED_KSYMS
-	$(Q)$(CONFIG_SHELL) scripts/adjust_autoksyms.sh \
+	$(Q)$(CONFIG_SHELL) $(srctree)/scripts/adjust_autoksyms.sh \
 	  "$(MAKE) KBUILD_MODULES=1 -f $(srctree)/Makefile autoksyms_recursive"
 endif
 ifdef CONFIG_HEADERS_CHECK
@@ -992,13 +992,13 @@ ARCH_POSTLINK := $(wildcard $(srctree)/arch/$(SRCARCH)/Makefile.postlink)
 	+$(call if_changed,link-vmlinux)
 
 autoksyms_recursive: $(vmlinux-deps)
-	$(Q)$(CONFIG_SHELL) scripts/adjust_autoksyms.sh \
+	$(Q)$(CONFIG_SHELL) $(srctree)/scripts/adjust_autoksyms.sh \
 	  "$(MAKE) KBUILD_MODULES=1 -f $(srctree)/Makefile autoksyms_recursive"
 PHONY += autoksyms_recursive
 
 # standalone target for easier testing
 include/generated/autoksyms.h: FORCE
-	$(Q)$(CONFIG_SHELL) scripts/adjust_autoksyms.sh true
+	$(Q)$(CONFIG_SHELL) $(srctree)/scripts/adjust_autoksyms.sh true
 
 # The actual objects are generated when descending,
 # make sure no implicit rule kicks in
