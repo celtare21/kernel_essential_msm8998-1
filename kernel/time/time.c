@@ -765,8 +765,6 @@ struct timespec timespec_add_safe(const struct timespec lhs,
 	return res;
 }
 
-#if __BITS_PER_LONG != 64
-
 /*
  * Add two timespec64 values and do a safety check for overflow.
  * It's assumed that both values are valid (>= 0).
@@ -787,5 +785,3 @@ struct timespec64 timespec64_add_safe(const struct timespec64 lhs,
 
 	return res;
 }
-
-#endif
