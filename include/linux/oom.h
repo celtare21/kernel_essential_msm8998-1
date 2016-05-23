@@ -41,24 +41,21 @@ struct oom_control {
 	unsigned long chosen_points;
 };
 
-/* Thread is the potential origin of an oom condition; kill first on oom */
-#define OOM_FLAG_ORIGIN		((__force oom_flags_t)0x1)
-
 extern struct mutex oom_lock;
 
 static inline void set_current_oom_origin(void)
 {
-	current->signal->oom_flags |= OOM_FLAG_ORIGIN;
+	current->signal->oom_flag_origin = true;
 }
 
 static inline void clear_current_oom_origin(void)
 {
-	current->signal->oom_flags &= ~OOM_FLAG_ORIGIN;
+	current->signal->oom_flag_origin = false;
 }
 
 static inline bool oom_task_origin(const struct task_struct *p)
 {
-	return !!(p->signal->oom_flags & OOM_FLAG_ORIGIN);
+	return p->signal->oom_flag_origin;
 }
 
 static inline bool tsk_is_oom_victim(struct task_struct * tsk)
