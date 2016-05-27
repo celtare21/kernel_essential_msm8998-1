@@ -782,6 +782,7 @@ int fast_smmu_attach_device(struct device *dev,
 {
 	int atomic_domain = 1;
 	struct iommu_domain *domain = mapping->domain;
+	struct iommu_group *group;
 	struct iommu_pgtbl_info info;
 	u64 size = (u64)mapping->bits << PAGE_SHIFT;
 	struct iommu_domain_geometry geometry;
@@ -806,6 +807,20 @@ int fast_smmu_attach_device(struct device *dev,
 		return -EINVAL;
 
 	if (iommu_attach_device(domain, dev))
+                return -EINVAL;
+
+	group = dev->iommu_group;
+	if (!group) {
+		dev_err(dev, "No iommu associated with device\n");
+		return -ENODEV;
+	}
+
+	if (iommu_get_domain_for_dev(dev)) {
+		dev_err(dev, "Device already attached to other iommu_domain\n");
+		return -EINVAL;
+	}
+
+	if (iommu_attach_group(mapping->domain, group))
 		return -EINVAL;
 
 	if (iommu_domain_get_attr(domain, DOMAIN_ATTR_PGTBL_INFO,
@@ -840,7 +855,7 @@ EXPORT_SYMBOL(fast_smmu_attach_device);
 void fast_smmu_detach_device(struct device *dev,
 			     struct dma_iommu_mapping *mapping)
 {
-	iommu_detach_device(mapping->domain, dev);
+	iommu_detach_group(mapping->domain, dev->iommu_group);
 	dev->archdata.mapping = NULL;
 	set_dma_ops(dev, NULL);
 
