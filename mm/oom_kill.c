@@ -626,8 +626,6 @@ void try_oom_reaper(struct task_struct *tsk)
 	if (atomic_read(&mm->mm_users) > 1) {
 		rcu_read_lock();
 		for_each_process(p) {
-			bool exiting;
-
 			if (!process_shares_mm(p, mm))
 				continue;
 			if (fatal_signal_pending(p))
@@ -637,10 +635,7 @@ void try_oom_reaper(struct task_struct *tsk)
 			 * If the task is exiting make sure the whole thread group
 			 * is exiting and cannot acces mm anymore.
 			 */
-			spin_lock_irq(&p->sighand->siglock);
-			exiting = signal_group_exit(p->signal);
-			spin_unlock_irq(&p->sighand->siglock);
-			if (exiting)
+			if (signal_group_exit(p->signal))
 				continue;
 
 			/* Give up */
