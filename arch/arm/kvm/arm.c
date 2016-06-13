@@ -1209,7 +1209,7 @@ static int init_hyp_mode(void)
 	 * Map the Hyp-code called directly from the host
 	 */
 	err = create_hyp_mappings(kvm_ksym_ref(__kvm_hyp_code_start),
-				  kvm_ksym_ref(__kvm_hyp_code_end), PAGE_HYP);
+				  kvm_ksym_ref(__kvm_hyp_code_end), PAGE_HYP_EXEC);
 	if (err) {
 		kvm_err("Cannot map world-switch code\n");
 		goto out_err;
