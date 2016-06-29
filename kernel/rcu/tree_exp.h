@@ -392,6 +392,9 @@ retry_ipi:
  		if (ret > 0 || sync_rcu_preempt_exp_done(rnp_root))
 			return;	
  		WARN_ON(ret < 0);  /* workqueues should not be signaled. */
+ 		if (rcu_cpu_stall_suppress)
+ 			continue;
+ 		panic_on_rcu_stall();
 		pr_err("INFO: %s detected expedited stalls on CPUs/tasks: {",	
 		       rsp->name);	
 		rcu_for_each_leaf_node(rsp, rnp) {	
