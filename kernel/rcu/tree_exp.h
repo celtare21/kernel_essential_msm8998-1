@@ -391,12 +391,7 @@ retry_ipi:
 				jiffies_stall);	
  		if (ret > 0 || sync_rcu_preempt_exp_done(rnp_root))
 			return;	
-		if (ret < 0) {	
-			/* Hit a signal, disable CPU stall warnings. */	
-			swait_event(rsp->expedited_wq,	
-				   sync_rcu_preempt_exp_done(rnp_root));	
-			return;	
-		}	
+ 		WARN_ON(ret < 0);  /* workqueues should not be signaled. */
 		pr_err("INFO: %s detected expedited stalls on CPUs/tasks: {",	
 		       rsp->name);	
 		rcu_for_each_leaf_node(rsp, rnp) {	
