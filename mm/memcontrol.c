@@ -1325,6 +1325,7 @@ static bool mem_cgroup_out_of_memory(struct mem_cgroup *memcg, gfp_t gfp_mask,
 	struct oom_control oc = {
 		.zonelist = NULL,
 		.nodemask = NULL,
+		.memcg = memcg,
 		.gfp_mask = gfp_mask,
 		.order = order,
 	};
@@ -1347,7 +1348,7 @@ static bool mem_cgroup_out_of_memory(struct mem_cgroup *memcg, gfp_t gfp_mask,
 		goto unlock;
 	}
 
-	check_panic_on_oom(&oc, CONSTRAINT_MEMCG, memcg);
+	check_panic_on_oom(&oc, CONSTRAINT_MEMCG);
 	totalpages = mem_cgroup_get_limit(memcg) ? : 1;
 	for_each_mem_cgroup_tree(iter, memcg) {
 		struct css_task_iter it;
@@ -1393,7 +1394,7 @@ static bool mem_cgroup_out_of_memory(struct mem_cgroup *memcg, gfp_t gfp_mask,
 
 	if (chosen) {
 		points = chosen_points * 1000 / totalpages;
-		oom_kill_process(&oc, chosen, points, totalpages, memcg,
+		oom_kill_process(&oc, chosen, points, totalpages,
 				 "Memory cgroup out of memory");
 	}
 unlock:
