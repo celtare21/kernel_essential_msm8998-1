@@ -20,6 +20,7 @@
 #include <linux/kallsyms.h>
 #include <linux/smpboot.h>
 #include <linux/atomic.h>
+#include <linux/nmi.h>
 
 /*
  * Structure to determine completion condition and record errors.  May
@@ -210,6 +211,13 @@ static int multi_cpu_stop(void *data)
 				break;
 			}
 			ack_state(msdata);
+		} else if (curstate > MULTI_STOP_PREPARE) {
+			/*
+			 * At this stage all other CPUs we depend on must spin
+			 * in the same loop. Any reason for hard-lockup should
+			 * be detected and reported on their side.
+			 */
+			touch_nmi_watchdog();
 		}
 	} while (curstate != MULTI_STOP_EXIT);
 
