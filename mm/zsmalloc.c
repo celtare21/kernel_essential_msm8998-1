@@ -2191,8 +2191,7 @@ static int zs_register_migration(struct zs_pool *pool)
 static void zs_unregister_migration(struct zs_pool *pool)
 {
 	flush_work(&pool->free_work);
-	if (pool->inode)
-		iput(pool->inode);
+	iput(pool->inode);
 }
 
 /*
