@@ -1041,27 +1041,25 @@ static ssize_t oom_adj_read(struct file *file, char __user *buf, size_t count,
 	char buffer[PROC_NUMBUF];
 	int oom_adj = OOM_ADJUST_MIN;
 	size_t len;
-	unsigned long flags;
 	int mult = 1;
 
 	if (!task)
 		return -ESRCH;
-	if (lock_task_sighand(task, &flags)) {
-		if (task->signal->oom_score_adj == OOM_SCORE_ADJ_MAX) {
-			oom_adj = OOM_ADJUST_MAX;
-		} else {
-			if (task->signal->oom_score_adj < 0)
-				mult = -1;
-			oom_adj = roundup(mult * task->signal->oom_score_adj *
-				-OOM_DISABLE, OOM_SCORE_ADJ_MAX) /
-				OOM_SCORE_ADJ_MAX * mult;
-		}
-		unlock_task_sighand(task, &flags);
+	if (task->signal->oom_score_adj == OOM_SCORE_ADJ_MAX)
+		oom_adj = OOM_ADJUST_MAX;
+	else {
+		if (task->signal->oom_score_adj < 0)
+			mult = -1;
+		oom_adj = roundup(mult * task->signal->oom_score_adj *
+			-OOM_DISABLE, OOM_SCORE_ADJ_MAX) /
+			OOM_SCORE_ADJ_MAX * mult;
 	}
 	put_task_struct(task);
 	len = snprintf(buffer, sizeof(buffer), "%d\n", oom_adj);
 	return simple_read_from_buffer(buf, count, ppos, buffer, len);
 }
+
+static DEFINE_MUTEX(oom_adj_mutex);
 
 /*
  * /proc/pid/oom_adj exists solely for backwards compatibility with previous
@@ -1079,7 +1077,6 @@ static ssize_t oom_adj_write(struct file *file, const char __user *buf,
 	struct task_struct *task;
 	char buffer[PROC_NUMBUF];
 	int oom_adj;
-	unsigned long flags;
 	int err;
 
 	memset(buffer, 0, sizeof(buffer));
@@ -1105,11 +1102,6 @@ static ssize_t oom_adj_write(struct file *file, const char __user *buf,
 		goto out;
 	}
 
-	if (!lock_task_sighand(task, &flags)) {
-		err = -ESRCH;
-		goto err_put_task;
-	}
-
 	/*
 	 * Scale /proc/pid/oom_score_adj appropriately ensuring that a maximum
 	 * value is always attainable.
@@ -1119,10 +1111,11 @@ static ssize_t oom_adj_write(struct file *file, const char __user *buf,
 	else
 		oom_adj = (oom_adj * OOM_SCORE_ADJ_MAX) / -OOM_DISABLE;
 
+	mutex_lock(&oom_adj_mutex);
 	if (oom_adj < task->signal->oom_score_adj &&
 	    !capable(CAP_SYS_RESOURCE)) {
 		err = -EACCES;
-		goto err_sighand;
+		goto err_unlock;
 	}
 
 	/*
@@ -1135,9 +1128,8 @@ static ssize_t oom_adj_write(struct file *file, const char __user *buf,
 
 	task->signal->oom_score_adj = oom_adj;
 	trace_oom_score_adj_update(task);
-err_sighand:
-	unlock_task_sighand(task, &flags);
-err_put_task:
+err_unlock:
+	mutex_unlock(&oom_adj_mutex);
 	put_task_struct(task);
 out:
 	return err < 0 ? err : count;
@@ -1155,15 +1147,11 @@ static ssize_t oom_score_adj_read(struct file *file, char __user *buf,
 	struct task_struct *task = get_proc_task(file_inode(file));
 	char buffer[PROC_NUMBUF];
 	short oom_score_adj = OOM_SCORE_ADJ_MIN;
-	unsigned long flags;
 	size_t len;
 
 	if (!task)
 		return -ESRCH;
-	if (lock_task_sighand(task, &flags)) {
-		oom_score_adj = task->signal->oom_score_adj;
-		unlock_task_sighand(task, &flags);
-	}
+	oom_score_adj = task->signal->oom_score_adj;
 	put_task_struct(task);
 	len = snprintf(buffer, sizeof(buffer), "%hd\n", oom_score_adj);
 	return simple_read_from_buffer(buf, count, ppos, buffer, len);
@@ -1174,7 +1162,6 @@ static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 {
 	struct task_struct *task;
 	char buffer[PROC_NUMBUF];
-	unsigned long flags;
 	int oom_score_adj;
 	int err;
 
@@ -1201,25 +1188,21 @@ static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 		goto out;
 	}
 
-	if (!lock_task_sighand(task, &flags)) {
-		err = -ESRCH;
-		goto err_put_task;
-	}
-
+	mutex_lock(&oom_adj_mutex);
 	if ((short)oom_score_adj < task->signal->oom_score_adj_min &&
 			!capable(CAP_SYS_RESOURCE)) {
 		err = -EACCES;
-		goto err_sighand;
+		goto err_unlock;
 	}
 
 	task->signal->oom_score_adj = (short)oom_score_adj;
 	if (has_capability_noaudit(current, CAP_SYS_RESOURCE))
 		task->signal->oom_score_adj_min = (short)oom_score_adj;
+
 	trace_oom_score_adj_update(task);
 
-err_sighand:
-	unlock_task_sighand(task, &flags);
-err_put_task:
+err_unlock:
+	mutex_unlock(&oom_adj_mutex);
 	put_task_struct(task);
 out:
 	return err < 0 ? err : count;
