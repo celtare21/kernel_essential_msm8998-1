@@ -183,7 +183,7 @@ static void *__dma_alloc_coherent(struct device *dev, size_t size,
 		/*
 		 * flush the caches here because we can't later
 		 */
-		__dma_flush_range(addr, addr + size);
+		__dma_flush_area(addr, size);
 		__dma_remap(virt_to_page(addr), size, 0, true);
 	}
 
@@ -243,7 +243,7 @@ static void *__dma_alloc(struct device *dev, size_t size,
 	} else {
 		if ((attrs & DMA_ATTR_STRONGLY_ORDERED) == 0)
 			/* remove any dirty cache lines on the kernel alias */
-			__dma_flush_range(ptr, ptr + size);
+			__dma_flush_area(ptr, size);
 
 		/* create a coherent mapping */
 		page = virt_to_page(ptr);
@@ -523,7 +523,7 @@ static int __init atomic_pool_init(void)
 		void *page_addr = page_address(page);
 
 		memset(page_addr, 0, atomic_pool_size);
-		__dma_flush_range(page_addr, page_addr + atomic_pool_size);
+		__dma_flush_area(page_addr, atomic_pool_size);
 
 		atomic_pool = gen_pool_create(PAGE_SHIFT, -1);
 		if (!atomic_pool)
@@ -686,7 +686,7 @@ fs_initcall(dma_debug_do_init);
 /* Thankfully, all cache ops are by VA so we can ignore phys here */
 static void flush_page(struct device *dev, const void *virt, phys_addr_t phys)
 {
-	__dma_flush_range(virt, virt + PAGE_SIZE);
+	__dma_flush_area(virt, PAGE_SIZE);
 }
 
 static void *__iommu_alloc_attrs(struct device *dev, size_t size,
@@ -1193,7 +1193,7 @@ static void __dma_clear_buffer(struct page *page, size_t size,
 	if ((attrs & DMA_ATTR_SKIP_ZEROING) == 0)
 		memset(ptr, 0, size);
 	if (!is_coherent)
-		dmac_flush_range(ptr, ptr + size);
+		dmac_flush_area(ptr, size);
 }
 
 static inline dma_addr_t __alloc_iova(struct dma_iommu_mapping *mapping,
