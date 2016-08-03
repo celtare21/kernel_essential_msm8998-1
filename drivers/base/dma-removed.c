@@ -217,11 +217,10 @@ static void removed_region_fixup(struct removed_region *dma_mem, int index)
 }
 
 void *removed_alloc(struct device *dev, size_t size, dma_addr_t *handle,
-		    gfp_t gfp, struct dma_attrs *attrs)
+		    gfp_t gfp, unsigned long attrs)
 {
-	bool no_kernel_mapping = dma_get_attr(DMA_ATTR_NO_KERNEL_MAPPING,
-					attrs);
-	bool skip_zeroing = dma_get_attr(DMA_ATTR_SKIP_ZEROING, attrs);
+	bool no_kernel_mapping = (attrs & DMA_ATTR_NO_KERNEL_MAPPING);
+	bool skip_zeroing = (attrs & DMA_ATTR_SKIP_ZEROING);
 	unsigned int pageno;
 	unsigned long order;
 	void *addr = NULL;
@@ -284,16 +283,15 @@ out:
 
 int removed_mmap(struct device *dev, struct vm_area_struct *vma,
 		 void *cpu_addr, dma_addr_t dma_addr, size_t size,
-		 struct dma_attrs *attrs)
+		 unsigned long attrs)
 {
 	return -ENXIO;
 }
 
 void removed_free(struct device *dev, size_t size, void *cpu_addr,
-		  dma_addr_t handle, struct dma_attrs *attrs)
+		  dma_addr_t handle, unsigned long attrs)
 {
-	bool no_kernel_mapping = dma_get_attr(DMA_ATTR_NO_KERNEL_MAPPING,
-					attrs);
+	bool no_kernel_mapping = (attrs & DMA_ATTR_NO_KERNEL_MAPPING);
 	struct removed_region *dma_mem = dev->removed_mem;
 
 	size = PAGE_ALIGN(size);
@@ -308,21 +306,21 @@ void removed_free(struct device *dev, size_t size, void *cpu_addr,
 static dma_addr_t removed_map_page(struct device *dev, struct page *page,
 			unsigned long offset, size_t size,
 			enum dma_data_direction dir,
-			struct dma_attrs *attrs)
+			unsigned long attrs)
 {
 	return ~(dma_addr_t)0;
 }
 
 static void removed_unmap_page(struct device *dev, dma_addr_t dma_handle,
 		size_t size, enum dma_data_direction dir,
-		struct dma_attrs *attrs)
+		unsigned long attrs)
 {
 	return;
 }
 
 static int removed_map_sg(struct device *dev, struct scatterlist *sg,
 			int nents, enum dma_data_direction dir,
-			struct dma_attrs *attrs)
+			unsigned long attrs)
 {
 	return 0;
 }
@@ -330,7 +328,7 @@ static int removed_map_sg(struct device *dev, struct scatterlist *sg,
 static void removed_unmap_sg(struct device *dev,
 			struct scatterlist *sg, int nents,
 			enum dma_data_direction dir,
-			struct dma_attrs *attrs)
+			unsigned long attrs)
 {
 	return;
 }
@@ -364,7 +362,7 @@ void removed_sync_sg_for_device(struct device *dev,
 }
 
 void *removed_remap(struct device *dev, void *cpu_addr, dma_addr_t handle,
-			size_t size, struct dma_attrs *attrs)
+			size_t size, unsigned long attrs)
 {
 	return ioremap(handle, size);
 }

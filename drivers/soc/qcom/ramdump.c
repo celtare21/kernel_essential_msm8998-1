@@ -47,7 +47,7 @@ struct ramdump_device {
 	struct ramdump_segment *segments;
 	size_t elfcore_size;
 	char *elfcore_buf;
-	struct dma_attrs attrs;
+	unsigned long attrs;
 	bool complete_ramdump;
 };
 
@@ -154,10 +154,9 @@ static ssize_t ramdump_read(struct file *filep, char __user *buf, size_t count,
 	copy_size = min(count, (size_t)MAX_IOREMAP_SIZE);
 	copy_size = min((unsigned long)copy_size, data_left);
 
-	init_dma_attrs(&rd_dev->attrs);
-	dma_set_attr(DMA_ATTR_SKIP_ZEROING, &rd_dev->attrs);
+	rd_dev->attrs = DMA_ATTR_SKIP_ZEROING;
 	device_mem = vaddr ?: dma_remap(rd_dev->device.parent, NULL, addr,
-						copy_size, &rd_dev->attrs);
+						copy_size, rd_dev->attrs);
 	origdevice_mem = device_mem;
 
 	if (device_mem == NULL) {

@@ -593,7 +593,7 @@ static int pil_init_image_trusted(struct pil_desc *pil,
 	void *mdata_buf;
 	dma_addr_t mdata_phys;
 	int ret;
-	DEFINE_DMA_ATTRS(attrs);
+	unsigned long attrs;
 	struct device dev = {0};
 	struct scm_desc desc = {0};
 
@@ -607,9 +607,9 @@ static int pil_init_image_trusted(struct pil_desc *pil,
 
 	dev.coherent_dma_mask =
 		DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
-	dma_set_attr(DMA_ATTR_STRONGLY_ORDERED, &attrs);
+	attrs = DMA_ATTR_STRONGLY_ORDERED;
 	mdata_buf = dma_alloc_attrs(&dev, size, &mdata_phys, GFP_KERNEL,
-					&attrs);
+					attrs);
 	if (!mdata_buf) {
 		pr_err("scm-pas: Allocation for metadata failed.\n");
 		scm_pas_disable_bw();
@@ -637,7 +637,7 @@ static int pil_init_image_trusted(struct pil_desc *pil,
 		scm_ret = desc.ret[0];
 	}
 
-	dma_free_attrs(&dev, size, mdata_buf, mdata_phys, &attrs);
+	dma_free_attrs(&dev, size, mdata_buf, mdata_phys, attrs);
 	scm_pas_disable_bw();
 	if (ret)
 		return ret;

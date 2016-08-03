@@ -26,25 +26,21 @@
 */
 int msm_dma_map_sg_attrs(struct device *dev, struct scatterlist *sg, int nents,
 		   enum dma_data_direction dir, struct dma_buf *dma_buf,
-		   struct dma_attrs *attrs);
+		   unsigned long attrs);
 
 static inline int msm_dma_map_sg_lazy(struct device *dev,
 			       struct scatterlist *sg, int nents,
 			       enum dma_data_direction dir,
 			       struct dma_buf *dma_buf)
 {
-	return msm_dma_map_sg_attrs(dev, sg, nents, dir, dma_buf, NULL);
+	return msm_dma_map_sg_attrs(dev, sg, nents, dir, dma_buf, 0);
 }
 
 static inline int msm_dma_map_sg(struct device *dev, struct scatterlist *sg,
 				  int nents, enum dma_data_direction dir,
 				  struct dma_buf *dma_buf)
 {
-	DEFINE_DMA_ATTRS(attrs);
-
-	init_dma_attrs(&attrs);
-	dma_set_attr(DMA_ATTR_NO_DELAYED_UNMAP, &attrs);
-	return msm_dma_map_sg_attrs(dev, sg, nents, dir, dma_buf, &attrs);
+	return msm_dma_map_sg_attrs(dev, sg, nents, dir, dma_buf, DMA_ATTR_NO_DELAYED_UNMAP);
 }
 
 void msm_dma_unmap_sg(struct device *dev, struct scatterlist *sgl, int nents,

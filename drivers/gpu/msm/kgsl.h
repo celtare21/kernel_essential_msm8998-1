@@ -24,7 +24,6 @@
 #include <linux/cdev.h>
 #include <linux/regulator/consumer.h>
 #include <linux/mm.h>
-#include <linux/dma-attrs.h>
 #include <linux/uaccess.h>
 #include <linux/kthread.h>
 #include <asm/cacheflush.h>
@@ -224,7 +223,7 @@ struct kgsl_memdesc {
 	struct kgsl_memdesc_ops *ops;
 	uint64_t flags;
 	struct device *dev;
-	struct dma_attrs attrs;
+	unsigned long attrs;
 	struct page **pages;
 	unsigned int page_count;
 	unsigned int cur_bindings;

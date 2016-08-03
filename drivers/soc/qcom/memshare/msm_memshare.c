@@ -31,7 +31,7 @@
 /* Macros */
 #define MEMSHARE_DEV_NAME "memshare"
 #define MEMSHARE_CHILD_DEV_NAME "memshare_child"
-static DEFINE_DMA_ATTRS(attrs);
+static unsigned long attrs;
 
 static struct qmi_handle *mem_share_svc_handle;
 static void mem_share_svc_recv_msg(struct work_struct *work);
@@ -253,7 +253,7 @@ void initialize_client(void)
 		memblock[i].hyp_mapping = 0;
 		memblock[i].file_created = 0;
 	}
-	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &attrs);
+	attrs = DMA_ATTR_NO_KERNEL_MAPPING;
 }
 
 /*
@@ -402,7 +402,7 @@ static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
 						memblock[i].size,
 						memblock[i].virtual_addr,
 						memblock[i].phy_addr,
-						&attrs);
+						attrs);
 					free_client(i);
 				}
 			}
@@ -641,7 +641,7 @@ static int handle_free_generic_req(void *req_h, void *req, void *conn_h)
 		dma_free_attrs(memsh_drv->dev, memblock[client_id].size,
 			memblock[client_id].virtual_addr,
 			memblock[client_id].phy_addr,
-			&attrs);
+			attrs);
 		free_client(client_id);
 	} else {
 		pr_err("In %s, Request came for a guaranteed client cannot free up the memory\n",
@@ -870,7 +870,7 @@ int memshare_alloc(struct device *dev,
 
 	pblk->virtual_addr = dma_alloc_attrs(dev, block_size,
 						&pblk->phy_addr, GFP_KERNEL,
-						&attrs);
+						attrs);
 	if (pblk->virtual_addr == NULL) {
 		pr_err("allocation failed, %d\n", block_size);
 		ret = -ENOMEM;

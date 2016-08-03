@@ -158,13 +158,13 @@ static void msm_iommu_meta_put(struct msm_iommu_meta *meta);
 static inline int __msm_dma_map_sg(struct device *dev, struct scatterlist *sg,
 				   int nents, enum dma_data_direction dir,
 				   struct dma_buf *dma_buf,
-				   struct dma_attrs *attrs)
+				   unsigned long attrs)
 {
 	struct msm_iommu_map *iommu_map;
 	struct msm_iommu_meta *iommu_meta = NULL;
 	int ret = 0;
 	bool extra_meta_ref_taken = false;
-	int late_unmap = !dma_get_attr(DMA_ATTR_NO_DELAYED_UNMAP, attrs);
+	int late_unmap = ((attrs & DMA_ATTR_NO_DELAYED_UNMAP) == 0 );
 
 	mutex_lock(&msm_iommu_map_mutex);
 	iommu_meta = msm_iommu_meta_lookup(dma_buf->priv);
@@ -248,7 +248,7 @@ out:
  */
 int msm_dma_map_sg_attrs(struct device *dev, struct scatterlist *sg, int nents,
 		   enum dma_data_direction dir, struct dma_buf *dma_buf,
-		   struct dma_attrs *attrs)
+		   unsigned long attrs)
 {
 	int ret;
 

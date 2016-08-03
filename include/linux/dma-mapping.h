@@ -5,9 +5,28 @@
 #include <linux/string.h>
 #include <linux/device.h>
 #include <linux/err.h>
-#include <linux/dma-attrs.h>
 #include <linux/dma-direction.h>
 #include <linux/scatterlist.h>
+
+/**
+ * List of possible attributes associated with a DMA mapping. The semantics
+ * of each attribute should be defined in Documentation/DMA-attributes.txt.
+ *
+ */
+#define DMA_ATTR_WRITE_BARRIER		(1UL << 0)
+#define	DMA_ATTR_WEAK_ORDERING		(1UL << 1)
+#define	DMA_ATTR_WRITE_COMBINE		(1UL << 2)
+#define	DMA_ATTR_NON_CONSISTENT		(1UL << 3)
+#define DMA_ATTR_NO_KERNEL_MAPPING	(1UL << 4)
+#define DMA_ATTR_SKIP_CPU_SYNC		(1UL << 5)
+#define DMA_ATTR_FORCE_CONTIGUOUS	(1UL << 6)
+#define DMA_ATTR_STRONGLY_ORDERED	(1UL << 7)
+#define DMA_ATTR_SKIP_ZEROING		(1UL << 8)
+#define	DMA_ATTR_NO_DELAYED_UNMAP	(1UL << 9)
+#define DMA_ATTR_EXEC_MAPPING		(1UL << 10)
+#define DMA_ATTR_FORCE_COHERENT		(1UL << 11)
+#define DMA_ATTR_FORCE_NON_COHERENT	(1UL << 12)
+#define DMA_ATTR_MAX			(1UL << 13)
 
 /*
  * A dma_addr_t can hold any valid DMA or bus address for the platform.
@@ -18,34 +37,34 @@
 struct dma_map_ops {
 	void* (*alloc)(struct device *dev, size_t size,
 				dma_addr_t *dma_handle, gfp_t gfp,
-				struct dma_attrs *attrs);
+				unsigned long attrs);
 	void (*free)(struct device *dev, size_t size,
 			      void *vaddr, dma_addr_t dma_handle,
-			      struct dma_attrs *attrs);
+			      unsigned long attrs);
 	int (*mmap)(struct device *, struct vm_area_struct *,
-			  void *, dma_addr_t, size_t, struct dma_attrs *attrs);
+			  void *, dma_addr_t, size_t, unsigned long attrs);
 
 	int (*get_sgtable)(struct device *dev, struct sg_table *sgt, void *,
-			   dma_addr_t, size_t, struct dma_attrs *attrs);
+			   dma_addr_t, size_t, unsigned long attrs);
 
 	dma_addr_t (*map_page)(struct device *dev, struct page *page,
 			       unsigned long offset, size_t size,
 			       enum dma_data_direction dir,
-			       struct dma_attrs *attrs);
+			       unsigned long attrs);
 	void (*unmap_page)(struct device *dev, dma_addr_t dma_handle,
 			   size_t size, enum dma_data_direction dir,
-			   struct dma_attrs *attrs);
+			   unsigned long attrs);
 	/*
 	 * map_sg returns 0 on error and a value > 0 on success.
 	 * It should never return a value < 0.
 	 */
 	int (*map_sg)(struct device *dev, struct scatterlist *sg,
 		      int nents, enum dma_data_direction dir,
-		      struct dma_attrs *attrs);
+		      unsigned long attrs);
 	void (*unmap_sg)(struct device *dev,
 			 struct scatterlist *sg, int nents,
 			 enum dma_data_direction dir,
-			 struct dma_attrs *attrs);
+			 unsigned long attrs);
 	dma_addr_t (*map_resource)(struct device *dev, phys_addr_t phys_addr,
 			       size_t size, enum dma_data_direction dir,
 			       unsigned long attrs);
@@ -68,7 +87,7 @@ struct dma_map_ops {
 	int (*dma_supported)(struct device *dev, u64 mask);
 	int (*set_dma_mask)(struct device *dev, u64 mask);
 	void *(*remap)(struct device *dev, void *cpu_addr, dma_addr_t handle,
-			size_t size, struct dma_attrs *attrs);
+			size_t size, unsigned long attrs);
 	void (*unremap)(struct device *dev, void *remapped_address,
 			size_t size);
 #ifdef ARCH_HAS_DMA_GET_REQUIRED_MASK
@@ -101,7 +120,7 @@ static inline int is_device_dma_capable(struct device *dev)
 
 #ifndef CONFIG_NO_DMA
 static inline void *dma_remap(struct device *dev, void *cpu_addr,
-		dma_addr_t dma_handle, size_t size, struct dma_attrs *attrs)
+		dma_addr_t dma_handle, size_t size, unsigned long attrs)
 {
 	const struct dma_map_ops *ops = get_dma_ops(dev);
 	BUG_ON(!ops);
@@ -322,27 +341,23 @@ struct dma_attrs;
 static inline void *dma_alloc_writecombine(struct device *dev, size_t size,
 					   dma_addr_t *dma_addr, gfp_t gfp)
 {
-	DEFINE_DMA_ATTRS(attrs);
-	dma_set_attr(DMA_ATTR_WRITE_COMBINE, &attrs);
-	return dma_alloc_attrs(dev, size, dma_addr, gfp, &attrs);
+	return dma_alloc_attrs(dev, size, dma_addr, gfp,
+			       DMA_ATTR_WRITE_COMBINE);
 }
 
 static inline void dma_free_writecombine(struct device *dev, size_t size,
 					 void *cpu_addr, dma_addr_t dma_addr)
 {
-	DEFINE_DMA_ATTRS(attrs);
-	dma_set_attr(DMA_ATTR_WRITE_COMBINE, &attrs);
-	return dma_free_attrs(dev, size, cpu_addr, dma_addr, &attrs);
+	return dma_free_attrs(dev, size, cpu_addr, dma_addr,
+                               DMA_ATTR_WRITE_COMBINE);
 }
-
 static inline int dma_mmap_writecombine(struct device *dev,
 					struct vm_area_struct *vma,
 					void *cpu_addr, dma_addr_t dma_addr,
 					size_t size)
 {
-	DEFINE_DMA_ATTRS(attrs);
-	dma_set_attr(DMA_ATTR_WRITE_COMBINE, &attrs);
-	return dma_mmap_attrs(dev, vma, cpu_addr, dma_addr, size, &attrs);
+	return dma_mmap_attrs(dev, vma, cpu_addr, dma_addr, size,
+                               DMA_ATTR_WRITE_COMBINE);
 }
 #endif /* CONFIG_HAVE_DMA_ATTRS */
 

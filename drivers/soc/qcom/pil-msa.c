@@ -373,7 +373,7 @@ int __pil_mss_deinit_image(struct pil_desc *pil, bool err_path)
 						drv->q6->mba_dp_size);
 		dma_free_attrs(dma_dev, drv->q6->mba_dp_size,
 				drv->q6->mba_dp_virt, drv->q6->mba_dp_phys,
-				&drv->attrs_dma);
+				drv->attrs_dma);
 		drv->q6->mba_dp_virt = NULL;
 	}
 
@@ -611,9 +611,8 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 
 	dma_dev->coherent_dma_mask = DMA_BIT_MASK(32);
 
-	init_dma_attrs(&md->attrs_dma);
-	dma_set_attr(DMA_ATTR_SKIP_ZEROING, &md->attrs_dma);
-	dma_set_attr(DMA_ATTR_STRONGLY_ORDERED, &md->attrs_dma);
+	md->attrs_dma |= DMA_ATTR_SKIP_ZEROING;
+	md->attrs_dma |= DMA_ATTR_STRONGLY_ORDERED;
 
 	ret = request_firmware(&dp_fw, dp_name, pil->dev);
 	if (ret) {
@@ -631,7 +630,7 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 	}
 
 	mba_dp_virt = dma_alloc_attrs(dma_dev, drv->mba_dp_size, &mba_dp_phys,
-				   GFP_KERNEL, &md->attrs_dma);
+				   GFP_KERNEL, md->attrs_dma);
 	if (!mba_dp_virt) {
 		dev_err(pil->dev, "%s MBA/DP buffer allocation %zx bytes failed\n",
 				 __func__, drv->mba_dp_size);
@@ -698,7 +697,7 @@ err_mss_reset:
 							drv->mba_dp_size);
 err_mba_data:
 	dma_free_attrs(dma_dev, drv->mba_dp_size, drv->mba_dp_virt,
-				drv->mba_dp_phys, &md->attrs_dma);
+				drv->mba_dp_phys, md->attrs_dma);
 err_invalid_fw:
 	if (dp_fw)
 		release_firmware(dp_fw);
@@ -717,16 +716,16 @@ static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 	int ret;
 	u64 val = is_timeout_disabled() ? 0 : modem_auth_timeout_ms * 1000;
 	struct device *dma_dev = drv->mba_mem_dev_fixed ?: &drv->mba_mem_dev;
-	DEFINE_DMA_ATTRS(attrs);
+	unsigned long attrs = 0;
 
 
 	trace_pil_func(__func__);
 	dma_dev->coherent_dma_mask = DMA_BIT_MASK(32);
-	dma_set_attr(DMA_ATTR_SKIP_ZEROING, &attrs);
-	dma_set_attr(DMA_ATTR_STRONGLY_ORDERED, &attrs);
+        attrs |= DMA_ATTR_SKIP_ZEROING;
+        attrs |= DMA_ATTR_STRONGLY_ORDERED;
 	/* Make metadata physically contiguous and 4K aligned. */
 	mdata_virt = dma_alloc_attrs(dma_dev, size, &mdata_phys, GFP_KERNEL,
-				     &attrs);
+				     attrs);
 	if (!mdata_virt) {
 		dev_err(pil->dev, "%s MBA metadata buffer allocation %zx bytes failed\n",
 			 __func__, size);
@@ -744,7 +743,7 @@ static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 			pr_err("scm_call to unprotect modem metadata mem failed(rc:%d)\n",
 									ret);
 			dma_free_attrs(dma_dev, size, mdata_virt, mdata_phys,
-									&attrs);
+									attrs);
 			goto fail;
 		}
 	}
@@ -770,7 +769,7 @@ static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 	if (pil->subsys_vmid > 0)
 		pil_assign_mem_to_linux(pil, mdata_phys, ALIGN(size, SZ_4K));
 
-	dma_free_attrs(dma_dev, size, mdata_virt, mdata_phys, &attrs);
+	dma_free_attrs(dma_dev, size, mdata_virt, mdata_phys, attrs);
 
 	if (!ret)
 		return ret;
@@ -784,7 +783,7 @@ fail:
 						drv->q6->mba_dp_size);
 		dma_free_attrs(dma_dev, drv->q6->mba_dp_size,
 				drv->q6->mba_dp_virt, drv->q6->mba_dp_phys,
-				&drv->attrs_dma);
+				drv->attrs_dma);
 		drv->q6->mba_dp_virt = NULL;
 
 	}
@@ -858,7 +857,7 @@ static int pil_msa_mba_auth(struct pil_desc *pil)
 					drv->q6->mba_dp_size);
 			dma_free_attrs(dma_dev, drv->q6->mba_dp_size,
 				drv->q6->mba_dp_virt, drv->q6->mba_dp_phys,
-				&drv->attrs_dma);
+				drv->attrs_dma);
 
 			drv->q6->mba_dp_virt = NULL;
 		}

@@ -131,7 +131,7 @@ static int ion_secure_cma_add_to_pool(
 {
 	void *cpu_addr;
 	dma_addr_t handle;
-	DEFINE_DMA_ATTRS(attrs);
+	unsigned long attrs = 0;
 	int ret = 0;
 	struct ion_cma_alloc_chunk *chunk;
 
@@ -146,11 +146,11 @@ static int ion_secure_cma_add_to_pool(
 		goto out;
 	}
 
-	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &attrs);
-	dma_set_attr(DMA_ATTR_SKIP_ZEROING, &attrs);
+	attrs |= DMA_ATTR_NO_KERNEL_MAPPING;
+	attrs |= DMA_ATTR_SKIP_ZEROING;
 
 	cpu_addr = dma_alloc_attrs(sheap->dev, len, &handle, GFP_KERNEL,
-								&attrs);
+								attrs);
 
 	if (!cpu_addr) {
 		ret = -ENOMEM;
@@ -330,14 +330,11 @@ out:
 static void ion_secure_cma_free_chunk(struct ion_cma_secure_heap *sheap,
 					struct ion_cma_alloc_chunk *chunk)
 {
-	DEFINE_DMA_ATTRS(attrs);
-
-	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &attrs);
 	/* This region is 'allocated' and not available to allocate from */
 	bitmap_set(sheap->bitmap, (chunk->handle - sheap->base) >> PAGE_SHIFT,
 			chunk->chunk_size >> PAGE_SHIFT);
 	dma_free_attrs(sheap->dev, chunk->chunk_size, chunk->cpu_addr,
-				chunk->handle, &attrs);
+				chunk->handle, DMA_ATTR_NO_KERNEL_MAPPING);
 	atomic_sub(chunk->chunk_size, &sheap->total_pool_size);
 	list_del(&chunk->entry);
 	kfree(chunk);

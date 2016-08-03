@@ -592,13 +592,12 @@ static int pil_alloc_region(struct pil_priv *priv, phys_addr_t min_addr,
 	else
 		aligned_size = ALIGN(size, SZ_1M);
 
-	init_dma_attrs(&priv->desc->attrs);
-	dma_set_attr(DMA_ATTR_SKIP_ZEROING, &priv->desc->attrs);
-	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &priv->desc->attrs);
+	priv->desc->attrs |= DMA_ATTR_SKIP_ZEROING;
+	priv->desc->attrs |= DMA_ATTR_NO_KERNEL_MAPPING;
 
 	region = dma_alloc_attrs(priv->desc->dev, aligned_size,
 				&priv->region_start, GFP_KERNEL,
-				&priv->desc->attrs);
+				priv->desc->attrs);
 
 	if (region == NULL) {
 		pil_err(priv->desc, "Failed to allocate relocatable region of size %zx\n",
@@ -725,7 +724,7 @@ static int pil_init_mmap(struct pil_desc *desc, const struct pil_mdt *mdt)
 
 struct pil_map_fw_info {
 	void *region;
-	struct dma_attrs attrs;
+	unsigned long attrs;
 	phys_addr_t base_addr;
 	struct device *dev;
 };
@@ -784,7 +783,7 @@ static void *map_fw_mem(phys_addr_t paddr, size_t size, void *data)
 	struct pil_map_fw_info *info = data;
 
 	return dma_remap(info->dev, info->region, paddr, size,
-					&info->attrs);
+					info->attrs);
 }
 
 static void unmap_fw_mem(void *vaddr, size_t size, void *data)
@@ -1082,7 +1081,7 @@ out:
 				pil_clear_segment(desc);
 			dma_free_attrs(desc->dev, priv->region_size,
 					priv->region, priv->region_start,
-					&desc->attrs);
+					desc->attrs);
 			priv->region = NULL;
 		}
 		pil_release_mmap(desc);
@@ -1131,7 +1130,7 @@ void pil_free_memory(struct pil_desc *desc)
 			pil_assign_mem_to_linux(desc, priv->region_start,
 				(priv->region_end - priv->region_start));
 		dma_free_attrs(desc->dev, priv->region_size,
-				priv->region, priv->region_start, &desc->attrs);
+				priv->region, priv->region_start, desc->attrs);
 		priv->region = NULL;
 	}
 }

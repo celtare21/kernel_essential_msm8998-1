@@ -466,16 +466,16 @@ static int dma_alloc_memory(phys_addr_t *region_start, size_t size)
 {
 	struct fastrpc_apps *me = &gfa;
 	void *vaddr = NULL;
-	DEFINE_DMA_ATTRS(attrs);
+	unsigned long attrs = 0;
 
 	if (me->dev == NULL) {
 		pr_err("device adsprpc-mem is not initialized\n");
 		return -ENODEV;
 	}
-	dma_set_attr(DMA_ATTR_SKIP_ZEROING, &attrs);
-	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &attrs);
+	attrs |= DMA_ATTR_SKIP_ZEROING;
+	attrs |= DMA_ATTR_NO_KERNEL_MAPPING;
 	vaddr = dma_alloc_attrs(me->dev, size, region_start, GFP_KERNEL,
-						&attrs);
+						attrs);
 	if (!vaddr) {
 		pr_err("ADSPRPC: Failed to allocate %x remote heap memory\n",
 						(unsigned int)size);
@@ -552,17 +552,18 @@ static void fastrpc_mmap_free(struct fastrpc_mmap *map)
 		return;
 	if (map->flags == ADSP_MMAP_HEAP_ADDR ||
 				map->flags == ADSP_MMAP_REMOTE_HEAP_ADDR) {
-		DEFINE_DMA_ATTRS(attrs);
+
+		unsigned long attrs = 0;
 
 		if (me->dev == NULL) {
 			pr_err("failed to free remote heap allocation\n");
 			return;
 		}
 		if (map->phys) {
-			dma_set_attr(DMA_ATTR_SKIP_ZEROING, &attrs);
-			dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &attrs);
+			attrs |= DMA_ATTR_SKIP_ZEROING;
+			attrs |= DMA_ATTR_NO_KERNEL_MAPPING;
 			dma_free_attrs(me->dev, map->size,
-					&(map->va), map->phys,	&attrs);
+					&(map->va), map->phys, attrs);
 		}
 	} else {
 		int destVM[1] = {VMID_HLOS};
@@ -613,7 +614,7 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, unsigned attr,
 	int cid = fl->cid;
 	struct fastrpc_channel_ctx *chan = &apps->channel[cid];
 	struct fastrpc_mmap *map = NULL;
-	struct dma_attrs attrs;
+	unsigned long attrs;
 	phys_addr_t region_start = 0;
 	unsigned long flags;
 	int err = 0, vmid;
@@ -683,20 +684,17 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, unsigned attr,
 		if (err)
 			goto bail;
 		if (sess->smmu.enabled) {
-			init_dma_attrs(&attrs);
-			dma_set_attr(DMA_ATTR_EXEC_MAPPING, &attrs);
-
+			attrs |= DMA_ATTR_EXEC_MAPPING;
 			if ((map->attr & FASTRPC_ATTR_NON_COHERENT) ||
 				(sess->smmu.coherent && map->uncached))
-				dma_set_attr(DMA_ATTR_FORCE_NON_COHERENT,
-								 &attrs);
+				attrs |= DMA_ATTR_FORCE_NON_COHERENT;
 			else if (map->attr & FASTRPC_ATTR_COHERENT)
-				dma_set_attr(DMA_ATTR_FORCE_COHERENT, &attrs);
+				attrs |= DMA_ATTR_FORCE_COHERENT;
 
 			VERIFY(err, map->table->nents ==
 					msm_dma_map_sg_attrs(sess->smmu.dev,
 					map->table->sgl, map->table->nents,
-					DMA_BIDIRECTIONAL, map->buf, &attrs));
+					DMA_BIDIRECTIONAL, map->buf, attrs));
 			if (err)
 				goto bail;
 		} else {

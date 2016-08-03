@@ -33,22 +33,22 @@
 #define FAST_PTE_SH_OS             (((av8l_fast_iopte)2) << FAST_PTE_SH_SHIFT)
 #define FAST_PTE_SH_IS             (((av8l_fast_iopte)3) << FAST_PTE_SH_SHIFT)
 
-static pgprot_t __get_dma_pgprot(struct dma_attrs *attrs, pgprot_t prot,
+static pgprot_t __get_dma_pgprot(unsigned long attrs, pgprot_t prot,
 				 bool coherent)
 {
-	if (dma_get_attr(DMA_ATTR_STRONGLY_ORDERED, attrs))
+	if (attrs & DMA_ATTR_STRONGLY_ORDERED)
 		return pgprot_noncached(prot);
-	else if (!coherent || dma_get_attr(DMA_ATTR_WRITE_COMBINE, attrs))
+	else if (!coherent || (attrs & DMA_ATTR_WRITE_COMBINE))
 		return pgprot_writecombine(prot);
 	return prot;
 }
 
-static int __get_iommu_pgprot(struct dma_attrs *attrs, int prot,
+static int __get_iommu_pgprot(unsigned long attrs, int prot,
 			      bool coherent)
 {
-	if (!dma_get_attr(DMA_ATTR_EXEC_MAPPING, attrs))
+	if ((attrs & DMA_ATTR_EXEC_MAPPING) == 0)
 		prot |= IOMMU_NOEXEC;
-	if (dma_get_attr(DMA_ATTR_STRONGLY_ORDERED, attrs))
+	if (attrs & DMA_ATTR_STRONGLY_ORDERED)
 		prot |= IOMMU_DEVICE;
 	if (coherent)
 		prot |= IOMMU_CACHE;
@@ -77,13 +77,13 @@ static bool __fast_is_pte_coherent(av8l_fast_iopte *ptep)
 	return false;
 }
 
-static bool is_dma_coherent(struct device *dev, struct dma_attrs *attrs)
+static bool is_dma_coherent(struct device *dev, unsigned long attrs)
 {
 	bool is_coherent;
 
-	if (dma_get_attr(DMA_ATTR_FORCE_COHERENT, attrs))
+	if (attrs & DMA_ATTR_FORCE_COHERENT)
 		is_coherent = true;
-	else if (dma_get_attr(DMA_ATTR_FORCE_NON_COHERENT, attrs))
+	else if (attrs & DMA_ATTR_FORCE_NON_COHERENT)
 		is_coherent = false;
 	else if (is_device_dma_coherent(dev))
 		is_coherent = true;
@@ -149,7 +149,7 @@ static bool __bit_covered_stale(unsigned long upcoming_stale,
 }
 
 static dma_addr_t __fast_smmu_alloc_iova(struct dma_fast_smmu_mapping *mapping,
-					 struct dma_attrs *attrs,
+					 unsigned long attrs,
 					 size_t size)
 {
 	unsigned long bit, prev_search_start, nbits = size >> FAST_PAGE_SHIFT;
@@ -184,7 +184,7 @@ static dma_addr_t __fast_smmu_alloc_iova(struct dma_fast_smmu_mapping *mapping,
 	    __bit_covered_stale(mapping->upcoming_stale_bit,
 				prev_search_start,
 				bit + nbits - 1)) {
-		bool skip_sync = dma_get_attr(DMA_ATTR_SKIP_CPU_SYNC, attrs);
+		bool skip_sync = (attrs & DMA_ATTR_SKIP_CPU_SYNC);
 
 		iommu_tlbiall(mapping->domain);
 		mapping->have_stale_tlbs = false;
@@ -341,7 +341,7 @@ static int __fast_dma_direction_to_prot(enum dma_data_direction dir)
 static dma_addr_t fast_smmu_map_page(struct device *dev, struct page *page,
 				   unsigned long offset, size_t size,
 				   enum dma_data_direction dir,
-				   struct dma_attrs *attrs)
+				   unsigned long attrs)
 {
 	struct dma_fast_smmu_mapping *mapping = dev->archdata.mapping->fast;
 	dma_addr_t iova;
@@ -352,7 +352,7 @@ static dma_addr_t fast_smmu_map_page(struct device *dev, struct page *page,
 	unsigned long offset_from_phys_to_map = phys_plus_off & ~FAST_PAGE_MASK;
 	size_t len = ALIGN(size + offset_from_phys_to_map, FAST_PAGE_SIZE);
 	int nptes = len >> FAST_PAGE_SHIFT;
-	bool skip_sync = dma_get_attr(DMA_ATTR_SKIP_CPU_SYNC, attrs);
+	bool skip_sync = (attrs & DMA_ATTR_SKIP_CPU_SYNC);
 	int prot = __fast_dma_direction_to_prot(dir);
 	bool is_coherent = is_dma_coherent(dev, attrs);
 
@@ -389,7 +389,7 @@ fail:
 
 static void fast_smmu_unmap_page(struct device *dev, dma_addr_t iova,
 			       size_t size, enum dma_data_direction dir,
-			       struct dma_attrs *attrs)
+			       unsigned long attrs)
 {
 	struct dma_fast_smmu_mapping *mapping = dev->archdata.mapping->fast;
 	unsigned long flags;
@@ -400,7 +400,7 @@ static void fast_smmu_unmap_page(struct device *dev, dma_addr_t iova,
 	size_t len = ALIGN(size + offset, FAST_PAGE_SIZE);
 	int nptes = len >> FAST_PAGE_SHIFT;
 	struct page *page = phys_to_page((*pmd & FAST_PTE_ADDR_MASK));
-	bool skip_sync = dma_get_attr(DMA_ATTR_SKIP_CPU_SYNC, attrs);
+	bool skip_sync = (attrs & DMA_ATTR_SKIP_CPU_SYNC);
 	bool is_coherent = is_dma_coherent(dev, attrs);
 
 	if (!skip_sync && !is_coherent)
@@ -443,7 +443,7 @@ static void fast_smmu_sync_single_for_device(struct device *dev,
 
 static int fast_smmu_map_sg(struct device *dev, struct scatterlist *sg,
 			    int nents, enum dma_data_direction dir,
-			    struct dma_attrs *attrs)
+			    unsigned long attrs)
 {
 	return -EINVAL;
 }
@@ -451,7 +451,7 @@ static int fast_smmu_map_sg(struct device *dev, struct scatterlist *sg,
 static void fast_smmu_unmap_sg(struct device *dev,
 			       struct scatterlist *sg, int nents,
 			       enum dma_data_direction dir,
-			       struct dma_attrs *attrs)
+			       unsigned long attrs)
 {
 	WARN_ON_ONCE(1);
 }
@@ -504,7 +504,7 @@ static struct page **__fast_smmu_alloc_pages(unsigned int count, gfp_t gfp)
 
 static void *fast_smmu_alloc(struct device *dev, size_t size,
 			     dma_addr_t *handle, gfp_t gfp,
-			     struct dma_attrs *attrs)
+			     unsigned long attrs)
 {
 	struct dma_fast_smmu_mapping *mapping = dev->archdata.mapping->fast;
 	struct sg_table sgt;
@@ -608,7 +608,7 @@ out_free_pages:
 
 static void fast_smmu_free(struct device *dev, size_t size,
 			   void *vaddr, dma_addr_t dma_handle,
-			   struct dma_attrs *attrs)
+			   unsigned long attrs)
 {
 	struct dma_fast_smmu_mapping *mapping = dev->archdata.mapping->fast;
 	struct vm_struct *area;
@@ -637,7 +637,7 @@ static void fast_smmu_free(struct device *dev, size_t size,
 
 static int fast_smmu_mmap_attrs(struct device *dev, struct vm_area_struct *vma,
 				void *cpu_addr, dma_addr_t dma_addr,
-				size_t size, struct dma_attrs *attrs)
+				size_t size, unsigned long attrs)
 {
 	struct vm_struct *area;
 	unsigned long uaddr = vma->vm_start;

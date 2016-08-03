@@ -16,7 +16,6 @@
 #include <asm/dma-iommu.h>
 #include <asm/cacheflush.h>
 #include <linux/dma-direction.h>
-#include <linux/dma-attrs.h>
 #include <linux/of_platform.h>
 #include <linux/iommu.h>
 #include <linux/slab.h>
