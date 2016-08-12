@@ -179,6 +179,8 @@ struct scsi_device {
 
 #define SCSI_DEFAULT_AUTOSUSPEND_DELAY  -1
 	int autosuspend_delay;
+	/* If non-zero, use timeout (in jiffies) for all commands */
+	unsigned int timeout_override;
 
 	atomic_t disk_events_disable_depth; /* disable depth for disk events */
 
@@ -420,6 +422,8 @@ static inline int scsi_execute_req(struct scsi_device *sdev,
 }
 extern void sdev_disable_disk_events(struct scsi_device *sdev);
 extern void sdev_enable_disk_events(struct scsi_device *sdev);
+extern void scsi_set_cmd_timeout_override(struct scsi_device *sdev,
+					  unsigned int timeout);
 
 #ifdef CONFIG_PM
 extern int scsi_autopm_get_device(struct scsi_device *);
