@@ -105,7 +105,16 @@ ENTRY(cpu_do_resume)
 
 	msr	tcr_el1, x8
 	msr	vbar_el1, x9
+
+	/*
+	 * __cpu_setup() cleared MDSCR_EL1.MDE and friends, before unmasking
+	 * debug exceptions. By restoring MDSCR_EL1 here, we may take a debug
+	 * exception. Mask them until local_dbg_restore() in cpu_suspend()
+	 * resets them.
+	 */
+	disable_dbg
 	msr	mdscr_el1, x10
+
 	msr	sctlr_el1, x12
 	msr	tpidr_el1, x13
 	msr	sp_el0, x14
