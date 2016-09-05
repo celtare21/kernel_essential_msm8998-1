@@ -204,5 +204,7 @@ static inline int arch_spin_is_contended(arch_spinlock_t *lock)
  * smp_mb__before_spinlock() can restore the required ordering.
  */
 #define smp_mb__before_spinlock()	smp_mb()
+/* See include/linux/spinlock.h */
+#define smp_mb__after_spinlock()	smp_mb()
 
 #endif /* __ASM_SPINLOCK_H */
