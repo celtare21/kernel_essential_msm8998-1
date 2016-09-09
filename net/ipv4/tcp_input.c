@@ -4506,6 +4506,12 @@ coalesce_done:
 		skb = NULL;
 		goto add_sack;
 	}
+	/* Can avoid an rbtree lookup if we are adding skb after ooo_last_skb */
+	if (!before(seq, TCP_SKB_CB(tp->ooo_last_skb)->end_seq)) {
+		parent = &tp->ooo_last_skb->rbnode;
+		p = &parent->rb_right;
+		goto insert;
+	}
 
 	/* Find place to insert this segment. Handle overlaps on the way. */
 	parent = NULL;
@@ -4550,7 +4556,7 @@ coalesce_done:
 		}
 		p = &parent->rb_right;
 	}
-
+insert:
 	/* Insert segment into RB tree. */
 	rb_link_node(&skb->rbnode, parent, p);
 	rb_insert_color(&skb->rbnode, &tp->out_of_order_queue);
