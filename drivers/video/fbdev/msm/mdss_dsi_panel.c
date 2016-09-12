@@ -952,6 +952,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	struct dsi_panel_cmds *on_cmds;
 	int ret = 0;
 	u8 pwr_mode = 0;
+	static int panel_recovery_retry;
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -999,7 +1000,14 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 			pr_err("%s: Panel recovery FAILED!!\n", __func__);
 
 		pdata->panel_info.panel_dead = true;
-	}
+
+		if (panel_recovery_retry++ > 5) {
+			pr_err("%s: panel recovery failed for all retries",
+					__func__);
+			BUG();
+		}
+	} else
+		panel_recovery_retry = 0;
 
 	if (pdata->event_handler)
 		pdata->event_handler(pdata, MDSS_EVENT_UPDATE_LIVEDISPLAY,
