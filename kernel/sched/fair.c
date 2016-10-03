@@ -10819,6 +10819,7 @@ void online_fair_sched_group(struct task_group *tg)
 		se = tg->se[i];
 
 		raw_spin_lock_irq(&rq->lock);
+                update_rq_clock(rq);
 		post_init_entity_util_avg(se);
 		sync_throttle(tg, i);
 		raw_spin_unlock_irq(&rq->lock);
