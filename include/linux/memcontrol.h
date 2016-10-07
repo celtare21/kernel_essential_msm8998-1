@@ -318,6 +318,9 @@ bool task_in_mem_cgroup(struct task_struct *task, struct mem_cgroup *memcg);
 struct mem_cgroup *mem_cgroup_from_task(struct task_struct *p);
 struct mem_cgroup *parent_mem_cgroup(struct mem_cgroup *memcg);
 
+int mem_cgroup_scan_tasks(struct mem_cgroup *,
+			  int (*)(struct task_struct *, void *), void *);
+
 static inline
 struct mem_cgroup *mem_cgroup_from_css(struct cgroup_subsys_state *css){
 	return css ? container_of(css, struct mem_cgroup, css) : NULL;
@@ -411,6 +414,8 @@ static inline bool mem_cgroup_inactive_anon_is_low(struct lruvec *lruvec)
 }
 
 void mem_cgroup_handle_over_high(void);
+
+unsigned long mem_cgroup_get_limit(struct mem_cgroup *memcg);
 
 void mem_cgroup_print_oom_info(struct mem_cgroup *memcg,
 				struct task_struct *p);
@@ -517,6 +522,17 @@ static inline bool mem_cgroup_low(struct mem_cgroup *root,
 				  struct mem_cgroup *memcg)
 {
 	return false;
+}
+
+static inline int mem_cgroup_scan_tasks(struct mem_cgroup *memcg,
+		int (*fn)(struct task_struct *, void *), void *arg)
+{
+	return 0;
+}
+
+static inline unsigned long mem_cgroup_get_limit(struct mem_cgroup *memcg)
+{
+	return 0;
 }
 
 static inline int mem_cgroup_try_charge(struct page *page, struct mm_struct *mm,
