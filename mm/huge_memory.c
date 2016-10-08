@@ -1905,7 +1905,7 @@ static int __split_huge_page_map(struct page *page,
 			 * transferred to avoid any possibility of altering
 			 * permissions across VMAs.
 			 */
-			entry = mk_pte(page + i, vma->vm_page_prot);
+			entry = mk_pte(page + i, READ_ONCE(vma->vm_page_prot));
 			entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 			if (!pmd_write(*pmd))
 				entry = pte_wrprotect(entry);
