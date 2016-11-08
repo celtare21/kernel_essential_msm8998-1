@@ -220,6 +220,7 @@ enum rq_flag_bits {
 	__REQ_MQ_INFLIGHT,	/* track inflight for MQ */
 	__REQ_NO_TIMEOUT,	/* requests may never expire */
 	__REQ_URGENT,		/* urgent request */
+	__REQ_STATS,		/* stats */
 	__REQ_NR_BITS,		/* stops here */
 };
 
@@ -235,6 +236,7 @@ enum rq_flag_bits {
 #define REQ_URGENT		(1ULL << __REQ_URGENT)
 #define REQ_NOIDLE		(1ULL << __REQ_NOIDLE)
 #define REQ_INTEGRITY		(1ULL << __REQ_INTEGRITY)
+#define REQ_STATS		(1ULL << __REQ_STATS)
 
 #define REQ_FAILFAST_MASK \
 	(REQ_FAILFAST_DEV | REQ_FAILFAST_TRANSPORT | REQ_FAILFAST_DRIVER)
@@ -301,5 +303,21 @@ static inline unsigned int blk_qc_t_to_tag(blk_qc_t cookie)
 {
 	return cookie & ((1u << BLK_QC_T_SHIFT) - 1);
 }
+
+struct blk_issue_stat {
+	u64 time;
+};
+
+#define BLK_RQ_STAT_BATCH	64
+
+struct blk_rq_stat {
+	s64 mean;
+	u64 min;
+	u64 max;
+	s32 nr_samples;
+	s32 nr_batch;
+	u64 batch;
+	s64 time;
+};
 
 #endif /* __LINUX_BLK_TYPES_H */
