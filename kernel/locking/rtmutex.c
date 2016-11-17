@@ -1431,7 +1431,7 @@ rt_mutex_fastunlock(struct rt_mutex *lock,
 		    bool (*slowfn)(struct rt_mutex *lock,
 				   struct wake_q_head *wqh))
 {
-	WAKE_Q(wake_q);
+        DEFINE_WAKE_Q(wake_q);
 	bool deboost;
 
 	if (likely(rt_mutex_cmpxchg_release(lock, current, NULL)))
