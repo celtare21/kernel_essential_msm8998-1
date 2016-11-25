@@ -48,6 +48,9 @@
 #define MAX_TIME_RESOLUTION 0xFFFFFF
 #define DEFAULT_TIME_RESOLUTION 0x7530
 
+/* From leds-qpnp-haptics.c */
+extern void qpnp_disable_haptics(bool disable);
+
 /*
  * Default 601 to 709 conversion coefficients for resolution: 176x144 negative
  * coeffs are converted to s4.9 format (e.g. -22 converted to ((1 << 13) - 22)
@@ -1952,6 +1955,7 @@ static int msm_venc_start_streaming(struct vb2_queue *q, unsigned int count)
 		goto stream_start_failed;
 	}
 
+	qpnp_disable_haptics(true);
 stream_start_failed:
 	if (rc) {
 		list_for_each_entry(vb, &q->queued_list, queued_entry) {
@@ -2001,6 +2005,8 @@ static void msm_venc_stop_streaming(struct vb2_queue *q)
 		dprintk(VIDC_ERR,
 			"Failed to move inst: %pK, cap = %d to state: %d\n",
 			inst, q->type, MSM_VIDC_CLOSE_DONE);
+
+	qpnp_disable_haptics(false);
 }
 
 static void msm_venc_buf_queue(struct vb2_buffer *vb)
