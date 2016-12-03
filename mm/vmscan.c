@@ -2374,6 +2374,8 @@ static void shrink_lruvec(struct lruvec *lruvec, int swappiness,
 			}
 		}
 
+		cond_resched();
+
 		if (nr_reclaimed < nr_to_reclaim || scan_adjusted)
 			continue;
 
