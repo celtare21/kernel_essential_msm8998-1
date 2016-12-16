@@ -7,7 +7,12 @@ struct device;
 struct dma_attrs;
 struct scatterlist;
 
-extern int swiotlb_force;
+enum swiotlb_force {
+	SWIOTLB_NORMAL,		/* Default - depending on HW DMA mask etc. */
+	SWIOTLB_FORCE,		/* swiotlb=force */
+};
+
+extern enum swiotlb_force swiotlb_force;
 
 /*
  * Maximum allowable number of contiguous slabs to map,
