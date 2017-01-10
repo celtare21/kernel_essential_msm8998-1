@@ -120,23 +120,27 @@ EXPORT_SYMBOL(rcu_read_lock_sched_held);
  * that if the user specifies both rcu_expedited and rcu_normal, then
  * rcu_normal wins.
  */
+
 bool rcu_gp_is_normal(void)
 {
-	return READ_ONCE(rcu_normal);
+ 	return READ_ONCE(rcu_normal) &&
+ 	       rcu_scheduler_active != RCU_SCHEDULER_INIT;
 }
+EXPORT_SYMBOL_GPL(rcu_gp_is_normal);
 
 static atomic_t rcu_expedited_nesting = ATOMIC_INIT(1);
 
 /*
  * Should normal grace-period primitives be expedited?  Intended for
  * use within RCU.  Note that this function takes the rcu_expedited
- * sysfs/boot variable into account as well as the rcu_expedite_gp()
- * nesting.  So looping on rcu_unexpedite_gp() until rcu_gp_is_expedited()
- * returns false is a -really- bad idea.
+ * sysfs/boot variable and rcu_scheduler_active into account as well
+ * as the rcu_expedite_gp() nesting.  So looping on rcu_unexpedite_gp()
+ * until rcu_gp_is_expedited() returns false is a -really- bad idea.
  */
 bool rcu_gp_is_expedited(void)
 {
-	return rcu_expedited || atomic_read(&rcu_expedited_nesting);
+	return rcu_expedited || atomic_read(&rcu_expedited_nesting) ||
+	       rcu_scheduler_active == RCU_SCHEDULER_INIT;
 }
 EXPORT_SYMBOL_GPL(rcu_gp_is_expedited);
 
@@ -249,7 +253,7 @@ EXPORT_SYMBOL_GPL(rcu_callback_map);
 
 int notrace debug_lockdep_rcu_enabled(void)
 {
-	return rcu_scheduler_active && debug_locks &&
+	return rcu_scheduler_active != RCU_SCHEDULER_INACTIVE && debug_locks &&
 	       current->lockdep_recursion == 0;
 }
 EXPORT_SYMBOL_GPL(debug_lockdep_rcu_enabled);
@@ -583,7 +587,7 @@ EXPORT_SYMBOL_GPL(call_rcu_tasks);
 void synchronize_rcu_tasks(void)
 {
 	/* Complain if the scheduler has not started.  */
-	RCU_LOCKDEP_WARN(!rcu_scheduler_active,
+	RCU_LOCKDEP_WARN(rcu_scheduler_active == RCU_SCHEDULER_INACTIVE,
 			 "synchronize_rcu_tasks called too soon");
 
 	/* Wait for the grace period. */
@@ -805,6 +809,23 @@ static void rcu_spawn_tasks_kthread(void)
 
 #endif /* #ifdef CONFIG_TASKS_RCU */
 
+/*
+ * Test each non-SRCU synchronous grace-period wait API.  This is
+ * useful just after a change in mode for these primitives, and
+ * during early boot.
+ */
+void rcu_test_sync_prims(void)
+{
+	if (!IS_ENABLED(CONFIG_PROVE_RCU))
+		return;
+	synchronize_rcu();
+	synchronize_rcu_bh();
+	synchronize_sched();
+	synchronize_rcu_expedited();
+	synchronize_rcu_bh_expedited();
+	synchronize_sched_expedited();
+}
+
 #ifdef CONFIG_PROVE_RCU
 
 /*
@@ -857,6 +878,7 @@ void rcu_early_boot_tests(void)
 		early_boot_test_call_rcu_bh();
 	if (rcu_self_test_sched)
 		early_boot_test_call_rcu_sched();
+	rcu_test_sync_prims();
 }
 
 static int rcu_verify_early_boot_tests(void)
