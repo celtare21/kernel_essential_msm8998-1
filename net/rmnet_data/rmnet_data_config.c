@@ -545,6 +545,11 @@ void rmnet_config_netlink_msg_handler(struct sk_buff *skb)
 				       sizeof(struct rmnet_nl_msg_s)))
 		return;
 
+	if (!nlmsg_header->nlmsg_pid ||
+	    (nlmsg_header->nlmsg_len < sizeof(struct nlmsghdr) +
+				       sizeof(struct rmnet_nl_msg_s)))
+		return;
+
 	LOGL("Netlink message pid=%d, seq=%d, length=%d, rmnet_type=%d",
 		nlmsg_header->nlmsg_pid,
 		nlmsg_header->nlmsg_seq,
