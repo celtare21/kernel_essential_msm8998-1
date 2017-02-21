@@ -1223,7 +1223,7 @@ void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
 	p->sched_class->set_cpus_allowed(p, new_mask);
 
 	if (queued)
-		enqueue_task(rq, p, ENQUEUE_RESTORE);
+		enqueue_task(rq, p, ENQUEUE_RESTORE | ENQUEUE_NOCLOCK);
 	if (running)
 		p->sched_class->set_curr_task(rq);
 }
@@ -3991,7 +3991,7 @@ void set_user_nice(struct task_struct *p, long nice)
 	delta = p->prio - old_prio;
 
 	if (queued) {
-		enqueue_task(rq, p, ENQUEUE_RESTORE);
+		enqueue_task(rq, p, ENQUEUE_RESTORE | ENQUEUE_NOCLOCK);
 		/*
 		 * If the task increased its priority or is running and
 		 * lowered its priority, then reschedule its CPU:
@@ -5691,7 +5691,7 @@ void sched_setnuma(struct task_struct *p, int nid)
 	p->numa_preferred_nid = nid;
 
 	if (queued)
-		enqueue_task(rq, p, ENQUEUE_RESTORE);
+		enqueue_task(rq, p, ENQUEUE_RESTORE | ENQUEUE_NOCLOCK);
 	if (running)
 		p->sched_class->set_curr_task(rq);
         task_rq_unlock(rq, p, &flags);
@@ -8423,7 +8423,7 @@ void sched_move_task(struct task_struct *tsk)
 	sched_change_group(tsk, TASK_MOVE_GROUP);
 
 	if (queued)
-		enqueue_task(rq, tsk, ENQUEUE_RESTORE | ENQUEUE_MOVE);
+                enqueue_task(rq, tsk, ENQUEUE_RESTORE | ENQUEUE_MOVE | ENQUEUE_NOCLOCK);
         if (running)
 		tsk->sched_class->set_curr_task(rq);
 
