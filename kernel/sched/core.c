@@ -4364,9 +4364,9 @@ static int __sched_setscheduler(struct task_struct *p,
 	int reset_on_fork;
 	int queue_flags = DEQUEUE_SAVE | DEQUEUE_MOVE | DEQUEUE_NOCLOCK;
 
-	/* may grab non-irq protected spin_locks */
+        /* The pi code expects interrupts enabled */
 	if (pi)
-		BUG_ON(in_interrupt());
+	BUG_ON(pi && in_interrupt());
 recheck:
 	/* double check policy once rq lock held */
 	if (policy < 0) {
