@@ -69,6 +69,7 @@ struct msm_pinctrl {
 
 	const struct msm_pinctrl_soc_data *soc;
 	void __iomem *regs;
+	void __iomem *regs_direct;
 };
 
 static struct msm_pinctrl *msm_pinctrl_data;
@@ -1006,6 +1007,7 @@ int msm_pinctrl_probe(struct platform_device *pdev,
 	pctrl->regs = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(pctrl->regs))
 		return PTR_ERR(pctrl->regs);
+	pctrl->regs_direct = pctrl->regs + soc_data->dir_connect_offset;
 
 	msm_pinctrl_setup_pm_reset(pctrl);
 
@@ -1035,6 +1037,8 @@ int msm_pinctrl_probe(struct platform_device *pdev,
 	register_syscore_ops(&msm_pinctrl_pm_ops);
 	dev_dbg(&pdev->dev, "Probed Qualcomm pinctrl driver\n");
 
+	msm_pinctrl_data = pctrl;
+
 	return 0;
 }
 EXPORT_SYMBOL(msm_pinctrl_probe);
@@ -1042,6 +1046,8 @@ EXPORT_SYMBOL(msm_pinctrl_probe);
 int msm_pinctrl_remove(struct platform_device *pdev)
 {
 	struct msm_pinctrl *pctrl = platform_get_drvdata(pdev);
+
+	msm_pinctrl_data = NULL;
 
 	gpiochip_remove(&pctrl->chip);
 	pinctrl_unregister(pctrl->pctrl);
@@ -1053,3 +1059,57 @@ int msm_pinctrl_remove(struct platform_device *pdev)
 }
 EXPORT_SYMBOL(msm_pinctrl_remove);
 
+static inline void set_gpio_bits(unsigned int n, void __iomem *reg)
+{
+	__raw_writel_no_log(__raw_readl_no_log(reg) | n, reg);
+}
+
+static void __msm_gpio_install_direct_irq(struct msm_pinctrl *pctrl,
+					  unsigned int gpio,
+					  unsigned int irq,
+					  unsigned int input_polarity)
+{
+	unsigned int cfg;
+	const struct msm_pingroup *g;
+
+	g = &pctrl->soc->groups[gpio];
+
+	set_gpio_bits(BIT(g->oe_bit), pctrl->regs + g->ctl_reg);
+	cfg = __raw_readl_no_log(pctrl->regs + g->intr_cfg_reg);
+	cfg &= ~(7 << g->intr_target_bit | BIT(g->intr_raw_status_bit)
+			| BIT(g->intr_enable_bit));
+	cfg |= g->intr_target_kpss_val << g->intr_target_bit
+		| BIT(g->dir_conn_en_bit);
+	__raw_writel_no_log(cfg, pctrl->regs + g->intr_cfg_reg);
+
+	cfg = gpio;
+	if (input_polarity)
+		cfg |= BIT(8);
+	__raw_writel_no_log(cfg, pctrl->regs_direct + 0x4 * irq);
+}
+
+int msm_gpio_install_direct_irq(unsigned int gpio,
+				unsigned int irq,
+				unsigned int input_polarity)
+{
+	unsigned long irq_flags;
+	const struct msm_pingroup *g;
+	struct msm_pinctrl *pctrl = msm_pinctrl_data;
+
+	if (!pctrl)
+		return -EINVAL;
+
+	g = &pctrl->soc->groups[gpio];
+
+	if (gpio >= pctrl->chip.ngpio || irq > pctrl->soc->dir_connect_num_irqs
+			|| g->dir_conn_en_bit == -1)
+		return -EINVAL;
+
+	spin_lock_irqsave(&pctrl->lock, irq_flags);
+	__msm_gpio_install_direct_irq(pctrl, gpio, irq, input_polarity);
+	mb(); /* ensure configuration take effect before we unlock it */
+	spin_unlock_irqrestore(&pctrl->lock, irq_flags);
+
+	return 0;
+}
+EXPORT_SYMBOL(msm_gpio_install_direct_irq);
