@@ -76,6 +76,7 @@ extern unsigned int boot_reason;
 extern unsigned int cold_boot;
 
 struct debug_info {
+#ifdef CONFIG_HAVE_HW_BREAKPOINT
 	/* Have we suspended stepping by a debugger? */
 	int			suspended_step;
 	/* Allow breakpoints and watchpoints to be disabled for this thread. */
@@ -84,6 +85,7 @@ struct debug_info {
 	/* Hardware breakpoints pinned to this task. */
 	struct perf_event	*hbp_break[ARM_MAX_BRP];
 	struct perf_event	*hbp_watch[ARM_MAX_WRP];
+#endif
 };
 
 struct cpu_context {
