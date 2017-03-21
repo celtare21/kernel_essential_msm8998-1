@@ -47,7 +47,7 @@
 */
 
 
-//#define USE_INT
+#define USE_INT
 /* #define DEBUG_TIME_LOG */
 #ifdef DEBUG_TIME_LOG
 struct timeval start_tv, stop_tv;
