@@ -851,6 +851,10 @@ blk_init_allocated_queue(struct request_queue *q, request_fn_proc *rfn,
 	if (!q)
 		return NULL;
 
+	q->stats = blk_alloc_queue_stats();
+	if (!q->stats)
+		return -ENOMEM;
+
 	q->fq = blk_alloc_flush_queue(q, NUMA_NO_NODE, 0);
 	if (!q->fq)
 		return NULL;
@@ -3276,7 +3280,7 @@ void blk_finish_request(struct request *req, int error)
 	struct request_queue *q = req->q;
 
 	if (req->cmd_flags & REQ_STATS)
-		blk_stat_add(&q->rq_stats[rq_data_dir(req)], req);
+		blk_stat_add(req);
 
 	if (req->cmd_flags & RQF_QUEUED)
 		blk_queue_end_tag(q, req);

@@ -444,26 +444,6 @@ static ssize_t queue_dax_show(struct request_queue *q, char *page)
 	return queue_var_show(blk_queue_dax(q), page);
 }
 
-static ssize_t print_stat(char *page, struct blk_rq_stat *stat, const char *pre)
-{
-	return sprintf(page, "%s samples=%llu, mean=%lld, min=%lld, max=%lld\n",
-			pre, (long long) stat->nr_samples,
-			(long long) stat->mean, (long long) stat->min,
-			(long long) stat->max);
-}
-
-static ssize_t queue_stats_show(struct request_queue *q, char *page)
-{
-	struct blk_rq_stat stat[2];
-	ssize_t ret;
-
-	blk_queue_stat_get(q, stat);
-
-	ret = print_stat(page, &stat[READ], "read :");
-	ret += print_stat(page + ret, &stat[WRITE], "write:");
-	return ret;
-}
-
 static struct queue_sysfs_entry queue_requests_entry = {
 	.attr = {.name = "nr_requests", .mode = S_IRUGO | S_IWUSR },
 	.show = queue_requests_show,
@@ -606,11 +586,6 @@ static struct queue_sysfs_entry queue_dax_entry = {
 	.show = queue_dax_show,
 };
 
-static struct queue_sysfs_entry queue_stats_entry = {
-        .attr = {.name = "stats", .mode = S_IRUGO },
-        .show = queue_stats_show,
-};
-
 static struct queue_sysfs_entry queue_wb_lat_entry = {
         .attr = {.name = "wbt_lat_usec", .mode = S_IRUGO | S_IWUSR },
         .show = queue_wb_lat_show,
@@ -652,7 +627,6 @@ static struct attribute *default_attrs[] = {
 	&queue_poll_entry.attr,
 	&queue_wc_entry.attr,
 	&queue_dax_entry.attr,
-        &queue_stats_entry.attr,
         &queue_wb_lat_entry.attr,
 #ifdef CONFIG_BLK_DEV_THROTTLING_LOW
 	&throtl_sample_time_entry.attr,
@@ -732,7 +706,10 @@ static void blk_release_queue(struct kobject *kobj)
 		container_of(kobj, struct request_queue, kobj);
 
 	wbt_exit(q);
-        bdi_put(q->backing_dev_info);
+	if (test_bit(QUEUE_FLAG_POLL_STATS, &q->queue_flags))
+		blk_stat_remove_callback(q, q->poll_cb);
+	blk_stat_free_callback(q->poll_cb);
+	bdi_put(q->backing_dev_info);
 	blkcg_exit_queue(q);
 
 	if (q->elevator) {
@@ -741,6 +718,8 @@ static void blk_release_queue(struct kobject *kobj)
 		spin_unlock_irq(q->queue_lock);
 		elevator_exit(q->elevator);
 	}
+
+	blk_free_queue_stats(q->stats);
 
 	blk_exit_rl(&q->root_rl);
 
