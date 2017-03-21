@@ -718,6 +718,10 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
 	if (!q->backing_dev_info)
 		goto fail_split;
 
+	q->stats = blk_alloc_queue_stats();
+	if (!q->stats)
+		goto fail_stats;
+
 	q->backing_dev_info->ra_pages =
 			(VM_MAX_READAHEAD * 1024) / PAGE_CACHE_SIZE;
 	q->backing_dev_info->capabilities = BDI_CAP_CGROUP_WRITEBACK;
@@ -775,6 +779,8 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
 fail_ref:
 	percpu_ref_exit(&q->q_usage_counter);
 fail_bdi:
+	blk_free_queue_stats(q->stats);
+fail_stats:
 	bdi_put(q->backing_dev_info);
 fail_split:
 	bioset_free(q->bio_split);
@@ -850,10 +856,6 @@ blk_init_allocated_queue(struct request_queue *q, request_fn_proc *rfn,
 {
 	if (!q)
 		return NULL;
-
-	q->stats = blk_alloc_queue_stats();
-	if (!q->stats)
-		return -ENOMEM;
 
 	q->fq = blk_alloc_flush_queue(q, NUMA_NO_NODE, 0);
 	if (!q->fq)
