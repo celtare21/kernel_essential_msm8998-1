@@ -1911,6 +1911,8 @@ struct task_struct {
 	struct rb_node *pi_waiters_leftmost;
 	/* Deadlock detection and priority inheritance handling */
 	struct rt_mutex_waiter *pi_blocked_on;
+	/* Updated under owner's pi_lock and rq lock */
+	struct task_struct		*pi_top_task;
 #endif
 
 #ifdef CONFIG_DEBUG_MUTEXES
