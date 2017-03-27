@@ -308,7 +308,7 @@ static inline unsigned int blk_qc_t_to_tag(blk_qc_t cookie)
 }
 
 struct blk_issue_stat {
-	u64 time;
+	u64 stat;
 };
 
 struct blk_rq_stat {
