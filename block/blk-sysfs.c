@@ -528,6 +528,14 @@ static struct queue_sysfs_entry queue_dax_entry = {
 	.show = queue_dax_show,
 };
 
+#ifdef CONFIG_BLK_DEV_THROTTLING_LOW
+static struct queue_sysfs_entry throtl_sample_time_entry = {
+	.attr = {.name = "throttle_sample_time", .mode = S_IRUGO | S_IWUSR },
+	.show = blk_throtl_sample_time_show,
+	.store = blk_throtl_sample_time_store,
+};
+#endif
+
 static struct attribute *default_attrs[] = {
 	&queue_requests_entry.attr,
 	&queue_ra_entry.attr,
@@ -555,6 +563,9 @@ static struct attribute *default_attrs[] = {
 	&queue_poll_entry.attr,
 	&queue_wc_entry.attr,
 	&queue_dax_entry.attr,
+#ifdef CONFIG_BLK_DEV_THROTTLING_LOW
+	&throtl_sample_time_entry.attr,
+#endif
 	NULL,
 };
 
