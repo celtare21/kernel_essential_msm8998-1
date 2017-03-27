@@ -48,6 +48,10 @@ union blk_ktime {
 };
 #endif
 
+struct blk_issue_stat {
+	u64 stat;
+};
+
 /*
  * main unit of I/O for the block layer and lower layers (ie drivers and
  * stacking drivers)
@@ -94,6 +98,7 @@ struct bio {
 	struct cgroup_subsys_state *bi_css;
 #ifdef CONFIG_BLK_DEV_THROTTLING_LOW
 	void			*bi_cg_private;
+	struct blk_issue_stat	bi_issue_stat;
 #endif
 #endif
 	union {
@@ -306,10 +311,6 @@ static inline unsigned int blk_qc_t_to_tag(blk_qc_t cookie)
 {
 	return cookie & ((1u << BLK_QC_T_SHIFT) - 1);
 }
-
-struct blk_issue_stat {
-	u64 stat;
-};
 
 struct blk_rq_stat {
 	s64 mean;
