@@ -30,6 +30,7 @@
 #include <linux/cgroup.h>
 
 #include <trace/events/block.h>
+#include "blk.h"
 
 #include "blk.h"
 
@@ -1793,6 +1794,7 @@ again:
 		goto again;
 	}
 
+        blk_throtl_bio_endio(bio);
 	if (bio->bi_end_io) {
 		blk_update_perf_stats(bio);
 		bio->bi_end_io(bio);
