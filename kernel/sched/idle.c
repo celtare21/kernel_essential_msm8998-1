@@ -266,7 +266,7 @@ static void do_idle(void)
 	smp_mb__after_atomic();
 
 	sched_ttwu_pending();
-	schedule_preempt_disabled();
+	schedule_idle();
 }
 
 bool cpu_in_idle(unsigned long pc)
