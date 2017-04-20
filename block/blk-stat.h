@@ -41,9 +41,10 @@ struct blk_stat_callback {
 
 	/**
 	 * @bucket_fn: Given a request, returns which statistics bucket it
-	 * should be accounted under.
+	 * should be accounted under. Return -1 for no bucket for this
+	 * request.
 	 */
-	unsigned int (*bucket_fn)(const struct request *);
+	int (*bucket_fn)(const struct request *);
 
 	/**
 	 * @buckets: Number of statistics buckets.
@@ -98,7 +99,7 @@ static inline u64 blk_stat_time(struct blk_issue_stat *stat)
  *
  * Return: Data direction of the request, either READ or WRITE.
  */
-unsigned int blk_stat_rq_ddir(const struct request *rq);
+int blk_stat_rq_ddir(const struct request *rq);
 
 /**
  * blk_stat_alloc_callback() - Allocate a block statistics callback.
@@ -113,7 +114,7 @@ unsigned int blk_stat_rq_ddir(const struct request *rq);
  */
 struct blk_stat_callback *
 blk_stat_alloc_callback(void (*timer_fn)(struct blk_stat_callback *),
-			unsigned int (*bucket_fn)(const struct request *),
+			int (*bucket_fn)(const struct request *),
 			unsigned int buckets, void *data);
 
 /**
