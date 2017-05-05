@@ -1126,6 +1126,15 @@
                 pinctrl-0 = <&msm8998_gpio89_active>;
                 pinctrl-1 = <&msm8998_gpio89_suspend>;
         };
+
+	qcom,bcl {
+		/delete-property/ qcom,bcl-hotplug-list;
+		/delete-property/ qcom,bcl-soc-hotplug-list;
+		qcom,ibat-monitor {
+			qcom,soc-low-threshold = <5>;
+			qcom,mitigation-freq-khz = <1248000>;
+		};
+	};
 };
 
 &spmi_bus {
