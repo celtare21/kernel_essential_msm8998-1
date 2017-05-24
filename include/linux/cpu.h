@@ -227,12 +227,11 @@ static inline void smpboot_thread_init(void)
 extern struct bus_type cpu_subsys;
 
 #ifdef CONFIG_HOTPLUG_CPU
-/* Stop CPUs going up and down. */
 
-extern void cpu_hotplug_begin(void);
-extern void cpu_hotplug_done(void);
-extern void get_online_cpus(void);
-extern void put_online_cpus(void);
+extern void cpus_write_lock(void);
+extern void cpus_write_unlock(void);
+extern void cpus_read_lock(void);
+extern void cpus_read_unlock(void);
 extern void cpu_hotplug_disable(void);
 extern void cpu_hotplug_enable(void);
 #define hotcpu_notifier(fn, pri)	cpu_notifier(fn, pri)
@@ -246,12 +245,6 @@ int cpu_down(unsigned int cpu);
 
 #else		/* CONFIG_HOTPLUG_CPU */
 
-static inline void cpu_hotplug_begin(void) {}
-static inline void cpu_hotplug_done(void) {}
-#define get_online_cpus()	do { } while (0)
-#define put_online_cpus()	do { } while (0)
-#define cpu_hotplug_disable()	do { } while (0)
-#define cpu_hotplug_enable()	do { } while (0)
 #define hotcpu_notifier(fn, pri)	do { (void)(fn); } while (0)
 #define __hotcpu_notifier(fn, pri)	do { (void)(fn); } while (0)
 /* These aren't inline functions due to a GCC bug. */
@@ -259,7 +252,20 @@ static inline void cpu_hotplug_done(void) {}
 #define __register_hotcpu_notifier(nb)	({ (void)(nb); 0; })
 #define unregister_hotcpu_notifier(nb)	({ (void)(nb); })
 #define __unregister_hotcpu_notifier(nb)	({ (void)(nb); })
+
+static inline void cpus_write_lock(void) { }
+static inline void cpus_write_unlock(void) { }
+static inline void cpus_read_lock(void) { }
+static inline void cpus_read_unlock(void) { }
+static inline void cpu_hotplug_disable(void) { }
+static inline void cpu_hotplug_enable(void) { }
 #endif		/* CONFIG_HOTPLUG_CPU */
+
+/* Wrappers which go away once all code is converted */
+static inline void cpu_hotplug_begin(void) { cpus_write_lock(); }
+static inline void cpu_hotplug_done(void) { cpus_write_unlock(); }
+static inline void get_online_cpus(void) { cpus_read_lock(); }
+static inline void put_online_cpus(void) { cpus_read_unlock(); }
 
 #ifdef CONFIG_PM_SLEEP_SMP
 extern int disable_nonboot_cpus(void);
