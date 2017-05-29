@@ -1342,7 +1342,12 @@ static inline void put_prev_task(struct rq *rq, struct task_struct *prev)
 	prev->sched_class->put_prev_task(rq, prev);
 }
 
+
+#ifdef CONFIG_SMP
 #define sched_class_highest (&stop_sched_class)
+#else
+#define sched_class_highest (&dl_sched_class)
+#endif
 #define for_each_class(class) \
    for (class = sched_class_highest; class; class = class->next)
 
