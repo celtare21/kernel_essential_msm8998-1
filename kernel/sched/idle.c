@@ -211,6 +211,7 @@ static void do_idle(void)
 	int cpu = smp_processor_id();
 
 	__current_set_polling();
+	quiet_vmstat();
 	tick_nohz_idle_enter();
 
 	while (!need_resched()) {
