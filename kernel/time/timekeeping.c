@@ -956,8 +956,7 @@ void ktime_get_snapshot(struct system_time_snapshot *systime_snapshot)
 
 	do {
 		seq = read_seqcount_begin(&tk_core.seq);
-
-		now = tk->tkr_mono.read(tk->tkr_mono.clock);
+		now = tk_clock_read(&tk->tkr_mono);
 		systime_snapshot->cs_was_changed_seq = tk->cs_was_changed_seq;
 		systime_snapshot->clock_was_set_seq = tk->clock_was_set_seq;
 		base_real = ktime_add(tk->tkr_mono.base,
@@ -1136,7 +1135,7 @@ int get_device_system_crosststamp(int (*get_time_fn)
 		 * Check whether the system counter value provided by the
 		 * device driver is on the current timekeeping interval.
 		 */
-		now = tk->tkr_mono.read(tk->tkr_mono.clock);
+		now = tk_clock_read(&tk->tkr_mono);
 		interval_start = tk->tkr_mono.cycle_last;
 		if (!cycle_between(interval_start, cycles, now)) {
 			clock_was_set_seq = tk->clock_was_set_seq;
