@@ -160,11 +160,6 @@ static void *__dma_alloc_coherent(struct device *dev, size_t size,
 {
 	void *addr;
 
-	if (dev == NULL) {
-		WARN_ONCE(1, "Use an actual device structure for DMA allocation\n");
-		return NULL;
-	}
-
 	if (IS_ENABLED(CONFIG_ZONE_DMA) &&
 	    dev->coherent_dma_mask <= DMA_BIT_MASK(32))
 		flags |= GFP_DMA;
@@ -203,10 +198,6 @@ static void __dma_free_coherent(struct device *dev, size_t size,
 	phys_addr_t paddr = dma_to_phys(dev, dma_handle);
 
 	size = PAGE_ALIGN(size);
-	if (dev == NULL) {
-		WARN_ONCE(1, "Use an actual device structure for DMA allocation\n");
-		return;
-	}
 
 	if (dma_get_attr(DMA_ATTR_NO_KERNEL_MAPPING, attrs) ||
 	    dma_get_attr(DMA_ATTR_STRONGLY_ORDERED, attrs))
