@@ -3527,12 +3527,13 @@ static int msm_hs_probe(struct platform_device *pdev)
 								__func__);
 	} else {
 		msm_uport->ipc_debug_mask = INFO_LEV;
-		ret = sysfs_create_file(&pdev->dev.kobj,
-				&dev_attr_debug_mask.attr);
-		if (unlikely(ret))
-			MSM_HS_WARN("%s: Failed to create dev. attr", __func__);
 	}
 #endif
+	ret = sysfs_create_file(&pdev->dev.kobj,
+			&dev_attr_debug_mask.attr);
+	if (unlikely(ret))
+		MSM_HS_WARN("%s: Failed to create dev. attr", __func__);
+
 	uport->irq = core_irqres;
 	msm_uport->bam_irq = bam_irqres;
 	pdata->wakeup_irq = wakeup_irqres;
@@ -3622,7 +3623,6 @@ static int msm_hs_probe(struct platform_device *pdev)
 #ifdef CONFIG_IPC_LOGGING
 	msm_uport->rx.ipc_rx_ctxt = ipc_log_context_create(
 					IPC_MSM_HS_LOG_DATA_PAGES, name, 0);
-#ifdef CONFIG_IPC_LOGGING
 	if (!msm_uport->rx.ipc_rx_ctxt)
 		dev_err(&pdev->dev, "%s: error creating rx logging context",
 								__func__);
