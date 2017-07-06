@@ -388,10 +388,8 @@ static int __zswap_cpu_dstmem_notifier(unsigned long action, unsigned long cpu)
 	switch (action) {
 	case CPU_UP_PREPARE:
 		dst = kmalloc_node(PAGE_SIZE * 2, GFP_KERNEL, cpu_to_node(cpu));
-		if (!dst) {
-			pr_err("can't allocate compressor buffer\n");
+		if (!dst)
 			return NOTIFY_BAD;
-		}
 		per_cpu(zswap_dstmem, cpu) = dst;
 		break;
 	case CPU_DEAD:
