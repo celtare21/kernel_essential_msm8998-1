@@ -370,9 +370,10 @@ static void dpm_show_time(ktime_t starttime, pm_message_t state, char *info)
 	usecs = usecs64;
 	if (usecs == 0)
 		usecs = 1;
-	pr_debug("PM: %s%s%s of devices complete after %ld.%03ld msecs\n",
-		info ?: "", info ? " " : "", pm_verb(state.event),
-		usecs / USEC_PER_MSEC, usecs % USEC_PER_MSEC);
+
+	pm_pr_dbg("%s%s%s of devices complete after %ld.%03ld msecs\n",
+		  info ?: "", info ? " " : "", pm_verb(state.event),
+		  usecs / USEC_PER_MSEC, usecs % USEC_PER_MSEC);
 }
 
 static int dpm_run_callback(pm_callback_t cb, struct device *dev,
