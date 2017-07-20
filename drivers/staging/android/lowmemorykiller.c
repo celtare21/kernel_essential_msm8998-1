@@ -48,6 +48,7 @@
 #include <linux/fs.h>
 #include <linux/cpuset.h>
 #include <linux/vmpressure.h>
+#include <linux/freezer.h>
 #include <linux/zcache.h>
 #include <linux/cpu_input_boost.h>
 #include <linux/devfreq_boost.h>
@@ -122,6 +123,10 @@ module_param_named(enable_adaptive_lmk, enable_adaptive_lmk, int,
 static int vmpressure_file_min;
 module_param_named(vmpressure_file_min, vmpressure_file_min, int,
 		   S_IRUGO | S_IWUSR);
+
+/* User knob to enable/disable oom reaping feature */
+static int oom_reaper;
+module_param_named(oom_reaper, oom_reaper, int, 0644);
 
 enum {
 	VMPRESSURE_NO_ADJUST = 0,
@@ -410,6 +415,14 @@ void tune_lmk_param(int *other_free, int *other_file, struct shrink_control *sc)
 	}
 }
 
+static void mark_lmk_victim(struct task_struct *tsk)
+{
+	struct mm_struct *mm = tsk->mm;
+
+	if (!cmpxchg(&tsk->signal->oom_mm, NULL, mm))
+		atomic_inc(&tsk->signal->oom_mm->mm_count);
+}
+
 static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 {
 	struct task_struct *tsk;
@@ -536,7 +549,11 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		send_sig(SIGKILL, selected, 0);
 		if (selected->mm)
 			task_set_lmk_waiting(selected);
+		if (oom_reaper)
+			mark_lmk_victim(selected);
 		task_unlock(selected);
+                if (oom_reaper)
+                        wake_oom_reaper(selected);
 		cache_size = other_file * (long)(PAGE_SIZE / 1024);
 		cache_limit = minfree * (long)(PAGE_SIZE / 1024);
 		free = other_free * (long)(PAGE_SIZE / 1024);
