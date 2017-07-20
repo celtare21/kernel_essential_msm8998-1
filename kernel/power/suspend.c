@@ -616,6 +616,7 @@ int pm_suspend(suspend_state_t state)
 		return -EINVAL;
 
 	pm_suspend_marker("entry");
+	pr_info("PM: suspend entry (%s)\n", pm_states[state]);
 	error = enter_state(state);
 	if (error) {
 		suspend_stats.fail++;
@@ -624,6 +625,7 @@ int pm_suspend(suspend_state_t state)
 		suspend_stats.success++;
 	}
 	pm_suspend_marker("exit");
+	pr_info("PM: suspend exit\n");
 	return error;
 }
 EXPORT_SYMBOL(pm_suspend);
