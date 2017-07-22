@@ -19,6 +19,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/seq_file.h>
+#include <linux/suspend.h>
 #include <linux/time.h>
 
 #include "timekeeping_internal.h"
