@@ -33,6 +33,7 @@
 #include <asm/ucontext.h>
 #include <asm/unistd.h>
 #include <asm/fpsimd.h>
+#include <asm/ptrace.h>
 #include <asm/signal32.h>
 #include <asm/vdso.h>
 
@@ -114,7 +115,7 @@ static int restore_sigframe(struct pt_regs *regs,
 	/*
 	 * Avoid sys_rt_sigreturn() restarting.
 	 */
-	regs->syscallno = ~0;
+	forget_syscall(regs);
 
 	err |= !valid_user_regs(&regs->user_regs, current);
 
@@ -335,13 +336,12 @@ static void do_signal(struct pt_regs *regs)
 {
 	unsigned long continue_addr = 0, restart_addr = 0;
 	int retval = 0;
-	int syscall = regs->syscallno;
 	struct ksignal ksig;
 
 	/*
 	 * If we were from a system call, check for system call restarting...
 	 */
-	if (syscall >= 0) {
+	if (in_syscall(regs)) {
 		continue_addr = regs->pc;
 		restart_addr = continue_addr - (compat_thumb_mode(regs) ? 2 : 4);
 		retval = regs->regs[0];
@@ -349,7 +349,7 @@ static void do_signal(struct pt_regs *regs)
 		/*
 		 * Avoid additional syscall restarting via ret_to_user.
 		 */
-		regs->syscallno = ~0;
+		forget_syscall(regs);
 
 		/*
 		 * Prepare for system call restart. We do this here so that a
@@ -393,7 +393,7 @@ static void do_signal(struct pt_regs *regs)
 	 * Handle restarting a different system call. As above, if a debugger
 	 * has chosen to restart at a different PC, ignore the restart.
 	 */
-	if (syscall >= 0 && regs->pc == restart_addr) {
+	if (in_syscall(regs) && regs->pc == restart_addr) {
 		if (retval == -ERESTART_RESTARTBLOCK)
 			setup_restart_syscall(regs);
 		user_rewind_single_step(current);
