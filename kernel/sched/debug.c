@@ -422,7 +422,7 @@ print_task(struct seq_file *m, struct rq *rq, struct task_struct *p)
 	if (rq->curr == p)
 		SEQ_printf(m, "R");
 	else
-		SEQ_printf(m, " ");
+		SEQ_printf(m, " %c", task_state_to_char(p));
 
 	SEQ_printf(m, "%15s %5d %9Ld.%06ld %9Ld %5d ",
 		p->comm, task_pid_nr(p),
