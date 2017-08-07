@@ -1164,6 +1164,15 @@ config LOCK_STAT
 	 CONFIG_LOCK_STAT defines "contended" and "acquired" lock events.
 	 (CONFIG_LOCKDEP defines "acquire" and "release" events.)
 
+config LOCKDEP_COMPLETE
+	bool "Lock debugging: allow completions to use deadlock detector"
+	depends on PROVE_LOCKING
+	select LOCKDEP_CROSSRELEASE
+	default n
+	help
+	 A deadlock caused by wait_for_completion() and complete() can be
+	 detected by lockdep using crossrelease feature.
+
 config DEBUG_LOCKDEP
 	bool "Lock dependency engine debugging"
 	depends on DEBUG_KERNEL && LOCKDEP
