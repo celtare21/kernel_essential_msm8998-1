@@ -1142,6 +1142,14 @@
 			qcom,qpnp-rtc-alarm-pwrup = <1>;
 		};
 	};
+	qcom,pmi8998@3 {
+		/* RGB LED blink */
+		#address-cells = <1>;
+		#size-cells = <1>;
+		qcom,leds@d000 {
+			qcom,rgb-sync;
+		};
+	};
 };
 
 &red_led {
