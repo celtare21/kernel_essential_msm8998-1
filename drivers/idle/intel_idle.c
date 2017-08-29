@@ -1118,6 +1118,7 @@ static int __init intel_idle_cpuidle_driver_init(void)
 
 	intel_idle_state_table_update();
 
+	cpuidle_poll_state_init(drv);
 	drv->state_count = 1;
 
 	for (cstate = 0; cstate < CPUIDLE_STATE_MAX; ++cstate) {
