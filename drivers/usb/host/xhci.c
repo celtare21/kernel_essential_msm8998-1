@@ -4441,6 +4441,8 @@ static u16 xhci_calculate_u1_timeout(struct xhci_hcd *xhci,
 
 	if (xhci->quirks & XHCI_INTEL_HOST)
 		timeout_ns = xhci_calculate_intel_u1_timeout(udev, desc);
+	else if (xhci->quirks & XHCI_SIBEAM_QUIRK)
+		timeout_ns = 254000;
 	else
 		timeout_ns = udev->u1_params.sel;
 
@@ -4497,6 +4499,8 @@ static u16 xhci_calculate_u2_timeout(struct xhci_hcd *xhci,
 
 	if (xhci->quirks & XHCI_INTEL_HOST)
 		timeout_ns = xhci_calculate_intel_u2_timeout(udev, desc);
+	else if (xhci->quirks & XHCI_SIBEAM_QUIRK)
+		timeout_ns = 256000;
 	else
 		timeout_ns = udev->u2_params.sel;
 
