@@ -1597,7 +1597,7 @@ static int msm_dwc3_usbdev_notify(struct notifier_block *self,
 	}
 
 	mdwc->hc_died = true;
-	schedule_delayed_work(&mdwc->sm_work, 0);
+	queue_delayed_work(system_freezable_wq, &mdwc->sm_work, 0);
 	return 0;
 }
 
@@ -2367,11 +2367,10 @@ static void dwc3_ext_event_notify(struct dwc3_msm *mdwc)
 	}
 
 	pm_stay_awake(mdwc->dev);
-	schedule_delayed_work(&mdwc->sm_work, 0);
+	queue_delayed_work(system_freezable_wq, &mdwc->sm_work, 0);
 }
 
-static void dwc3_resume_work(struct work_struct *w)
-{
+static void dwc3_resume_work(struct work_struct *w) {
 	struct dwc3_msm *mdwc = container_of(w, struct dwc3_msm, resume_work);
 	struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
 
@@ -3265,7 +3264,7 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 		dwc3_msm_id_notifier(&mdwc->id_nb, true, mdwc->extcon_id);
 	else if (!pval.intval) {
 		/* USB cable is not connected */
-		schedule_delayed_work(&mdwc->sm_work, 0);
+		queue_delayed_work(system_freezable_wq, &mdwc->sm_work, 0);
 	} else {
 		if (pval.intval > 0)
 			dev_info(mdwc->dev, "charger detection in progress\n");
@@ -3998,7 +3997,7 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 	}
 
 	if (work)
-		schedule_delayed_work(&mdwc->sm_work, delay);
+		queue_delayed_work(system_freezable_wq, &mdwc->sm_work, delay);
 
 ret:
 	return;
