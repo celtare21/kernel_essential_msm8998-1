@@ -44,7 +44,7 @@ struct kthread {
 	void *data;
 	struct completion parked;
 	struct completion exited;
-#ifdef CONFIG_CGROUPS
+#ifdef CONFIG_BLK_CGROUP
 	struct cgroup_subsys_state *blkcg_css;
 #endif
 };
@@ -81,7 +81,7 @@ void free_kthread_struct(struct task_struct *k)
 	 * or if kmalloc() in kthread() failed.
 	 */
 	kthread = to_kthread(k);
-#ifdef CONFIG_CGROUPS
+#ifdef CONFIG_BLK_CGROUP
 	WARN_ON_ONCE(kthread && kthread->blkcg_css);
 #endif
 	kfree(kthread);
@@ -239,7 +239,7 @@ static int kthread(void *_create)
 	self->data = data;
 	init_completion(&self->exited);
 	init_completion(&self->parked);
-#ifdef CONFIG_CGROUPS
+#ifdef CONFIG_BLK_CGROUP
 	self->blkcg_css = NULL;
 #endif
 	current->vfork_done = &self->exited;
@@ -1206,7 +1206,7 @@ void kthread_destroy_worker(struct kthread_worker *worker)
 }
 EXPORT_SYMBOL(kthread_destroy_worker);
 
-#ifdef CONFIG_CGROUPS
+#ifdef CONFIG_BLK_CGROUP
 /**
  * kthread_associate_blkcg - associate blkcg to current kthread
  * @css: the cgroup info
