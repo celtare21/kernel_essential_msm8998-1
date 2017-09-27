@@ -123,24 +123,29 @@ static void s2idle_loop(void)
 		 * frozen processes + suspended devices + idle processors.
 		 * Thus freeze_enter() should be called right after
 		 * all devices have been suspended.
+		 *
+		 * Wakeups during the noirq suspend of devices may be spurious,
+		 * so prevent them from terminating the loop right away.
 		 */
 		error = dpm_noirq_suspend_devices(PMSG_SUSPEND);
 		if (!error)
 			freeze_enter();
 
-		dpm_noirq_resume_devices(PMSG_RESUME);
-		if (error && (error != -EBUSY || !pm_wakeup_pending())) {
-			dpm_noirq_end();
-			break;
-		}
+		else if (error == -EBUSY && pm_wakeup_pending())
+			error = 0;
 
-		if (freeze_ops && freeze_ops->wake)
-			freeze_ops->wake();
+		if (!error && freeze_ops && freeze_ops->wake)
+                        freeze_ops->wake();
+
+		dpm_noirq_resume_devices(PMSG_RESUME);
 
 		dpm_noirq_end();
 
-		if (freeze_ops && freeze_ops->sync)
-			freeze_ops->sync();
+		if (error)
+			break;
+
+                if (freeze_ops && freeze_ops->sync)
+                        freeze_ops->sync();
 
 		if (pm_wakeup_pending())
 			break;
