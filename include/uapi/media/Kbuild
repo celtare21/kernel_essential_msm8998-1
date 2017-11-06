@@ -21,3 +21,6 @@ header-y += msmb_pproc.h
 header-y += radio-iris.h
 header-y += radio-iris-commands.h
 header-y += msm_ba.h
+header-y += vl53l0_def.h
+header-y += vl53l0_device.h
+header-y += vl53l0_types.h
