@@ -1,5 +1,4 @@
-/*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -244,19 +243,12 @@ void rmnet_map_aggregate(struct sk_buff *skb,
 
 
 	if (!skb || !config)
-		BUG();
-	size = config->egress_agg_size-skb->len;
-
-	if (size < 2000) {
-		LOGL("Invalid length %d", size);
 		return;
-	}
 
 new_packet:
 	spin_lock_irqsave(&config->agg_lock, flags);
-
-	memcpy(&last, &(config->agg_last), sizeof(struct timespec));
-	getnstimeofday(&(config->agg_last));
+	memcpy(&last, &config->agg_last, sizeof(struct timespec));
+	getnstimeofday(&config->agg_last);
 
 	if (!config->agg_skb) {
 		/* Check to see if we should agg first. If the traffic is very
@@ -276,6 +268,7 @@ new_packet:
 			return;
 		}
 
+		size = config->egress_agg_size - skb->len;
 		config->agg_skb = skb_copy_expand(skb, 0, size, GFP_ATOMIC);
 		if (!config->agg_skb) {
 			config->agg_skb = 0;
@@ -754,4 +747,32 @@ sw_checksum:
 	ul_header->cks_en = 0;
 	ul_header->udp_ip4_ind = 0;
 	return ret;
+}
+
+int rmnet_ul_aggregation_skip(struct sk_buff *skb, int offset)
+{
+	unsigned char *packet_start = skb->data + offset;
+	int is_icmp = 0;
+
+	if ((skb->data[offset]) >> 4 == 0x04) {
+		struct iphdr *ip4h = (struct iphdr *)(packet_start);
+
+		if (ip4h->protocol == IPPROTO_ICMP)
+			is_icmp = 1;
+	} else {
+		struct ipv6hdr *ip6h = (struct ipv6hdr *)(packet_start);
+
+		if (ip6h->nexthdr == NEXTHDR_FRAGMENT) {
+			struct frag_hdr *frag;
+
+			frag = (struct frag_hdr *)(packet_start
+						   + sizeof(struct ipv6hdr));
+			if (frag->nexthdr == IPPROTO_ICMPV6)
+				is_icmp = 1;
+		} else if (ip6h->nexthdr == IPPROTO_ICMPV6) {
+			is_icmp = 1;
+		}
+	}
+
+	return is_icmp;
 }
