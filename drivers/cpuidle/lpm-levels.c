@@ -1467,7 +1467,8 @@ int get_cluster_id(struct lpm_cluster *cluster, int *aff_lvl)
 
 		state_id |= (level->psci_id & cluster->psci_mode_mask)
 					<< cluster->psci_mode_shift;
-		(*aff_lvl)++;
+		if (level->psci_id)
+			(*aff_lvl)++;
 	}
 unlock_and_return:
 	spin_unlock(&cluster->sync_lock);
