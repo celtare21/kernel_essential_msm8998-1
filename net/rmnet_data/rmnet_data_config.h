@@ -19,7 +19,6 @@
 #include <linux/time.h>
 #include <linux/spinlock.h>
 #include <net/rmnet_config.h>
-#include <linux/hrtimer.h>
 
 #ifndef _RMNET_DATA_CONFIG_H_
 #define _RMNET_DATA_CONFIG_H_
@@ -89,7 +88,6 @@ struct rmnet_phys_ep_config {
 	uint8_t agg_count;
 	struct timespec agg_time;
 	struct timespec agg_last;
-	struct hrtimer hrtimer;
 };
 
 int rmnet_config_init(void);
