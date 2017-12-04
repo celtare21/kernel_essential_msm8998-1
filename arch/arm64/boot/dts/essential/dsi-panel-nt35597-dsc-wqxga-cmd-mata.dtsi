@@ -96,6 +96,14 @@
 		qcom,mdss-dsi-off-command = [05 01 00 00 11 00 02 28 00
 				 05 01 00 00 43 00 02 10 00];
 
+		cm,mdss-livedisplay-cabc-cmd = [
+			15 01 00 00 00 00 02 55 00
+		];
+
+		cm,mdss-livedisplay-cabc-ui-value = <0x01>;
+		cm,mdss-livedisplay-cabc-image-value = <0x02>;
+		cm,mdss-livedisplay-cabc-video-value = <0x03>;
+
 		qcom,compression-mode = "dsc";
 		qcom,config-select = <&dsi_nt35597_dsc_cmd_mata_config2>;
 
