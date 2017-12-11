@@ -290,3 +290,6 @@
 	qcom,wsa-aux-dev-prefix = "SpkrLeft", "SpkrLeft";
 };
 
+&pm660_charger {
+	qcom,dc-is-wipower;
+};
