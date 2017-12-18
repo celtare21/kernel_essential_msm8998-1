@@ -36,7 +36,7 @@ extern void delayacct_init(void);
 extern void __delayacct_tsk_init(struct task_struct *);
 extern void __delayacct_tsk_exit(struct task_struct *);
 extern void __delayacct_blkio_start(void);
-extern void __delayacct_blkio_end(void);
+extern void __delayacct_blkio_end(struct task_struct *);
 extern int __delayacct_add_tsk(struct taskstats *, struct task_struct *);
 extern __u64 __delayacct_blkio_ticks(struct task_struct *);
 extern void __delayacct_freepages_start(void);
@@ -87,10 +87,10 @@ static inline void delayacct_blkio_start(void)
 		__delayacct_blkio_start();
 }
 
-static inline void delayacct_blkio_end(void)
+static inline void delayacct_blkio_end(struct task_struct *p)
 {
 	if (current->delays)
-		__delayacct_blkio_end();
+		__delayacct_blkio_end(p);
 	delayacct_clear_flag(DELAYACCT_PF_BLKIO);
 }
 
@@ -134,7 +134,7 @@ static inline void delayacct_tsk_free(struct task_struct *tsk)
 {}
 static inline void delayacct_blkio_start(void)
 {}
-static inline void delayacct_blkio_end(void)
+static inline void delayacct_blkio_end(struct task_struct *p)
 {}
 static inline int delayacct_add_tsk(struct taskstats *d,
 					struct task_struct *tsk)
