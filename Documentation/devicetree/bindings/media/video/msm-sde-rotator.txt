@@ -79,6 +79,10 @@ Optional properties
 				limits.
 - qcom,mdss-rot-vbif-qos-setting: This array is used to program vbif qos remapper register
 				  priority for rotator clients.
+- qcom,mdss-rot-qos-cpu-mask: A u32 value indicating desired PM QoS CPU
+				affine mask.
+- qcom,mdss-rot-qos-cpu-dma-latency: A u32 value indicating desired PM QoS CPU DMA
+				latency in usec.
 - qcom,mdss-rot-mode:		This is integer value indicates operation mode
 				of the rotator device
 
@@ -130,6 +134,9 @@ Example:
 
 		qcom,mdss-default-ot-rd-limit = <8>;
 		qcom,mdss-default-ot-wr-limit = <16>;
+
+		qcom,mdss-rot-qos-cpu-mask = <0xf>;
+		qcom,mdss-rot-qos-cpu-dma-latency = <75>;
 
 		smmu_rot_unsec: qcom,smmu_rot_unsec_cb {
 			compatible = "qcom,smmu_sde_rot_unsec";

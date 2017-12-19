@@ -23,6 +23,7 @@
 #include "sde_rotator_io_util.h"
 #include "sde_rotator_smmu.h"
 #include "sde_rotator_formats.h"
+#include <linux/pm_qos.h>
 
 #define MDSS_MDP_HW_REV_320	0x30020000  /* sdm660 */
 #define MDSS_MDP_HW_REV_330	0x30030000  /* sdm630 */
@@ -174,6 +175,11 @@ struct sde_rot_data_type {
 
 	u32 *vbif_xin_id;
 	u32 nxid;
+
+	struct pm_qos_request pm_qos_rot_cpu_req;
+	u32 rot_pm_qos_cpu_count;
+	u32 rot_pm_qos_cpu_mask;
+	u32 rot_pm_qos_cpu_dma_latency;
 
 	int iommu_attached;
 	int iommu_ref_cnt;
