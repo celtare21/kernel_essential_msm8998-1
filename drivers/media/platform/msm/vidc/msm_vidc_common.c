@@ -48,6 +48,8 @@
 
 #define MAX_SUPPORTED_INSTANCES 16
 
+#define TRIGGER_SSR_LOCK_RETRIES 5
+
 const char *const mpeg_video_vidc_extradata[] = {
 	"Extradata none",
 	"Extradata MB Quantization",
@@ -4845,11 +4847,21 @@ int msm_vidc_trigger_ssr(struct msm_vidc_core *core,
 {
 	int rc = 0;
 	struct hfi_device *hdev;
+	int try_lock_counter = TRIGGER_SSR_LOCK_RETRIES;
+
 	if (!core || !core->device) {
 		dprintk(VIDC_WARN, "Invalid parameters: %pK\n", core);
 		return -EINVAL;
 	}
 	hdev = core->device;
+
+	while (try_lock_counter) {
+		if (mutex_trylock(&core->lock))
+			break;
+		try_lock_counter--;
+		if (!try_lock_counter)
+			return -EBUSY;
+	}
 	if (core->state == VIDC_CORE_INIT_DONE) {
 		/*
 		 * In current implementation user-initiated SSR triggers
