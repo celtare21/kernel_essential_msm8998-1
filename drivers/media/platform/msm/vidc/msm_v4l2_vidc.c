@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -40,6 +40,8 @@ uint32_t msm_vidc_pwr_collapse_delay = 3000;
 
 static inline struct msm_vidc_inst *get_vidc_inst(struct file *filp, void *fh)
 {
+	if (!filp->private_data)
+		return NULL;
 	return container_of(filp->private_data,
 					struct msm_vidc_inst, event_handler);
 }
@@ -80,6 +82,7 @@ static int msm_v4l2_close(struct file *filp)
 			"Failed in %s for release output buffers\n", __func__);
 
 	rc = msm_vidc_close(vidc_inst);
+	filp->private_data = NULL;
 	trace_msm_v4l2_vidc_close_end("msm_v4l2_close end");
 	return rc;
 }
