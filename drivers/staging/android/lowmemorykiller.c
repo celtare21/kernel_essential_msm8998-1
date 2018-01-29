@@ -566,13 +566,15 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 
 		task_lock(selected);
 		send_sig(SIGKILL, selected, 0);
-		if (selected->mm)
+		if (selected->mm) {
 			task_set_lmk_waiting(selected);
-		if (oom_reaper)
-			mark_lmk_victim(selected);
+			if (!test_bit(MMF_OOM_SKIP, &selected->mm->flags) &&
+			    oom_reaper) {
+				mark_lmk_victim(selected);
+				wake_oom_reaper(selected);
+			}
+		}
 		task_unlock(selected);
-                if (oom_reaper)
-                        wake_oom_reaper(selected);
 		cache_size = other_file * (long)(PAGE_SIZE / 1024);
 		cache_limit = minfree * (long)(PAGE_SIZE / 1024);
 		free = other_free * (long)(PAGE_SIZE / 1024);
