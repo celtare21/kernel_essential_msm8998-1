@@ -1751,6 +1751,9 @@ config RSEQ
 	  Enable extra debugging checks for the rseq system call.
  	  If unsure, say N.
 
+config ARCH_HAS_MEMBARRIER_CALLBACKS
+	bool
+
 config EMBEDDED
 	bool "Embedded system"
 	option allnoconfig_y
