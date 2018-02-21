@@ -10516,7 +10516,12 @@ void check_for_migration(struct rq *rq, struct task_struct *p)
 #endif /* CONFIG_SMP */
 
 /*
- * scheduler tick hitting a task of our scheduling class:
+ * scheduler tick hitting a task of our scheduling class.
+ *
+ * NOTE: This function can be called remotely by the tick offload that
+ * goes along full dynticks. Therefore no local assumption can be made
+ * and everything must be accessed through the @rq and @curr passed in
+ * parameters.
  */
 static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 {
