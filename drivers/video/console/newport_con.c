@@ -712,14 +712,14 @@ static void newport_bmove(struct vc_data *vc, int sy, int sx, int dy,
 	npregs->go.xymove = (xoffs << 16) | yoffs;
 }
 
-static int newport_dummy(struct vc_data *c)
+static int newport_set_origin(struct vc_data *vc)
 {
 	return 0;
 }
 
-#define DUMMY (void *) newport_dummy
+static void newport_save_screen(struct vc_data *vc) { }
 
-const struct consw newport_con = {
+static const struct consw newport_con = {
 	.owner		  = THIS_MODULE,
 	.con_startup	  = newport_startup,
 	.con_init	  = newport_init,
@@ -736,8 +736,8 @@ const struct consw newport_con = {
 	.con_font_default = newport_font_default,
 	.con_set_palette  = newport_set_palette,
 	.con_scrolldelta  = newport_scrolldelta,
-	.con_set_origin	  = DUMMY,
-	.con_save_screen  = DUMMY
+	.con_set_origin	  = newport_set_origin,
+	.con_save_screen  = newport_save_screen
 };
 
 static int newport_probe(struct gio_device *dev,
