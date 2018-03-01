@@ -68,6 +68,15 @@ struct tick_sched *tick_get_tick_sched(int cpu)
 }
 
 /*
+ * Called after resume. Make sure that jiffies are not fast forwarded due to
+ * clock monotonic being forwarded by the suspended time.
+ */
+void tick_sched_forward_next_period(void)
+{
+	last_jiffies_update = tick_next_period;
+}
+
+/*
  * Must be called with interrupts disabled !
  */
 static void tick_do_update_jiffies64(ktime_t now)
