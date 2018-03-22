@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -36,6 +36,8 @@
 /* Event logging constants */
 #define SDE_ROTATOR_NUM_EVENTS		4096
 #define SDE_ROTATOR_NUM_TIMESTAMPS	SDE_ROTATOR_TS_MAX
+
+#define MAX_ROT_OPEN_SESSION 16
 
 struct sde_rotator_device;
 struct sde_rotator_ctx;
@@ -108,7 +110,8 @@ struct sde_rotator_vbinfo {
  * @work_queue: work queue for submit and retire processing
  * @request: current service request
  * @private: Pointer to session private information
-  */
+ * @kthread_id: thread_id used for fence management
+ */
 struct sde_rotator_ctx {
 	struct kobject kobj;
 	struct sde_rotator_device *rot_dev;
@@ -134,9 +137,11 @@ struct sde_rotator_ctx {
 	wait_queue_head_t wait_queue;
 	struct kthread_work submit_work;
 	struct kthread_work retire_work;
-	struct sde_rot_queue work_queue;
+	struct sde_rot_queue_v1 work_queue;
 	struct sde_rot_entry_container *request;
 	struct sde_rot_file_private *private;
+
+	int kthread_id;
 };
 
 /*
@@ -171,6 +176,9 @@ struct sde_rotator_statistics {
  * @min_overhead_us: Override the minimum overhead in us from perf calculation
  * @debugfs_root: Pointer to debugfs directory entry.
  * @stats: placeholder for rotator statistics
+ * @rot_kw: rotator thread work
+ * @rot_thread: rotator threads
+ * @kthread_free: check if thread is available or not
  */
 struct sde_rotator_device {
 	struct mutex lock;
@@ -192,6 +200,10 @@ struct sde_rotator_device {
 	struct sde_rotator_statistics stats;
 	struct dentry *debugfs_root;
 	struct dentry *perf_root;
+
+	struct kthread_worker rot_kw[MAX_ROT_OPEN_SESSION];
+	struct task_struct *rot_thread[MAX_ROT_OPEN_SESSION];
+	bool kthread_free[MAX_ROT_OPEN_SESSION];
 };
 
 static inline

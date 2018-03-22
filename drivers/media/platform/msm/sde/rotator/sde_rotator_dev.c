@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -888,7 +888,7 @@ static int sde_rotator_open(struct file *file)
 	struct sde_rotator_ctx *ctx;
 	struct v4l2_ctrl_handler *ctrl_handler;
 	char name[32];
-	int ret;
+	int i, ret;
 
 	if (atomic_read(&rot_dev->mgr->device_suspended))
 		return -EPERM;
@@ -915,6 +915,7 @@ static int sde_rotator_open(struct file *file)
 	ctx->secure = 0;
 	atomic_set(&ctx->command_pending, 0);
 	ctx->abort_pending = 0;
+	ctx->kthread_id = -1;
 	ctx->format_cap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	ctx->format_cap.fmt.pix.pixelformat = SDE_PIX_FMT_Y_CBCR_H2V2;
 	ctx->format_cap.fmt.pix.width = 640;
@@ -957,18 +958,22 @@ static int sde_rotator_open(struct file *file)
 		goto error_create_sysfs;
 	}
 
-	snprintf(name, sizeof(name), "rot_fenceq_%d_%d", rot_dev->dev->id,
-			ctx->session_id);
-	init_kthread_worker(&ctx->work_queue.rot_kw);
-	ctx->work_queue.rot_thread = kthread_run(kthread_worker_fn,
-			&ctx->work_queue.rot_kw, name);
-	if (IS_ERR(ctx->work_queue.rot_thread)) {
-		SDEDEV_ERR(ctx->rot_dev->dev, "fail allocate kthread\n");
-		ret = -EPERM;
-		ctx->work_queue.rot_thread = NULL;
-		goto error_alloc_workqueue;
+	for (i = 0; i < MAX_ROT_OPEN_SESSION; i++) {
+		if (rot_dev->kthread_free[i]) {
+			rot_dev->kthread_free[i] = false;
+			ctx->kthread_id = i;
+			ctx->work_queue.rot_kw = &rot_dev->rot_kw[i];
+			ctx->work_queue.rot_thread = rot_dev->rot_thread[i];
+			break;
+		}
 	}
-	SDEDEV_DBG(ctx->rot_dev->dev, "kthread name=%s\n", name);
+
+	if (ctx->kthread_id < 0) {
+		SDEDEV_ERR(ctx->rot_dev->dev,
+				"fail to acquire the kthread\n");
+		ret = -EINVAL;
+		goto error_alloc_kthread;
+	}
 
 	snprintf(name, sizeof(name), "%d_%d", rot_dev->dev->id,
 			ctx->session_id);
@@ -1019,9 +1024,9 @@ error_ctrl_handler:
 error_open_session:
 	sde_rot_mgr_unlock(rot_dev->mgr);
 	sde_rotator_destroy_timeline(ctx->work_queue.timeline);
-	flush_kthread_worker(&ctx->work_queue.rot_kw);
-	kthread_stop(ctx->work_queue.rot_thread);
-error_alloc_workqueue:
+	rot_dev->kthread_free[ctx->kthread_id] = true;
+	ctx->kthread_id = -1;
+error_alloc_kthread:
 	sysfs_remove_group(&ctx->kobj, &sde_rotator_fs_attr_group);
 error_create_sysfs:
 	kobject_put(&ctx->kobj);
@@ -1056,7 +1061,6 @@ static int sde_rotator_release(struct file *file)
 	v4l2_m2m_streamoff(file, ctx->fh.m2m_ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE);
 	mutex_unlock(&rot_dev->lock);
 	SDEDEV_DBG(rot_dev->dev, "release submit work s:%d\n", session_id);
-	flush_kthread_worker(&ctx->work_queue.rot_kw);
 	SDEDEV_DBG(rot_dev->dev, "release session s:%d\n", session_id);
 	sde_rot_mgr_lock(rot_dev->mgr);
 	sde_rotator_pm_qos_request(rot_dev,
@@ -1067,7 +1071,10 @@ static int sde_rotator_release(struct file *file)
 	mutex_lock(&rot_dev->lock);
 	SDEDEV_DBG(rot_dev->dev, "release context s:%d\n", session_id);
 	sde_rotator_destroy_timeline(ctx->work_queue.timeline);
-	kthread_stop(ctx->work_queue.rot_thread);
+	if (ctx->kthread_id >= 0 && ctx->work_queue.rot_kw) {
+		flush_kthread_worker(ctx->work_queue.rot_kw);
+		rot_dev->kthread_free[ctx->kthread_id] = true;
+	}
 	sysfs_remove_group(&ctx->kobj, &sde_rotator_fs_attr_group);
 	kobject_put(&ctx->kobj);
 	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
@@ -2350,7 +2357,7 @@ static int sde_rotator_process_buffers(struct sde_rotator_ctx *ctx,
 		goto error_init_request;
 	}
 
-	req->retire_kw = &ctx->work_queue.rot_kw;
+	req->retire_kw = ctx->work_queue.rot_kw;
 	req->retire_work = &ctx->retire_work;
 
 	ret = sde_rotator_handle_request_common(
@@ -2612,7 +2619,7 @@ static int sde_rotator_job_ready(void *priv)
 				v4l2_m2m_num_dst_bufs_ready(ctx->fh.m2m_ctx),
 				atomic_read(&ctx->command_pending));
 		atomic_inc(&ctx->command_pending);
-		queue_kthread_work(&ctx->work_queue.rot_kw, &ctx->submit_work);
+		queue_kthread_work(ctx->work_queue.rot_kw, &ctx->submit_work);
 	} else if (!atomic_read(&ctx->request->pending_count)) {
 		/* if pending request completed, forward to device run state */
 		SDEDEV_DBG(rot_dev->dev,
@@ -2664,7 +2671,8 @@ static int sde_rotator_probe(struct platform_device *pdev)
 {
 	struct sde_rotator_device *rot_dev;
 	struct video_device *vdev;
-	int ret;
+	int ret, i;
+	char name[32];
 
 	SDEDEV_DBG(&pdev->dev, "SDE v4l2 rotator probed\n");
 
@@ -2742,9 +2750,29 @@ static int sde_rotator_probe(struct platform_device *pdev)
 
 	rot_dev->debugfs_root = sde_rotator_create_debugfs(rot_dev);
 
+	for (i = 0; i < MAX_ROT_OPEN_SESSION; i++) {
+		snprintf(name, sizeof(name), "rot_fenceq_%d_%d",
+			rot_dev->dev->id, i);
+		init_kthread_worker(&rot_dev->rot_kw[i]);
+		rot_dev->rot_thread[i] = kthread_run(kthread_worker_fn,
+			&rot_dev->rot_kw[i], name);
+		if (IS_ERR(rot_dev->rot_thread[i])) {
+			SDEDEV_ERR(rot_dev->dev,
+				"fail allocate kthread i:%d\n", i);
+			ret = -EPERM;
+			goto error_kthread_create;
+		}
+		rot_dev->kthread_free[i] = true;
+	}
+
 	SDEDEV_INFO(&pdev->dev, "SDE v4l2 rotator probe success\n");
 
 	return 0;
+error_kthread_create:
+	for (i--; i >= 0; i--)
+		kthread_stop(rot_dev->rot_thread[i]);
+	sde_rotator_destroy_debugfs(rot_dev->debugfs_root);
+	video_unregister_device(rot_dev->vdev);
 error_video_register:
 	video_device_release(vdev);
 error_alloc_video_device:
@@ -2767,6 +2795,7 @@ error_rotator_base_init:
 static int sde_rotator_remove(struct platform_device *pdev)
 {
 	struct sde_rotator_device *rot_dev;
+	int i;
 
 	rot_dev = platform_get_drvdata(pdev);
 	if (NULL == rot_dev) {
@@ -2775,6 +2804,8 @@ static int sde_rotator_remove(struct platform_device *pdev)
 	}
 
 	sde_rotator_pm_qos_remove(rot_dev->mdata);
+	for (i = MAX_ROT_OPEN_SESSION - 1; i >= 0; i--)
+		kthread_stop(rot_dev->rot_thread[i]);
 	sde_rotator_destroy_debugfs(rot_dev->debugfs_root);
 	video_unregister_device(rot_dev->vdev);
 	video_device_release(rot_dev->vdev);
