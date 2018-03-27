@@ -221,11 +221,11 @@ static struct i2c_driver stmvl53l0_driver = {
 		.name	= STMVL53L0_DRV_NAME,
 		.owner	= THIS_MODULE,
 		.of_match_table = st_stmvl53l0_dt_match,
+		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 	.probe	= stmvl53l0_probe,
 	.remove	= stmvl53l0_remove,
 	.id_table = stmvl53l0_id,
-
 };
 
 int stmvl53l0_power_up_i2c(void *i2c_object, unsigned int *preset_flag)
