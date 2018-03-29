@@ -3618,6 +3618,7 @@ static int msm_hs_probe(struct platform_device *pdev)
 	memset(name, 0, sizeof(name));
 	scnprintf(name, sizeof(name), "%s%s", dev_name(msm_uport->uport.dev),
 									"_rx");
+#ifdef CONFIG_IPC_LOGGING
 	msm_uport->rx.ipc_rx_ctxt = ipc_log_context_create(
 					IPC_MSM_HS_LOG_DATA_PAGES, name, 0);
 	if (!msm_uport->rx.ipc_rx_ctxt)
