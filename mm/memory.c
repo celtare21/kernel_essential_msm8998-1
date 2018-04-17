@@ -2109,7 +2109,7 @@ static inline int wp_page_reuse(struct fault_env *fe, pte_t orig_pte,
 
 	flush_cache_page(vma, fe->address, pte_pfn(orig_pte));
 	entry = pte_mkyoung(orig_pte);
-	entry = maybe_mkwrite(pte_mkdirty(entry), vma);
+	entry = maybe_mkwrite(pte_mkdirty(entry), fe->vma_flags);
 	if (ptep_set_access_flags(vma, fe->address, fe->pte, entry, 1))
 		update_mmu_cache(vma, fe->address, fe->pte);
 	pte_unmap_unlock(fe->pte, fe->ptl);
@@ -2211,8 +2211,8 @@ static int wp_page_copy(struct fault_env *fe, pte_t orig_pte,
 			inc_mm_counter_fast(mm, MM_ANONPAGES);
 		}
 		flush_cache_page(vma, fe->address, pte_pfn(orig_pte));
-		entry = mk_pte(new_page, vma->vm_page_prot);
-		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
+		entry = mk_pte(new_page, fe->vma_page_prot);
+		entry = maybe_mkwrite(pte_mkdirty(entry), fe->vma_flags);
 		/*
 		 * Clear the pte entry and flush it first, before updating the
 		 * pte with the new entry. This will avoid a race condition
@@ -2273,7 +2273,7 @@ static int wp_page_copy(struct fault_env *fe, pte_t orig_pte,
 		 * Don't let another task, with possibly unlocked vma,
 		 * keep the mlocked page.
 		 */
-		if (page_copied && (vma->vm_flags & VM_LOCKED)) {
+		if (page_copied && (fe->vma_flags & VM_LOCKED)) {
 			lock_page(old_page);	/* LRU manipulation */
 			munlock_vma_page(old_page);
 			unlock_page(old_page);
@@ -2404,7 +2404,7 @@ static int do_wp_page(struct fault_env *fe, pte_t orig_pte)
 		 * We should not cow pages in a shared writeable mapping.
 		 * Just mark the pages writable and/or call ops->pfn_mkwrite.
 		 */
-		if ((vma->vm_flags & (VM_WRITE|VM_SHARED)) ==
+		if ((fe->vma_flags & (VM_WRITE|VM_SHARED)) ==
 				     (VM_WRITE|VM_SHARED))
 			return wp_pfn_shared(fe, orig_pte);
 
@@ -2445,7 +2445,7 @@ static int do_wp_page(struct fault_env *fe, pte_t orig_pte)
 			return wp_page_reuse(fe, orig_pte, old_page, 0, 0);
 		}
 		unlock_page(old_page);
-	} else if (unlikely((vma->vm_flags & (VM_WRITE|VM_SHARED)) ==
+	} else if (unlikely((fe->vma_flags & (VM_WRITE|VM_SHARED)) ==
 					(VM_WRITE|VM_SHARED))) {
 		return wp_page_shared(fe, orig_pte, old_page);
 	}
@@ -2677,9 +2677,9 @@ int do_swap_page(struct fault_env *fe, pte_t orig_pte)
 
 	inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
 	dec_mm_counter_fast(vma->vm_mm, MM_SWAPENTS);
-	pte = mk_pte(page, vma->vm_page_prot);
+	pte = mk_pte(page, fe->vma_page_prot);
 	if ((fe->flags & FAULT_FLAG_WRITE) && reuse_swap_page(page)) {
-		pte = maybe_mkwrite(pte_mkdirty(pte), vma);
+		pte = maybe_mkwrite(pte_mkdirty(pte), fe->vma_flags);
 		fe->flags &= ~FAULT_FLAG_WRITE;
 		ret |= VM_FAULT_WRITE;
 		exclusive = RMAP_EXCLUSIVE;
@@ -2699,7 +2699,7 @@ int do_swap_page(struct fault_env *fe, pte_t orig_pte)
 
 	swap_free(entry);
 	if ((PageSwapCache(page) && vm_swap_full(page_swap_info(page))) ||
-		(vma->vm_flags & VM_LOCKED) || PageMlocked(page))
+		(fe->vma_flags & VM_LOCKED) || PageMlocked(page))
 		try_to_free_swap(page);
 	unlock_page(page);
 	if (page != swapcache) {
@@ -2757,7 +2757,7 @@ static int do_anonymous_page(struct fault_env *fe)
 	pte_t entry;
 
 	/* File mapping without ->vm_ops ? */
-	if (vma->vm_flags & VM_SHARED)
+	if (fe->vma_flags & VM_SHARED)
 		return VM_FAULT_SIGBUS;
 
 
@@ -2782,7 +2782,7 @@ static int do_anonymous_page(struct fault_env *fe)
 	if (!(fe->flags & FAULT_FLAG_WRITE) &&
 			!mm_forbids_zeropage(vma->vm_mm)) {
 		entry = pte_mkspecial(pfn_pte(my_zero_pfn(fe->address),
-						vma->vm_page_prot));
+						fe->vma_page_prot));
 		if (!pte_map_lock(vma->vm_mm, fe))
 			return VM_FAULT_RETRY;
 		if (!pte_none(*fe->pte))
@@ -2812,8 +2812,8 @@ static int do_anonymous_page(struct fault_env *fe)
 	 */
 	__SetPageUptodate(page);
 
-	entry = mk_pte(page, vma->vm_page_prot);
-	if (vma->vm_flags & VM_WRITE)
+	entry = mk_pte(page, fe->vma_page_prot);
+	if (fe->vma_flags & VM_WRITE)
 		entry = pte_mkwrite(pte_mkdirty(entry));
 
 	if (!pte_map_lock(vma->vm_mm, fe)) {
@@ -2993,7 +2993,7 @@ static int do_set_pmd(struct fault_env *fe, struct page *page)
 	for (i = 0; i < HPAGE_PMD_NR; i++)
 		flush_icache_page(vma, page + i);
 
-	entry = mk_huge_pmd(page, vma->vm_page_prot);
+	entry = mk_huge_pmd(page, fe->vma_page_prot);
 	if (write)
 		entry = maybe_pmd_mkwrite(pmd_mkdirty(entry), vma);
 
@@ -3059,11 +3059,11 @@ int alloc_set_pte(struct fault_env *fe, struct mem_cgroup *memcg,
 		return VM_FAULT_NOPAGE;
 
 	flush_icache_page(vma, page);
-	entry = mk_pte(page, vma->vm_page_prot);
+	entry = mk_pte(page, fe->vma_page_prot);
 	if (write)
-		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
+		entry = maybe_mkwrite(pte_mkdirty(entry), fe->vma_flags);
 	/* copy-on-write page */
-	if (write && !(vma->vm_flags & VM_SHARED)) {
+	if (write && !(fe->vma_flags & VM_SHARED)) {
 		inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
 		page_add_new_anon_rmap(page, vma, fe->address, false);
 		mem_cgroup_commit_charge(page, memcg, false, false);
@@ -3364,7 +3364,7 @@ static int do_fault(struct fault_env *fe)
 		return VM_FAULT_SIGBUS;
 	if (!(fe->flags & FAULT_FLAG_WRITE))
 		return do_read_fault(fe, pgoff);
-	if (!(vma->vm_flags & VM_SHARED))
+	if (!(fe->vma_flags & VM_SHARED))
 		return do_cow_fault(fe, pgoff);
 	return do_shared_fault(fe, pgoff);
 }
@@ -3415,7 +3415,7 @@ static int do_numa_page(struct fault_env *fe, pte_t pte)
 	}
 
 	/* Make it present again */
-	pte = pte_modify(pte, vma->vm_page_prot);
+	pte = pte_modify(pte, fe->vma_page_prot);
 	pte = pte_mkyoung(pte);
 	if (was_writable)
 		pte = pte_mkwrite(pte);
@@ -3449,7 +3449,7 @@ static int do_numa_page(struct fault_env *fe, pte_t pte)
 	 * Flag if the page is shared between multiple address spaces. This
 	 * is later used when determining whether to group tasks together
 	 */
-	if (page_mapcount(page) > 1 && (vma->vm_flags & VM_SHARED))
+	if (page_mapcount(page) > 1 && (fe->vma_flags & VM_SHARED))
 		flags |= TNF_SHARED;
 
 	last_cpupid = page_cpupid_last(page);
@@ -3607,6 +3607,8 @@ static int __handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 		.vma = vma,
 		.address = address,
 		.flags = flags,
+		.vma_flags = vma->vm_flags,
+		.vma_page_prot = vma->vm_page_prot,
 	};
 	struct mm_struct *mm = vma->vm_mm;
 	pgd_t *pgd;
