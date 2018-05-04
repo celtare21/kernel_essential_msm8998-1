@@ -129,6 +129,7 @@ config ARM64
 	select THREAD_INFO_IN_TASK
 	select HAVE_ARM_SMCCC
 	select OF_NUMA if NUMA && OF
+	select ARCH_SUPPORTS_SPECULATIVE_PAGE_FAULT
 	help
 	  ARM 64-bit (AArch64) Linux support.
 
