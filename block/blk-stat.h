@@ -10,7 +10,7 @@
 /*
  * Upper 3 bits can be used elsewhere
  */
-#define BLK_STAT_RES_BITS	3
+#define BLK_STAT_RES_BITS	4
 #define BLK_STAT_SHIFT		(64 - BLK_STAT_RES_BITS)
 #define BLK_STAT_TIME_MASK	((1ULL << BLK_STAT_SHIFT) - 1)
 #define BLK_STAT_MASK		~BLK_STAT_TIME_MASK
