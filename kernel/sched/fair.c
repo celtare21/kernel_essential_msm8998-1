@@ -6496,7 +6496,7 @@ find_idlest_group_cpu(struct sched_group *group, struct task_struct *p, int this
 
 	/* Traverse only the allowed CPUs */
 	for_each_cpu_and(i, sched_group_cpus(group), tsk_cpus_allowed(p)) {
-		if (idle_cpu(i)) {
+		if (available_idle_cpu(i)) {
 			struct rq *rq = cpu_rq(i);
 			struct cpuidle_state *idle = idle_get_state(rq);
 			if (idle && idle->exit_latency < min_exit_latency) {
@@ -6607,7 +6607,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	schedstat_inc(this_rq(), eas_stats.sis_attempts);
 
 	if (!sysctl_sched_cstate_aware) {
-		if (idle_cpu(target)) {
+		if (available_idle_cpu(target)) {
 			schedstat_inc(p, se.statistics.nr_wakeups_sis_idle);
 			schedstat_inc(this_rq(), eas_stats.sis_idle);
 			return target;
@@ -6616,7 +6616,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 		/*
 		 * If the prevous cpu is cache affine and idle, don't be stupid.
 		 */
-		if (prev != target && cpus_share_cache(prev, target) && idle_cpu(prev)) {
+		if (prev != target && cpus_share_cache(prev, target) && available_idle_cpu(prev)) {
 			schedstat_inc(p, se.statistics.nr_wakeups_sis_cache_affine);
 			schedstat_inc(this_rq(), eas_stats.sis_cache_affine);
 			return prev;
@@ -6641,7 +6641,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 					unsigned long new_usage = boosted_task_util(p);
 					unsigned long capacity_orig = capacity_orig_of(i);
 
-					if (new_usage > capacity_orig || !idle_cpu(i))
+					if (new_usage > capacity_orig || !available_idle_cpu(i))
 						goto next;
 
 					if (i == target && new_usage <= capacity_curr_of(target)) {
@@ -6660,7 +6660,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 				}
 			} else {
 				for_each_cpu(i, sched_group_cpus(sg)) {
-					if (i == target || !idle_cpu(i))
+					if (i == target || !available_idle_cpu(i))
 						goto next;
 				}
 
@@ -6865,7 +6865,7 @@ static inline int find_best_target(struct task_struct *p, int *backup_cpu,
 				 * Case A.1: IDLE CPU
 				 * Return the first IDLE CPU we find.
 				 */
-				if (idle_cpu(i)) {
+				if (available_idle_cpu(i)) {
 					schedstat_inc(p, se.statistics.nr_wakeups_fbt_pref_idle);
 					schedstat_inc(this_rq(), eas_stats.fbt_pref_idle);
 
@@ -6951,7 +6951,7 @@ static inline int find_best_target(struct task_struct *p, int *backup_cpu,
 			 * will take care to ensure the minimization of energy
 			 * consumptions without affecting performance.
 			 */
-			if (idle_cpu(i)) {
+			if (available_idle_cpu(i)) {
 				int idle_idx = idle_get_state_idx(cpu_rq(i));
 
 				/*
@@ -7118,7 +7118,7 @@ static int select_energy_cpu_brute(struct task_struct *p, int prev_cpu, int sync
 	}
 
 	/* Unconditionally prefer IDLE CPUs for boosted/prefer_idle tasks */
-	if ((boosted || prefer_idle) && idle_cpu(next_cpu)) {
+	if ((boosted || prefer_idle) && available_idle_cpu(next_cpu)) {
 		schedstat_inc(p, se.statistics.nr_wakeups_secb_idle_bt);
 		schedstat_inc(this_rq(), eas_stats.secb_idle_bt);
 		target_cpu = next_cpu;
@@ -8756,7 +8756,7 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 		/*
 		 * No need to call idle_cpu() if nr_running is not 0
 		 */
-		if (!nr_running && idle_cpu(i))
+		if (!nr_running && available_idle_cpu(i))
 			sgs->idle_cpus++;
 
 		if (cpu_overutilized(i))
@@ -9475,7 +9475,7 @@ static int should_we_balance(struct lb_env *env)
 	sg_mask = sched_group_mask(sg);
 	/* Try to find first idle cpu */
 	for_each_cpu_and(cpu, sg_cpus, env->cpus) {
-		if (!cpumask_test_cpu(cpu, sg_mask) || !idle_cpu(cpu))
+		if (!cpumask_test_cpu(cpu, sg_mask) || !available_idle_cpu(cpu))
 			continue;
 
 		balance_cpu = cpu;
@@ -10027,7 +10027,7 @@ static inline int find_new_ilb(void)
 
 	ilb = cpumask_first(nohz.idle_cpus_mask);
 
-	if (ilb < nr_cpu_ids && idle_cpu(ilb))
+	if (ilb < nr_cpu_ids && available_idle_cpu(ilb))
 		return ilb;
 
 	return nr_cpu_ids;
@@ -10226,7 +10226,7 @@ static void rebalance_domains(struct rq *rq, enum cpu_idle_type idle)
 				 * env->dst_cpu, so we can't know our idle
 				 * state even if we migrated tasks. Update it.
 				 */
-				idle = idle_cpu(cpu) ? CPU_IDLE : CPU_NOT_IDLE;
+				idle = available_idle_cpu(cpu) ? CPU_IDLE : CPU_NOT_IDLE;
 			}
 			sd->last_balance = jiffies;
 			interval = get_sd_balance_interval(sd, idle != CPU_IDLE);
@@ -10291,7 +10291,7 @@ static void nohz_idle_balance(struct rq *this_rq, enum cpu_idle_type idle)
 		goto end;
 
 	for_each_cpu(balance_cpu, nohz.idle_cpus_mask) {
-		if (balance_cpu == this_cpu || !idle_cpu(balance_cpu))
+		if (balance_cpu == this_cpu || !available_idle_cpu(balance_cpu))
 			continue;
 
 		/*
