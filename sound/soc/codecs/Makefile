@@ -430,7 +430,3 @@ obj-y += msm_sdw/
 
 # SmartAmp
 obj-$(CONFIG_SND_SOC_TFA9891)   += tfa9891/
-
-# TODO: remove me b/62058353
-subdir-ccflags-y += \
-	-Wno-enum-conversion
