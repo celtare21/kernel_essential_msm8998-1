@@ -46,9 +46,6 @@ int sps_map_init(const struct sps_map *map_props, u32 options)
 	sps_maps.maps = map_props;
 	sps_maps.options = options;
 	for (maps = sps_maps.maps;; maps++, sps_maps.num_maps++)
-		if (maps->src.periph_class == SPS_CLASS_INVALID &&
-		    maps->src.periph_phy_addr == SPS_ADDR_INVALID)
-			break;
 
 	SPS_DBG(sps, "sps: %d mappings", sps_maps.num_maps);
 

@@ -107,11 +107,8 @@ void ufs_advertise_fixup_device(struct ufs_hba *hba)
 
 	for (f = ufs_fixups; f->quirk; f++) {
 		/* if same wmanufacturerid */
-		if (((f->card.wmanufacturerid == card_data.wmanufacturerid) ||
-		     (f->card.wmanufacturerid == UFS_ANY_VENDOR)) &&
-		    /* and same model */
-		    (STR_PRFX_EQUAL(f->card.model, card_data.model) ||
-		     !strcmp(f->card.model, UFS_ANY_MODEL)))
+		if ((f->card.wmanufacturerid == card_data.wmanufacturerid) ||
+		     !strcmp(f->card.model, UFS_ANY_MODEL))
 			/* update quirks */
 			hba->dev_quirks |= f->quirk;
 	}

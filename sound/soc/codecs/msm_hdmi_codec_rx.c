@@ -137,12 +137,6 @@ static int msm_ext_disp_audio_type_get(struct snd_kcontrol *kcontrol,
 
 	cable_state = codec_data->ext_disp_ops.cable_status(
 				   codec_data->ext_disp_core_pdev, 1);
-	if (IS_ERR_VALUE(cable_state)) {
-		dev_err(codec->dev, "%s: Error retrieving cable state from ext_disp, err:%d\n",
-			__func__, cable_state);
-		rc = cable_state;
-		goto done;
-	}
 
 	codec_data->cable_status = cable_state;
 	if (cable_state == EXT_DISPLAY_CABLE_DISCONNECT) {
@@ -155,29 +149,23 @@ static int msm_ext_disp_audio_type_get(struct snd_kcontrol *kcontrol,
 
 	disp_type = codec_data->ext_disp_ops.get_intf_id(
 						codec_data->ext_disp_core_pdev);
-	if (!IS_ERR_VALUE(disp_type)) {
-		switch (disp_type) {
-		case EXT_DISPLAY_TYPE_DP:
-			ucontrol->value.integer.value[0] = 2;
-			rc = 0;
-			break;
-		case EXT_DISPLAY_TYPE_HDMI:
-			ucontrol->value.integer.value[0] = 1;
-			rc = 0;
-			break;
-		default:
-			rc = -EINVAL;
-			dev_err(codec->dev, "%s: Invalid disp_type:%d\n",
-			       __func__, disp_type);
-			goto done;
-		}
-		dev_dbg(codec->dev, "%s: Display type: %d\n",
-			__func__, disp_type);
-	} else {
-		dev_err(codec->dev, "%s: Error retrieving disp_type from ext_disp, err:%d\n",
-			__func__, disp_type);
-		rc = disp_type;
+	switch (disp_type) {
+	case EXT_DISPLAY_TYPE_DP:
+		ucontrol->value.integer.value[0] = 2;
+		rc = 0;
+		break;
+	case EXT_DISPLAY_TYPE_HDMI:
+		ucontrol->value.integer.value[0] = 1;
+		rc = 0;
+		break;
+	default:
+		rc = -EINVAL;
+		dev_err(codec->dev, "%s: Invalid disp_type:%d\n",
+		       __func__, disp_type);
+		goto done;
 	}
+	dev_dbg(codec->dev, "%s: Display type: %d\n",
+		__func__, disp_type);
 
 done:
 	return rc;

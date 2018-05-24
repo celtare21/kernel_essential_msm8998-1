@@ -938,12 +938,6 @@ static int usf_set_us_detection(struct usf_type *usf, unsigned long arg)
 		return -EFAULT;
 	}
 
-	if (detect_info.params_data_size > USF_MAX_USER_BUF_SIZE) {
-		pr_err("%s: user buffer size exceeds maximum\n",
-			__func__);
-		return -EFAULT;
-	}
-
 	rc = __usf_set_us_detection(usf, &detect_info);
 	if (rc < 0) {
 		pr_err("%s: set us detection failed; rc=%d\n",
@@ -1041,12 +1035,6 @@ static int usf_set_tx_info(struct usf_type *usf, unsigned long arg)
 		return -EFAULT;
 	}
 
-	if (config_tx.us_xx_info.params_data_size > USF_MAX_USER_BUF_SIZE) {
-		pr_err("%s: user buffer size exceeds maximum\n",
-			__func__);
-		return -EFAULT;
-	}
-
 	return __usf_set_tx_info(usf, &config_tx);
 } /* usf_set_tx_info */
 
@@ -1110,12 +1098,6 @@ static int usf_set_rx_info(struct usf_type *usf, unsigned long arg)
 	if (rc) {
 		pr_err("%s: copy config_rx from user; rc=%d\n",
 			__func__, rc);
-		return -EFAULT;
-	}
-
-	if (config_rx.us_xx_info.params_data_size > USF_MAX_USER_BUF_SIZE) {
-		pr_err("%s: user buffer size exceeds maximum\n",
-			__func__);
 		return -EFAULT;
 	}
 
@@ -2047,12 +2029,6 @@ static int usf_set_us_detection32(struct usf_type *usf, unsigned long arg)
 	if (rc) {
 		pr_err("%s: copy detect_info32 from user; rc=%d\n",
 			__func__, rc);
-		return -EFAULT;
-	}
-
-	if (detect_info32.params_data_size > USF_MAX_USER_BUF_SIZE) {
-		pr_err("%s: user buffer size exceeds maximum\n",
-			__func__);
 		return -EFAULT;
 	}
 

@@ -63,13 +63,6 @@ static uint8_t rmnet_map_do_flow_control(struct sk_buff *skb,
 	mux_id = RMNET_MAP_GET_MUX_ID(skb);
 	cmd = RMNET_MAP_GET_CMD_START(skb);
 
-	if (mux_id >= RMNET_DATA_MAX_LOGICAL_EP) {
-		LOGD("Got packet on %s with bad mux id %d",
-		     skb->dev->name, mux_id);
-		rmnet_kfree_skb(skb, RMNET_STATS_SKBFREE_MAPC_BAD_MUX);
-		return RX_HANDLER_CONSUMED;
-	}
-
 	ep = &(config->muxed_ep[mux_id]);
 
 	if (!ep->refcount) {

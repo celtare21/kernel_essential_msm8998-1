@@ -1974,8 +1974,7 @@ static int qpnp_wled_init(struct qpnp_led_data *led)
 		return -EINVAL;
 	}
 
-	if ((led->wled_cfg->ctrl_delay_us % WLED_CTL_DLY_STEP) ||
-		(led->wled_cfg->ctrl_delay_us > WLED_CTL_DLY_MAX)) {
+	if (led->wled_cfg->ctrl_delay_us % WLED_CTL_DLY_STEP) {
 		dev_err(&led->pdev->dev, "Invalid control delay\n");
 		return -EINVAL;
 	}
@@ -3746,7 +3745,7 @@ static int qpnp_get_config_kpdbl(struct qpnp_led_data *led,
 	rc = of_property_read_string(node, "qcom,mode", &mode);
 	if (!rc) {
 		led_mode = qpnp_led_get_mode(mode);
-		if ((led_mode == MANUAL_MODE) || (led_mode == -EINVAL)) {
+		if (led_mode == MANUAL_MODE) {
 			dev_err(&led->pdev->dev, "Selected mode not supported for kpdbl.\n");
 			return -EINVAL;
 		}
@@ -3811,7 +3810,7 @@ static int qpnp_get_config_rgb(struct qpnp_led_data *led,
 	rc = of_property_read_string(node, "qcom,mode", &mode);
 	if (!rc) {
 		led_mode = qpnp_led_get_mode(mode);
-		if ((led_mode == MANUAL_MODE) || (led_mode == -EINVAL)) {
+		if (led_mode == MANUAL_MODE) {
 			dev_err(&led->pdev->dev, "Selected mode not supported for rgb\n");
 			return -EINVAL;
 		}
@@ -3936,11 +3935,7 @@ static int qpnp_get_config_mpp(struct qpnp_led_data *led,
 		led->mpp_cfg->pwm_mode = led_mode;
 		if (led_mode == MANUAL_MODE)
 			return MANUAL_MODE;
-		else if (led_mode == -EINVAL) {
-			dev_err(&led->pdev->dev, "Selected mode not supported for mpp\n");
-			rc = -EINVAL;
-			goto err_config_mpp;
-		}
+
 		led->mpp_cfg->pwm_cfg = devm_kzalloc(&led->pdev->dev,
 					sizeof(struct pwm_config_data),
 					GFP_KERNEL);

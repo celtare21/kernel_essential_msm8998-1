@@ -204,7 +204,7 @@ enum {
 	MAX_TYPES
 };
 
-static const struct apsd_result const smblib_apsd_results[] = {
+static const struct apsd_result smblib_apsd_results[] = {
 	[UNKNOWN] = {
 		.name	= "UNKNOWN",
 		.bit	= 0,
@@ -246,7 +246,6 @@ static const struct apsd_result const smblib_apsd_results[] = {
 		.pst	= POWER_SUPPLY_TYPE_USB_HVDCP_3,
 	},
 };
-
 static const struct apsd_result *smblib_get_apsd_result(struct smb_charger *chg)
 {
 	int rc, i;

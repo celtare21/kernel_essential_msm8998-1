@@ -523,10 +523,6 @@ static int __calibrate_alpha_pll(struct alpha_pll_clk *pll)
 	int rc;
 
 	vco_val = find_vco(pll, pll->c.rate);
-	if (IS_ERR_VALUE(vco_val)) {
-		pr_err("alpha pll: not in a valid vco range\n");
-		return -EINVAL;
-	}
 	/*
 	 * As during slewing plls vco_sel won't be allowed to change, vco table
 	 * should have only one entry table, i.e. index = 0, find the

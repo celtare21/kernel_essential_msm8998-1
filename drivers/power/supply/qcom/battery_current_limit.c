@@ -208,7 +208,6 @@ static DEFINE_MUTEX(bcl_cpufreq_mutex);
 static bool bcl_hotplug_enabled;
 static uint32_t battery_soc_val = 100;
 static uint32_t soc_low_threshold;
-static const char bcl_psy_name[] = "bcl";
 
 static void bcl_handle_hotplug(struct work_struct *work)
 {

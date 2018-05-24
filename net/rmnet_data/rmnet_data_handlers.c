@@ -448,13 +448,6 @@ static rx_handler_result_t _rmnet_map_ingress_handler(struct sk_buff *skb,
 			- RMNET_MAP_GET_PAD(skb)
 			- config->tail_spacing;
 
-	if (mux_id >= RMNET_DATA_MAX_LOGICAL_EP) {
-		LOGD("Got packet on %s with bad mux id %d",
-			skb->dev->name, mux_id);
-		rmnet_kfree_skb(skb, RMNET_STATS_SKBFREE_MAPINGRESS_BAD_MUX);
-			return RX_HANDLER_CONSUMED;
-	}
-
 	ep = &(config->muxed_ep[mux_id]);
 
 	if (!ep->refcount) {

@@ -944,7 +944,7 @@ static void update_rq_clock_task(struct rq *rq, s64 delta)
 	rq->clock_task += delta;
 
 #if defined(CONFIG_IRQ_TIME_ACCOUNTING) || defined(CONFIG_PARAVIRT_TIME_ACCOUNTING)
-	if ((irq_delta + steal) && sched_feat(NONTASK_CAPACITY))
+	if (sched_feat(NONTASK_CAPACITY) && (irq_delta + steal) != 0)
 		sched_rt_avg_update(rq, irq_delta + steal);
 #endif
 }
@@ -8554,8 +8554,6 @@ void __init sched_init(void)
 #ifdef CONFIG_SMP
 	zalloc_cpumask_var(&sched_domains_tmpmask, GFP_NOWAIT);
 	/* May be allocated at isolcpus cmdline parse time */
-	if (cpu_isolated_map == NULL)
-		zalloc_cpumask_var(&cpu_isolated_map, GFP_NOWAIT);
 	idle_thread_set_boot_cpu();
 	set_cpu_rq_start_time();
 #endif

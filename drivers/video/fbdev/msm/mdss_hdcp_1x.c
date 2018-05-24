@@ -1171,10 +1171,6 @@ static int hdcp_1x_read_ksv_fifo(struct hdcp_1x *hdcp)
 	while (ksv_bytes && --ksv_read_retry) {
 		rc = hdcp_1x_read(hdcp, &hdcp->sink_addr.ksv_fifo,
 				ksv_fifo, true);
-		if (IS_ERR_VALUE(rc))
-			pr_err("could not read ksv fifo (%d)\n",
-				ksv_read_retry);
-		else
 			break;
 	}
 

@@ -4920,10 +4920,6 @@ static int __qseecom_enable_clk(enum qseecom_ce_hw_instance ce)
 	}
 	mutex_lock(&clk_access_lock);
 
-	if (qclk->clk_access_cnt == ULONG_MAX) {
-		pr_err("clk_access_cnt beyond limitation\n");
-		goto err;
-	}
 	if (qclk->clk_access_cnt > 0) {
 		qclk->clk_access_cnt++;
 		mutex_unlock(&clk_access_lock);
