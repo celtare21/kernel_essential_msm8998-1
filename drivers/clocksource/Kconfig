@@ -176,6 +176,15 @@ config FSL_ERRATUM_A008585
 	  value").  The workaround will only be active if the
 	  fsl,erratum-a008585 property is found in the timer node.
 
+config MSM_TIMER_LEAP
+	bool "ARCH TIMER counter rollover"
+	default n
+	depends on ARM_ARCH_TIMER && ARM64
+	help
+	  This option enables a check for least significant 32 bits of
+	  counter rollover. On every counter read if least significant
+	  32 bits are set, reread counter.
+
 config ARM_GLOBAL_TIMER
 	bool
 	select CLKSRC_OF if OF
