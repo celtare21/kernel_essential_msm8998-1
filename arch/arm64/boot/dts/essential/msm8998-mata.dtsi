@@ -146,9 +146,7 @@
 };
 
 &uartblsp2dm1 {
-	status = "ok";
-	pinctrl-names = "default";
-	pinctrl-0 = <&msm8998_gpio4_active &msm8998_gpio5_active>;
+	status = "disabled";
 };
 
 &pmi8998_charger {
