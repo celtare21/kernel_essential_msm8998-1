@@ -1673,6 +1673,8 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	 */
 	copy_seccomp(p);
 
+	rseq_fork(p, clone_flags);
+
 	/*
 	 * Process group and session signals need to be delivered to just the
 	 * parent before the fork or both the parent and the child after the
