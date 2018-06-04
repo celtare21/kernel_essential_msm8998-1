@@ -30,6 +30,12 @@ $(warning LSE atomics not supported by binutils)
   endif
 endif
 
+KBUILD_CFLAGS	+= $(call cc-option,-march=armv8-a+crypto+crc,) $(call cc-option,-mcpu=cortex-a53+crypto+crc,)
+
+GEN_FLAGS := -O3 -fopenmp
+
+KBUILD_CFLAGS	+= $(GEN_FLAGS)
+
 ifeq ($(cc-name),clang)
 # This is a workaround for https://bugs.llvm.org/show_bug.cgi?id=30792.
 # TODO: revert when this is fixed in LLVM.
