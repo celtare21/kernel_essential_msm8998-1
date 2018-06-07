@@ -188,7 +188,7 @@ static void __kthread_parkme(struct kthread *self)
 		if (!test_bit(KTHREAD_SHOULD_PARK, &self->flags))
 			break;
 
-                complete_all(&self->parked);
+                complete(&self->parked);
 		preempt_disable();
 		schedule_preempt_disabled();
 		preempt_enable();
