@@ -1464,6 +1464,7 @@ static const struct file_operations ufsdbg_io_stats_desc = {
 	.open		= ufsdbg_io_stats_open,
 	.read		= seq_read,
 	.write		= ufsdbg_io_stats_write,
+	.release        = single_release,
 };
 
 static int ufsdbg_reset_controller_show(struct seq_file *file, void *data)
