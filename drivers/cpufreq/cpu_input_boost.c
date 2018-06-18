@@ -20,6 +20,7 @@
 #include <linux/slab.h>
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
+static bool stune_boost_active;
 static unsigned short dynamic_stune_boost;
 module_param(dynamic_stune_boost, short, 0644);
 #endif
@@ -149,7 +150,8 @@ static void input_boost_worker(struct work_struct *work)
 	}
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	do_stune_boost("top-app", dynamic_stune_boost);
+	if (!do_stune_boost("top-app", dynamic_stune_boost))
+		stune_boost_active = true;
 #endif
 	queue_delayed_work(b->wq, &b->input_unboost,
 		msecs_to_jiffies(CONFIG_INPUT_BOOST_DURATION_MS));
@@ -162,7 +164,10 @@ static void input_unboost_worker(struct work_struct *work)
 
 	clear_boost_bit(b, INPUT_BOOST);
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	reset_stune_boost("top-app");
+	if (stune_boost_active) {
+		reset_stune_boost("top-app");
+		stune_boost_active = false;
+	}
 #endif
 	update_online_cpu_policy();
 }
@@ -177,7 +182,8 @@ static void max_boost_worker(struct work_struct *work)
 	}
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	do_stune_boost("top-app", dynamic_stune_boost);
+	if (!do_stune_boost("top-app", dynamic_stune_boost))
+		stune_boost_active = true;
 #endif
 	queue_delayed_work(b->wq, &b->max_unboost,
 		msecs_to_jiffies(atomic_read(&b->max_boost_dur)));
@@ -190,7 +196,10 @@ static void max_unboost_worker(struct work_struct *work)
 
 	clear_boost_bit(b, WAKE_BOOST | MAX_BOOST);
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	reset_stune_boost("top-app");
+	if (stune_boost_active) {
+		reset_stune_boost("top-app");
+		stune_boost_active = false;
+	}
 #endif
 	update_online_cpu_policy();
 }
@@ -298,7 +307,10 @@ free_handle:
 static void cpu_input_boost_input_disconnect(struct input_handle *handle)
 {
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	reset_stune_boost("top-app");
+	if (stune_boost_active) {
+		reset_stune_boost("top-app");
+		stune_boost_active = false;
+	}
 #endif
 	input_close_device(handle);
 	input_unregister_handle(handle);
