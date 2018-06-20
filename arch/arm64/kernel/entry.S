@@ -869,6 +869,7 @@ ENDPROC(cpu_switch_to)
 ret_fast_syscall:
 	disable_irq				// disable interrupts
 	str	x0, [sp, #S_X0]			// returned x0
+#ifdef CONFIG_DEBUG_RSEQ
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	ldr	x1, [tsk, #TSK_TI_FLAGS]	// re-check for syscall tracing
 #else
@@ -880,6 +881,7 @@ ret_fast_syscall:
 	cbnz	x2, work_pending
 	enable_step_tsk x1, x2
 	kernel_exit 0
+#endif
 ret_fast_syscall_trace:
 	enable_irq				// enable interrupts
 	b	__sys_trace_return_skipped	// we already saved x0
