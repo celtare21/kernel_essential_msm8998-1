@@ -101,6 +101,7 @@ static inline int atomic_dec_and_test(atomic_t *v)
 	__asm__ __volatile__("subql #1,%1; seq %0" : "=d" (c), "+m" (*v));
 	return c != 0;
 }
+#define atomic_dec_and_test atomic_dec_and_test
 
 static inline int atomic_dec_and_test_lt(atomic_t *v)
 {
@@ -118,6 +119,7 @@ static inline int atomic_inc_and_test(atomic_t *v)
 	__asm__ __volatile__("addql #1,%1; seq %0" : "=d" (c), "+m" (*v));
 	return c != 0;
 }
+#define atomic_inc_and_test atomic_inc_and_test
 
 #ifdef CONFIG_RMW_INSNS
 
@@ -164,6 +166,7 @@ static inline int atomic_sub_and_test(int i, atomic_t *v)
 			     : ASM_DI (i));
 	return c != 0;
 }
+#define atomic_sub_and_test atomic_sub_and_test
 
 static inline int atomic_add_negative(int i, atomic_t *v)
 {
@@ -173,6 +176,7 @@ static inline int atomic_add_negative(int i, atomic_t *v)
 			     : ASM_DI (i));
 	return c != 0;
 }
+#define atomic_add_negative atomic_add_negative
 
 static __inline__ int __atomic_add_unless(atomic_t *v, int a, int u)
 {
