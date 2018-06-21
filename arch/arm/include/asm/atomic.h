@@ -205,12 +205,6 @@ ATOMIC_OP(xor, ^=, eor)
 
 #define atomic_xchg(v, new) (xchg(&((v)->counter), new))
 
-#define atomic_inc(v)		atomic_add(1, v)
-#define atomic_dec(v)		atomic_sub(1, v)
-
-#define atomic_inc_return_relaxed(v)    (atomic_add_return_relaxed(1, v))
-#define atomic_dec_return_relaxed(v)    (atomic_sub_return_relaxed(1, v))
-
 #ifndef CONFIG_GENERIC_ATOMIC64
 typedef struct {
 	long long counter;
@@ -434,11 +428,6 @@ static inline int atomic64_add_unless(atomic64_t *v, long long a, long long u)
 
 	return ret;
 }
-
-#define atomic64_inc(v)			atomic64_add(1LL, (v))
-#define atomic64_inc_return_relaxed(v)	atomic64_add_return_relaxed(1LL, (v))
-#define atomic64_dec(v)			atomic64_sub(1LL, (v))
-#define atomic64_dec_return_relaxed(v)	atomic64_sub_return_relaxed(1LL, (v))
 
 #endif /* !CONFIG_GENERIC_ATOMIC64 */
 #endif
