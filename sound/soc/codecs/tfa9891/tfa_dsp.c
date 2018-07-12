@@ -1426,7 +1426,6 @@ enum Tfa98xx_Error tfa_dsp_msg_status(Tfa98xx_handle_t handle, int *pRpcStatus) 
 const char* tfa98xx_get_i2c_status_id_string(int status)
 {
         const char* p_id_str;
-        char latest_errorstr[64];
 
         switch (status)
         {
@@ -1458,8 +1457,7 @@ const char* tfa98xx_get_i2c_status_id_string(int status)
                         p_id_str = "I2C buffer has overflowed: host has sent too many parameters, memory integrity is not guaranteed";
                         break;
                 default:
-                        sprintf(latest_errorstr, "Unspecified error (%d)", (int)status);
-                        p_id_str = latest_errorstr;
+                        p_id_str = "Unspecified error";
                         break;
         }
 
@@ -2580,8 +2578,6 @@ enum Tfa98xx_Error tfaRunSpeakerCalibration(Tfa98xx_handle_t handle, int profile
 {
 	enum Tfa98xx_Error err = Tfa98xx_Error_Ok;
 	int calibrateDone, spkr_count = 0;
-	/* Avoid warning in user-space */
-	(int)profile;
 
 #ifdef __KERNEL__ /* Necessary otherwise we are thrown out of operating mode in kernel (because of internal clock) */
 	if((strstr(tfaContProfileName(handle, profile), ".cal") == NULL) && (tfa98xx_dev_family(handle) == 2))
