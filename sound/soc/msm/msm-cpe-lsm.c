@@ -688,7 +688,7 @@ static int msm_cpe_lab_thread(void *data)
 			lab_d->thread_status = MSM_LSM_LAB_THREAD_ERROR;
 		}
 
-		rc = wait_for_completion_timeout(&lab_d->comp, (2 * HZ/10));
+		rc = wait_for_completion_timeout(&lab_d->comp, msecs_to_jiffies(200));
 		if (!rc) {
 			dev_err(rtd->dev,
 				"%s: wait timedout for slim buffer\n",
