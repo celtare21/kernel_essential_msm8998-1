@@ -366,17 +366,6 @@ static struct cpu_cooling_ops cd_ops = {
 	.ceil_limit = lmh_set_max_limit,
 };
 
-int msm_lmh_dcvsh_sw_notify(int cpu)
-{
-	struct msm_lmh_dcvs_hw *hw = get_dcvsh_hw_from_cpu(cpu);
-
-	if (!hw)
-		return -EINVAL;
-
-	lmh_dcvs_notify(hw);
-	return 0;
-}
-
 static int __ref lmh_dcvs_cpu_callback(struct notifier_block *nfb,
 		unsigned long action, void *hcpu)
 {
