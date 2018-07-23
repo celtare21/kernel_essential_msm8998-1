@@ -161,8 +161,8 @@
 };
 
 &pmi8998_fg {
-	qcom,fg-cutoff-voltage = <3400>;
-	qcom,fg-empty-voltage = <3300>;
+	qcom,fg-cutoff-voltage = <3200>;
+	qcom,fg-empty-voltage = <3100>;
 	qcom,fg-chg-term-current = <63>; /* 0.02C */
 	qcom,fg-sys-term-current = <(-250)>;
 	qcom,fg-recharge-soc-thr = <95>;
