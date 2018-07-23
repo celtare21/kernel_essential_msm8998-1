@@ -7000,6 +7000,13 @@ static inline int find_best_target(struct task_struct *p, int *backup_cpu,
 			}
 
 			/*
+			 * Skip processing placement further if we are visiting
+			 * cpus with lower capacity than start cpu
+			 */
+			if (capacity_orig < capacity_orig_of(cpu))
+				continue;
+
+			/*
 			 * Favor CPUs with smaller capacity for Non latency
 			 * sensitive tasks.
 			 */
