@@ -105,6 +105,9 @@
 			"mem_clk", "mem_iface_clk", "isense_clk", "rbcpr_clk",
 			"iref_clk";
 
+		/* To disable GPU wake up on touch event */
+		qcom,disable-wake-on-touch;
+
 		qcom,isense-clk-on-level = <1>;
 		/* Bus Scale Settings */
 		qcom,gpubw-dev = <&gpubw>;
