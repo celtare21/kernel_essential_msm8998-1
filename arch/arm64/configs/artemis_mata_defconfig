@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 4.4.139 Kernel Configuration
+# Linux/arm64 4.4.145 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -1428,6 +1428,7 @@ CONFIG_DM_VERITY_FEC=y
 # CONFIG_DM_LOG_WRITES is not set
 # CONFIG_DM_VERITY_AVB is not set
 CONFIG_DM_ANDROID_VERITY=y
+# CONFIG_DM_ANDROID_VERITY_AT_MOST_ONCE_DEFAULT_ENABLED is not set
 # CONFIG_TARGET_CORE is not set
 # CONFIG_FUSION is not set
 
