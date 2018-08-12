@@ -496,7 +496,7 @@ static int msm_voice_sidetone_put(struct snd_kcontrol *kcontrol,
 					struct snd_ctl_elem_value *ucontrol)
 {
 	int ret;
-	long sidetone_enable = ucontrol->value.integer.value[0];
+	int sidetone_enable = ucontrol->value.integer.value[0];
 	uint32_t session_id = ALL_SESSION_VSID;
 
 	ret = voc_set_afe_sidetone(session_id, sidetone_enable);
