@@ -505,6 +505,7 @@
 
 &slim_aud {
 	tasha_codec {
+		status = "disabled";
 		wsa_spkr_sd1: msm_cdc_pinctrll {
 			pinctrl-names = "aud_active", "aud_sleep";
 			pinctrl-0 = <>;
@@ -519,16 +520,17 @@
 	};
 
 	tavil_codec {
+		status = "disabled";
 		wsa_spkr_wcd_sd1: msm_cdc_pinctrll {
-			pinctrl-names = "aud_active", "aud_sleep";
-			pinctrl-0 = <>;
-			pinctrl-1 = <>;
+			/delete-node/ pinctrl-names;
+			/delete-node/ pinctrl-0;
+			/delete-node/ pinctrl-1;
 		};
 
 		wsa_spkr_wcd_sd2: msm_cdc_pinctrlr {
-			pinctrl-names = "aud_active", "aud_sleep";
-			pinctrl-0 = <>;
-			pinctrl-1 = <>;
+			/delete-node/ pinctrl-names;
+			/delete-node/ pinctrl-0;
+			/delete-node/ pinctrl-1;
 		};
 	};
 };
@@ -904,18 +906,20 @@
 		qcom,hph-en0-gpio = <>;		/* no use Qualcomm default HiFi amplifier */
 		qcom,hph-en1-gpio = <>;		/* no use Qualcomm default HiFi amplifier */
 
-                hph_en0_gpio: msm_cdc_pinctrl@67 {
-                        pinctrl-names = "aud_active", "aud_sleep";
-                        pinctrl-0 = <>;
-                        pinctrl-1 = <>;
-                };
+		hph_en0_gpio: msm_cdc_pinctrl@67 {
+			/delete-node/ pinctrl-names;
+			/delete-node/ pinctrl-0;
+			/delete-node/ pinctrl-1;
+		};
 
-                hph_en1_gpio: msm_cdc_pinctrl@68 {
-                        pinctrl-names = "aud_active", "aud_sleep";
-                        pinctrl-0 = <>;
-                        pinctrl-1 = <>;
-                };
+		hph_en1_gpio: msm_cdc_pinctrl@68 {
+			/delete-node/ pinctrl-names;
+			/delete-node/ pinctrl-0;
+			/delete-node/ pinctrl-1;
+		};
 	};
+
+	/delete-node/ sound-tavil;
 
 	dsi_panel_pwr_supply_jdi: dsi_panel_pwr_supply_jdi {
 		#address-cells = <1>;
@@ -1334,11 +1338,6 @@
 
 &usb3 {
 	qcom,core-clk-rate = <150000000>;
-};
-
-&snd_934x {
-	qcom,usbc-analog-en1_gpio = <>;
-	qcom,usbc-analog-en2_n_gpio = <>;
 };
 
 &wcd_usbc_analog_en1_gpio {
