@@ -316,6 +316,8 @@ int msm_comm_get_inst_load(struct msm_vidc_inst *inst,
 		inst->state < MSM_VIDC_STOP_DONE))
 		goto exit;
 
+        mutex_unlock(&inst->lock);
+
 	load = msm_comm_get_mbs_per_sec(inst);
 
 	if (is_thumbnail_session(inst)) {
@@ -2594,6 +2596,7 @@ static void handle_thermal_event(struct msm_vidc_core *core)
 	return;
 
 err_sess_abort:
+	mutex_unlock(&core->lock);
 	msm_comm_clean_notify_client(core);
 	return;
 }
@@ -2658,6 +2661,7 @@ int msm_comm_check_core_init(struct msm_vidc_core *core)
 	} else {
 		core->state = VIDC_CORE_INIT_DONE;
 		rc = 0;
+		mutex_unlock(&core->lock);
 	}
 	dprintk(VIDC_DBG, "SYS_INIT_DONE!!!\n");
 exit:
@@ -2710,6 +2714,7 @@ static int msm_comm_init_core(struct msm_vidc_inst *inst)
 		dprintk(VIDC_WARN,
 			"%s: capabilities memory is expected to be freed\n",
 			__func__);
+		        mutex_unlock(&core->lock);
 	}
 
 	rc = call_hfi_op(hdev, core_init, hdev->hfi_device_data);
@@ -2776,6 +2781,7 @@ static int msm_vidc_deinit_core(struct msm_vidc_inst *inst)
 			core->state == VIDC_CORE_INVALID ?
 			0 : msm_vidc_firmware_unload_delay);
 	}
+	mutex_unlock(&core->lock);
 
 core_already_uninited:
 	change_inst_state(inst, MSM_VIDC_CORE_UNINIT);
@@ -3079,6 +3085,7 @@ int msm_comm_suspend(int core_id)
 		rc = -EINVAL;
 		goto exit;
 	}
+        mutex_unlock(&core->lock);
 
 	rc = call_hfi_op(hdev, suspend, hdev->hfi_device_data);
 	if (rc)
@@ -3464,6 +3471,7 @@ int msm_comm_try_state(struct msm_vidc_inst *inst, int state)
 		rc = -EINVAL;
 		goto exit;
 	}
+	mutex_unlock(&inst->sync_lock);
 	flipped_state = get_flipped_state(inst->state, state);
 	dprintk(VIDC_DBG,
 			"flipped_state = %#x\n", flipped_state);
@@ -3684,6 +3692,8 @@ static unsigned int count_single_batch(struct msm_vidc_list *list,
 		if (!(vbuf->flags & V4L2_MSM_BUF_FLAG_DEFER))
 			goto found_batch;
 	}
+	mutex_unlock(&list->lock);
+
 	 /* don't have a full batch */
 	count = 0;
 
@@ -4074,6 +4084,7 @@ int msm_comm_try_get_prop(struct msm_vidc_inst *inst, enum hal_property ptype,
 	if (rc) {
 		dprintk(VIDC_ERR, "Can't query hardware for property: %d\n",
 				rc);
+		mutex_unlock(&inst->sync_lock);
 		goto exit;
 	}
 
@@ -4094,6 +4105,7 @@ int msm_comm_try_get_prop(struct msm_vidc_inst *inst, enum hal_property ptype,
 		BUG_ON(msm_vidc_debug_timeout);
 		msm_comm_kill_session(inst);
 		rc = -ETIMEDOUT;
+		mutex_unlock(&inst->sync_lock);
 		goto exit;
 	} else {
 		/* wait_for_completion_timeout returns jiffies before expiry */
@@ -4176,7 +4188,7 @@ int msm_comm_release_output_buffers(struct msm_vidc_inst *inst)
 					buffer_info.buffer_size);
 			}
 		}
-
+		mutex_unlock(&inst->outputbufs.lock);
 		list_del(&buf->list);
 		msm_comm_smem_free(inst, buf->handle);
 		kfree(buf);
@@ -4308,6 +4320,7 @@ int msm_comm_release_scratch_buffers(struct msm_vidc_inst *inst,
 		if (sufficiency & buf->buffer_type)
 			continue;
 
+		mutex_unlock(&inst->scratchbufs.lock);
 		list_del(&buf->list);
 		msm_comm_smem_free(inst, buf->handle);
 		kfree(buf);
@@ -4402,6 +4415,7 @@ int msm_comm_try_set_prop(struct msm_vidc_inst *inst,
 		rc = -EAGAIN;
 		goto exit;
 	}
+        mutex_unlock(&inst->sync_lock);
 	rc = call_hfi_op(hdev, session_set_property, (void *)inst->session,
 			ptype, pdata);
 	if (rc)
