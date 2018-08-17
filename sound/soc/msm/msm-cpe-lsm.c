@@ -2391,7 +2391,7 @@ done:
 	return err;
 }
 
-#ifdef CONFIG_COMPAT
+#ifndef CONFIG_BOARD_MATA
 struct snd_lsm_sound_model_v2_32 {
 	compat_uptr_t data;
 	compat_uptr_t confidence_level;
