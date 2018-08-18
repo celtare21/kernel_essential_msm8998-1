@@ -919,7 +919,17 @@
 		};
 	};
 
-	/delete-node/ sound-tavil;
+	snd_934x: sound-tavil {
+		status = "disabled";
+	};
+
+	smp2pgpio_rdbg_5_out: qcom,smp2pgpio-rdbg-5-out {
+		status = "disabled";
+	};
+
+	smp2pgpio_rdbg_5_in: qcom,smp2pgpio-rdbg-5-in {
+		status = "disabled";
+	};
 
 	dsi_panel_pwr_supply_jdi: dsi_panel_pwr_supply_jdi {
 		#address-cells = <1>;
