@@ -62,8 +62,8 @@
 	vbus-supply = <&smb138x_vbus>;
 };
 
-&smb138x_parallel_slave {
-	qcom,parallel-mode = <2>;
+&smb1381_charger {	
+	qcom,parallel-mode = <2>;	
 };
 
 &smb138x_vbus {
