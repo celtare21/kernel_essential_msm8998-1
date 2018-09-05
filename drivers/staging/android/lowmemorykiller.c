@@ -49,6 +49,10 @@
 #include <linux/cpuset.h>
 #include <linux/vmpressure.h>
 #include <linux/zcache.h>
+#include <linux/cpu_input_boost.h>
+#include <linux/devfreq_boost.h>
+
+#define BOOST_DURATION_MS (250)
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/almk.h>
@@ -526,6 +530,8 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 			return 0;
 		}
 
+		cpu_input_boost_kick_max(BOOST_DURATION_MS);
+		devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, BOOST_DURATION_MS);
 		task_lock(selected);
 		send_sig(SIGKILL, selected, 0);
 		if (selected->mm)
