@@ -599,11 +599,6 @@ static void ufshcd_dme_cmd_log(struct ufs_hba *hba, char *str, u8 cmd_id)
 	ufshcd_cmd_log(hba, str, "dme", 0xff, cmd_id, 0xff);
 }
 
-static void ufshcd_custom_cmd_log(struct ufs_hba *hba, char *str)
-{
-	ufshcd_cmd_log(hba, str, "custom", 0, 0, 0);
-}
-
 static void ufshcd_print_cmd_log(struct ufs_hba *hba)
 {
 	int i;
@@ -653,10 +648,6 @@ static void __ufshcd_cmd_log(struct ufs_hba *hba, char *str, char *cmd_type,
 #endif
 
 static void ufshcd_dme_cmd_log(struct ufs_hba *hba, char *str, u8 cmd_id)
-{
-}
-
-static void ufshcd_custom_cmd_log(struct ufs_hba *hba, char *str)
 {
 }
 
@@ -2345,19 +2336,7 @@ static void ufshcd_clk_scaling_update_busy(struct ufs_hba *hba)
 static inline
 int ufshcd_send_command(struct ufs_hba *hba, unsigned int task_tag)
 {
-	if (hba->lrb[task_tag].cmd) {
-		u8 opcode = (u8)(*hba->lrb[task_tag].cmd->cmnd);
-
-		if (opcode == SECURITY_PROTOCOL_OUT && hba->security_in) {
-			hba->security_in--;
-		} else if (opcode == SECURITY_PROTOCOL_IN) {
-			if (hba->security_in) {
-				WARN_ON(1);
-				return -EINVAL;
-			}
-			hba->security_in++;
-		}
-	}
+	int ret = 0;
 
 	hba->lrb[task_tag].issue_time_stamp = ktime_get();
 	hba->lrb[task_tag].complete_time_stamp = ktime_set(0, 0);
@@ -2368,7 +2347,7 @@ int ufshcd_send_command(struct ufs_hba *hba, unsigned int task_tag)
 	wmb();
 	ufshcd_cond_add_cmd_trace(hba, task_tag, "send");
 	ufshcd_update_tag_stats(hba, task_tag);
-	return 0;
+	return ret;
 }
 
 /**
@@ -2441,9 +2420,6 @@ static inline void ufshcd_hba_capabilities(struct ufs_hba *hba)
 	hba->nutrs = (hba->capabilities & MASK_TRANSFER_REQUESTS_SLOTS) + 1;
 	hba->nutmrs =
 	((hba->capabilities & MASK_TASK_MANAGEMENT_REQUEST_SLOTS) >> 16) + 1;
-
-	/* disable auto hibern8 */
-	hba->capabilities &= ~MASK_AUTO_HIBERN8_SUPPORT;
 }
 
 /**
@@ -3165,13 +3141,7 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 		ufshcd_vops_crypto_engine_cfg_end(hba, lrbp, cmd->request);
 		dev_err(hba->dev, "%s: failed sending command, %d\n",
 							__func__, err);
-		if (err == -EINVAL) {
-			set_host_byte(cmd, DID_ERROR);
-			if (has_read_lock)
-				ufshcd_put_read_lock(hba);
-			cmd->scsi_done(cmd);
-			return 0;
-		}
+		err = DID_ERROR;
 		goto out;
 	}
 
@@ -7788,7 +7758,7 @@ static int ufshcd_query_ioctl(struct ufs_hba *hba, u8 lun, void __user *buffer)
 		switch (ioctl_data->idn) {
 		case QUERY_ATTR_IDN_BOOT_LU_EN:
 			index = 0;
-			if (!att || att > QUERY_ATTR_IDN_BOOT_LU_EN_MAX) {
+			if (att > QUERY_ATTR_IDN_BOOT_LU_EN_MAX) {
 				dev_err(hba->dev,
 					"%s: Illegal ufs query ioctl data, opcode 0x%x, idn 0x%x, att 0x%x\n",
 					__func__, ioctl_data->opcode,
@@ -9573,8 +9543,8 @@ static int ufshcd_scale_gear(struct ufs_hba *hba, bool scale_up)
 				new_pwr_info.pwr_rx = FASTAUTO_MODE;
 			}
 		}
+		ret = ufshcd_change_power_mode(hba, &new_pwr_info);
 	}
-	ret = ufshcd_change_power_mode(hba, &new_pwr_info);
 
 out:
 	if (ret)
@@ -9633,14 +9603,11 @@ static int ufshcd_devfreq_scale(struct ufs_hba *hba, bool scale_up)
 	if (ret)
 		goto out;
 
-	ufshcd_custom_cmd_log(hba, "waited-for-DB-clear");
-
 	/* scale down the gear before scaling down clocks */
 	if (!scale_up) {
 		ret = ufshcd_scale_gear(hba, false);
 		if (ret)
 			goto clk_scaling_unprepare;
-		ufshcd_custom_cmd_log(hba, "Gear-scaled-down");
 	}
 
 	/*
@@ -9649,32 +9616,21 @@ static int ufshcd_devfreq_scale(struct ufs_hba *hba, bool scale_up)
 	 * racing during clock frequency scaling sequence.
 	 */
 	if (ufshcd_is_auto_hibern8_supported(hba)) {
-		/*
-		 * Scaling prepare acquires the rw_sem: lock
-		 * h8 may sleep in case of errors.
-		 * e.g. link_recovery. Hence, release the rw_sem
-		 * before hibern8.
-		 */
-		up_write(&hba->lock);
 		ret = ufshcd_uic_hibern8_enter(hba);
-		down_write(&hba->lock);
 		if (ret)
 			/* link will be bad state so no need to scale_up_gear */
 			return ret;
-		ufshcd_custom_cmd_log(hba, "Hibern8-entered");
 	}
 
 	ret = ufshcd_scale_clks(hba, scale_up);
 	if (ret)
 		goto scale_up_gear;
-	ufshcd_custom_cmd_log(hba, "Clk-freq-switched");
 
 	if (ufshcd_is_auto_hibern8_supported(hba)) {
 		ret = ufshcd_uic_hibern8_exit(hba);
 		if (ret)
 			/* link will be bad state so no need to scale_up_gear */
 			return ret;
-		ufshcd_custom_cmd_log(hba, "Hibern8-Exited");
 	}
 
 	/* scale up the gear after scaling up clocks */
@@ -9684,7 +9640,6 @@ static int ufshcd_devfreq_scale(struct ufs_hba *hba, bool scale_up)
 			ufshcd_scale_clks(hba, false);
 			goto clk_scaling_unprepare;
 		}
-		ufshcd_custom_cmd_log(hba, "Gear-scaled-up");
 	}
 
 	if (!ret) {
@@ -9787,8 +9742,6 @@ static ssize_t ufshcd_clkscale_enable_store(struct device *dev,
 	cancel_work_sync(&hba->clk_scaling.resume_work);
 
 	hba->clk_scaling.is_allowed = value;
-
-	flush_work(&hba->eh_work);
 
 	if (value) {
 		ufshcd_resume_clkscaling(hba);
