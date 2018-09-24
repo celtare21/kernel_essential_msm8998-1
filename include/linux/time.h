@@ -14,6 +14,7 @@ int put_timespec64(const struct timespec64 *ts,
 		struct timespec __user *uts);
 
 #define TIME_T_MAX	(time_t)((1UL << ((sizeof(time_t) << 3) - 1)) - 1)
+#define TIMER_LOCK_TIGHT_LOOP_DELAY_NS 350
 
 static inline int timespec_equal(const struct timespec *a,
                                  const struct timespec *b)
