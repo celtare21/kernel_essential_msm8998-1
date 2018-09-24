@@ -35,6 +35,7 @@
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/wakelock.h>
+#include <linux/sched.h>
 
 #define RESET_LOW_SLEEP_MIN_US 5000
 #define RESET_LOW_SLEEP_MAX_US (RESET_LOW_SLEEP_MIN_US + 100)
@@ -42,8 +43,6 @@
 #define RESET_HIGH_SLEEP1_MAX_US (RESET_HIGH_SLEEP1_MIN_US + 100)
 #define RESET_HIGH_SLEEP2_MIN_US 5000
 #define RESET_HIGH_SLEEP2_MAX_US (RESET_HIGH_SLEEP2_MIN_US + 100)
-#define PWR_ON_SLEEP_MIN_US 100
-#define PWR_ON_SLEEP_MAX_US (PWR_ON_SLEEP_MIN_US + 900)
 
 #define NUM_PARAMS_REG_ENABLE_SET 2
 
@@ -62,8 +61,10 @@ struct fpc1020_data {
 	int irq_gpio;
 	int rst_gpio;
 	struct mutex lock; /* To set/get exported values in sysfs */
-	bool prepared;
 	atomic_t wakeup_enabled; /* Used both in ISR and non-ISR */
+	struct task_struct *fpc_hal;
+	struct workqueue_struct *fpc1020_wq;
+	struct work_struct irq_work;
 };
 
 /**
@@ -193,11 +194,13 @@ static ssize_t wakeup_enable_set(struct device *dev,
 	ssize_t ret = count;
 
 	mutex_lock(&fpc1020->lock);
-	if (!strncmp(buf, "enable", strlen("enable")))
+	if (!strncmp(buf, "enable", strlen("enable"))) {
+		set_user_nice(fpc1020->fpc_hal, -1);
 		atomic_set(&fpc1020->wakeup_enabled, 1);
-	else if (!strncmp(buf, "disable", strlen("disable")))
+	} else if (!strncmp(buf, "disable", strlen("disable"))) {
+		set_user_nice(fpc1020->fpc_hal, 1);
 		atomic_set(&fpc1020->wakeup_enabled, 0);
-	else
+	} else
 		ret = -EINVAL;
 	mutex_unlock(&fpc1020->lock);
 
@@ -229,6 +232,11 @@ static ssize_t irq_ack(struct device *dev,
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 
+	if (!fpc1020->fpc_hal) {
+		fpc1020->fpc_hal = current;
+		pr_info("fpc hal: %s", fpc1020->fpc_hal->comm);
+	}
+
 	dev_dbg(fpc1020->dev, "%s\n", __func__);
 
 	return count;
@@ -248,17 +256,25 @@ static const struct attribute_group attribute_group = {
 	.attrs = attributes,
 };
 
+static void fpc1020_irq_work(struct work_struct *work)
+{
+	struct fpc1020_data *fpc1020 =
+		container_of(work, typeof(*fpc1020), irq_work);
+
+	if (atomic_read(&fpc1020->wakeup_enabled))
+		pm_wakeup_event(fpc1020->dev, 100);
+
+	sysfs_notify(&fpc1020->dev->kobj, NULL, dev_attr_irq.attr.name);
+}
+
 static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 {
 	struct fpc1020_data *fpc1020 = handle;
 
 	dev_dbg(fpc1020->dev, "%s\n", __func__);
 
-	if (atomic_read(&fpc1020->wakeup_enabled)) {
-		pm_wakeup_event(fpc1020->dev, 100);
-	}
-
-	sysfs_notify(&fpc1020->dev->kobj, NULL, dev_attr_irq.attr.name);
+	/* Force on first big core */
+	queue_work_on(4, fpc1020->fpc1020_wq, &fpc1020->irq_work);
 
 	return IRQ_HANDLED;
 }
@@ -356,7 +372,7 @@ static int fpc1020_probe(struct platform_device *pdev)
 
 	atomic_set(&fpc1020->wakeup_enabled, 0);
 
-	irqf = IRQF_TRIGGER_RISING | IRQF_ONESHOT  | IRQF_PERF_CRITICAL;
+	irqf = IRQF_TRIGGER_RISING | IRQF_ONESHOT | IRQF_PERF_CRITICAL;
 
 	device_init_wakeup(dev, true);
 
@@ -380,6 +396,17 @@ static int fpc1020_probe(struct platform_device *pdev)
 		dev_err(dev, "could not create sysfs\n");
 		goto exit;
 	}
+
+	fpc1020->fpc_hal = NULL;
+
+	fpc1020->fpc1020_wq = alloc_workqueue("fpc1020_wq", WQ_HIGHPRI, 0);
+	if (!fpc1020->fpc1020_wq) {
+		pr_err("Create input workqueue failed\n");
+		rc = -EINVAL;
+		goto exit;
+	}
+
+	INIT_WORK(&fpc1020->irq_work, fpc1020_irq_work);
 
 	rc = hw_reset(fpc1020);
 
