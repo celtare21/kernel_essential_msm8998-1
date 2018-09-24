@@ -35,7 +35,6 @@
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/wakelock.h>
-#include <linux/sched.h>
 
 #define RESET_LOW_SLEEP_MIN_US 5000
 #define RESET_LOW_SLEEP_MAX_US (RESET_LOW_SLEEP_MIN_US + 100)
@@ -62,7 +61,6 @@ struct fpc1020_data {
 	int rst_gpio;
 	struct mutex lock; /* To set/get exported values in sysfs */
 	atomic_t wakeup_enabled; /* Used both in ISR and non-ISR */
-	struct task_struct *fpc_hal;
 	struct workqueue_struct *fpc1020_wq;
 	struct work_struct irq_work;
 };
@@ -194,13 +192,11 @@ static ssize_t wakeup_enable_set(struct device *dev,
 	ssize_t ret = count;
 
 	mutex_lock(&fpc1020->lock);
-	if (!strncmp(buf, "enable", strlen("enable"))) {
-		set_user_nice(fpc1020->fpc_hal, -1);
+	if (!strncmp(buf, "enable", strlen("enable")))
 		atomic_set(&fpc1020->wakeup_enabled, 1);
-	} else if (!strncmp(buf, "disable", strlen("disable"))) {
-		set_user_nice(fpc1020->fpc_hal, 1);
+	else if (!strncmp(buf, "disable", strlen("disable")))
 		atomic_set(&fpc1020->wakeup_enabled, 0);
-	} else
+	else
 		ret = -EINVAL;
 	mutex_unlock(&fpc1020->lock);
 
@@ -231,11 +227,6 @@ static ssize_t irq_ack(struct device *dev,
 	const char *buf, size_t count)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
-
-	if (!fpc1020->fpc_hal) {
-		fpc1020->fpc_hal = current;
-		pr_info("fpc hal: %s", fpc1020->fpc_hal->comm);
-	}
 
 	dev_dbg(fpc1020->dev, "%s\n", __func__);
 
@@ -396,8 +387,6 @@ static int fpc1020_probe(struct platform_device *pdev)
 		dev_err(dev, "could not create sysfs\n");
 		goto exit;
 	}
-
-	fpc1020->fpc_hal = NULL;
 
 	fpc1020->fpc1020_wq = alloc_workqueue("fpc1020_wq", WQ_HIGHPRI, 0);
 	if (!fpc1020->fpc1020_wq) {
