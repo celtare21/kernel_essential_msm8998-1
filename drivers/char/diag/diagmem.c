@@ -116,6 +116,7 @@ struct diag_mempool_t diag_mempools[NUM_MEMORY_POOLS] = {
 		.poolsize = 0,
 		.count = 0
 	},
+#if 0
 	{
 		.id = POOL_TYPE_MDM_DCI_WRITE,
 		.name = "POOL_MDM_DCI_WRITE",
@@ -140,6 +141,7 @@ struct diag_mempool_t diag_mempools[NUM_MEMORY_POOLS] = {
 		.poolsize = 0,
 		.count = 0
 	}
+#endif
 #endif
 };
 
