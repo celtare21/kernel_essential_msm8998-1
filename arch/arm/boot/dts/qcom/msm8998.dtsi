@@ -1902,6 +1902,7 @@
 
 		interrupts = <0 347 0>, <0 243 0>,  <0 180 0>;
 		interrupt-names = "hs_phy_irq", "ss_phy_irq", "pwr_event_irq";
+		qcom,no-wakeup-src-in-hostmode;
 
 		USB3_GDSC-supply = <&gdsc_usb30>;
 		qcom,usb-dbm = <&dbm_1p5>;
