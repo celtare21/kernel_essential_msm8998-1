@@ -37,10 +37,16 @@
 
 #define HBTP_INPUT_NAME			"hbtp_input"
 #define DISP_COORDS_SIZE		2
+#undef HBTP_MAX_FINGER
+#define HBTP_MAX_FINGER 10
 
 #define HBTP_PINCTRL_VALID_STATE_CNT		(2)
 #define HBTP_HOLD_DURATION_US			(10)
 #define HBTP_PINCTRL_DDIC_SEQ_NUM		(4)
+
+#define EARLY_RESUME 0
+#define RESUME_MAIN 1
+#define SUSPEND 2
 
 struct hbtp_data {
 	struct platform_device *pdev;
@@ -63,6 +69,7 @@ struct hbtp_data {
 	u32 ddic_pinctrl_seq_delay[HBTP_PINCTRL_DDIC_SEQ_NUM];
 	u32 fb_resume_seq_delay;
 	int lcd_state;
+	int state;
 	bool power_suspended;
 	bool power_sync_enabled;
 	bool power_sig_enabled;
@@ -70,6 +77,7 @@ struct hbtp_data {
 	struct completion power_suspend_sig;
 	struct regulator *vcc_ana;
 	struct regulator *vcc_dig;
+	struct work_struct pm_work;
 	int afe_load_ua;
 	int afe_vtg_min_uv;
 	int afe_vtg_max_uv;
@@ -99,13 +107,31 @@ static struct hbtp_data *hbtp;
 static struct kobject *sensor_kobject;
 
 #if defined(CONFIG_FB)
-static int hbtp_fb_early_suspend(struct hbtp_data *ts);
 static int hbtp_fb_suspend(struct hbtp_data *ts);
 static int hbtp_fb_early_resume(struct hbtp_data *ts);
-static int hbtp_fb_revert_resume(struct hbtp_data *ts);
-#endif
+static int hbtp_fb_resume(struct hbtp_data *ts);
 
-#if defined(CONFIG_FB)
+static void hbtp_pm_worker(struct work_struct *work)
+{
+	struct hbtp_data *hbtp_data =
+	container_of(work, struct hbtp_data, pm_work);
+
+	switch (hbtp_data->state) {
+		case EARLY_RESUME:
+			pr_info("%s: EARLY_RESUME", __func__);
+			hbtp_fb_early_resume(hbtp_data);
+			break;
+		case RESUME_MAIN:
+			pr_info("%s: RESUME_MAIN", __func__);
+			hbtp_fb_resume(hbtp_data);
+			break;
+		case SUSPEND:
+			pr_info("%s: SUSPEND", __func__);
+			hbtp_fb_suspend(hbtp_data);
+			break;
+	}
+}
+
 static int fb_notifier_callback(struct notifier_block *self,
 				 unsigned long event, void *data)
 {
@@ -142,12 +168,12 @@ static int fb_notifier_callback(struct notifier_block *self,
 				lcd_state == FB_BLANK_POWERDOWN) {
 				pr_debug("%s: receives EARLY_BLANK:UNBLANK\n",
 					__func__);
-				hbtp_fb_early_resume(hbtp_data);
+				hbtp_data->state = EARLY_RESUME;
+				schedule_work(&hbtp_data->pm_work);
 			} else if (blank == FB_BLANK_POWERDOWN &&
 					lcd_state <= FB_BLANK_NORMAL) {
 				pr_debug("%s: receives EARLY_BLANK:POWERDOWN\n",
 					__func__);
-				hbtp_fb_early_suspend(hbtp_data);
 			} else {
 				pr_debug("%s: receives EARLY_BLANK:%d in %d state\n",
 					__func__, blank, lcd_state);
@@ -156,12 +182,11 @@ static int fb_notifier_callback(struct notifier_block *self,
 			if (blank <= FB_BLANK_NORMAL) {
 				pr_debug("%s: receives R_EARLY_BALNK:UNBLANK\n",
 					__func__);
-				hbtp_fb_early_suspend(hbtp_data);
-				hbtp_fb_suspend(hbtp_data);
+				hbtp_data->state = SUSPEND;
+				schedule_work(&hbtp_data->pm_work);
 			} else if (blank == FB_BLANK_POWERDOWN) {
 				pr_debug("%s: receives R_EARLY_BALNK:POWERDOWN\n",
 					__func__);
-				hbtp_fb_revert_resume(hbtp_data);
 			} else {
 				pr_debug("%s: receives R_EARLY_BALNK:%d in %d state\n",
 					__func__, blank, lcd_state);
@@ -176,10 +201,13 @@ static int fb_notifier_callback(struct notifier_block *self,
 		if (blank == FB_BLANK_POWERDOWN &&
 			lcd_state <= FB_BLANK_NORMAL) {
 			pr_debug("%s: receives BLANK:POWERDOWN\n", __func__);
-			hbtp_fb_suspend(hbtp_data);
+			hbtp_data->state = SUSPEND;
+			schedule_work(&hbtp_data->pm_work);
 		} else if (blank <= FB_BLANK_NORMAL &&
 				lcd_state == FB_BLANK_POWERDOWN) {
 			pr_debug("%s: receives BLANK:UNBLANK\n", __func__);
+			hbtp_data->state = RESUME_MAIN;
+			schedule_work(&hbtp_data->pm_work);
 		} else {
 			pr_debug("%s: receives BLANK:%d in %d state\n",
 				__func__, blank, lcd_state);
@@ -278,7 +306,6 @@ static int hbtp_input_create_input_dev(struct hbtp_input_absinfo *absinfo)
 					GFP_KERNEL);
 	__set_bit(EV_ABS, input_dev->evbit);
 	__set_bit(EV_KEY, input_dev->evbit);
-	__set_bit(BTN_TOUCH, input_dev->keybit);
 	__set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
 
 	for (i = KEY_HOME; i <= KEY_MICMUTE; i++)
@@ -322,7 +349,7 @@ err_input_reg_dev:
 static int hbtp_input_report_events(struct hbtp_data *hbtp_data,
 				struct hbtp_input_mt *mt_data)
 {
-	int i;
+	int i = 0;
 	struct hbtp_input_touch *tch;
 
 	for (i = 0; i < HBTP_MAX_FINGER; i++) {
@@ -348,29 +375,9 @@ static int hbtp_input_report_events(struct hbtp_data *hbtp_data,
 				input_report_abs(hbtp_data->input_dev,
 						ABS_MT_PRESSURE,
 						tch->pressure);
-				/*
-				 * Scale up/down the X-coordinate as per
-				 * DT property
-				 */
-				if (hbtp_data->use_scaling &&
-						hbtp_data->def_maxx > 0 &&
-						hbtp_data->des_maxx > 0)
-					tch->x = (tch->x * hbtp_data->des_maxx)
-							/ hbtp_data->def_maxx;
-
 				input_report_abs(hbtp_data->input_dev,
 						ABS_MT_POSITION_X,
 						tch->x);
-				/*
-				 * Scale up/down the Y-coordinate as per
-				 * DT property
-				 */
-				if (hbtp_data->use_scaling &&
-						hbtp_data->def_maxy > 0 &&
-						hbtp_data->des_maxy > 0)
-					tch->y = (tch->y * hbtp_data->des_maxy)
-							/ hbtp_data->def_maxy;
-
 				input_report_abs(hbtp_data->input_dev,
 						ABS_MT_POSITION_Y,
 						tch->y);
@@ -379,7 +386,6 @@ static int hbtp_input_report_events(struct hbtp_data *hbtp_data,
 		}
 	}
 
-	input_report_key(hbtp->input_dev, BTN_TOUCH, mt_data->num_touches > 0);
 	input_sync(hbtp->input_dev);
 
 	return 0;
@@ -1202,43 +1208,6 @@ error:
 	return rc;
 }
 
-static int hbtp_fb_early_suspend(struct hbtp_data *ts)
-{
-	int rc = 0;
-	char *envp[2] = {HBTP_EVENT_TYPE_DISPLAY, NULL};
-
-	mutex_lock(&hbtp->mutex);
-	if (ts->pdev && (!ts->power_sync_enabled)) {
-		pr_debug("%s: power_sync is not enabled\n", __func__);
-
-		if (ts->input_dev) {
-			kobject_uevent_env(&ts->input_dev->dev.kobj,
-					KOBJ_OFFLINE, envp);
-
-			if (ts->power_sig_enabled) {
-				pr_debug("%s: power_sig is enabled, wait for signal\n",
-						__func__);
-				mutex_unlock(&hbtp->mutex);
-				rc = wait_for_completion_interruptible(
-						&hbtp->power_suspend_sig);
-				if (rc != 0) {
-					pr_err("%s: wait for early suspend is interrupted\n",
-							__func__);
-				}
-				mutex_lock(&hbtp->mutex);
-				pr_debug("%s: Wait is done for early suspend\n",
-						__func__);
-			} else {
-				pr_debug("%s: power_sig is NOT enabled",
-						__func__);
-			}
-		}
-	}
-
-	mutex_unlock(&hbtp->mutex);
-	return rc;
-}
-
 static int hbtp_fb_suspend(struct hbtp_data *ts)
 {
 	int rc;
@@ -1257,12 +1226,6 @@ static int hbtp_fb_suspend(struct hbtp_data *ts)
 			pr_err("%s: failed to disable GPIO pins\n", __func__);
 			goto err_pin_disable;
 		}
-
-		rc = hbtp_pdev_power_on(ts, false);
-		if (rc) {
-			pr_err("%s: failed to disable power\n", __func__);
-			goto err_power_disable;
-		}
 		ts->power_suspended = true;
 	}
 
@@ -1272,27 +1235,24 @@ static int hbtp_fb_suspend(struct hbtp_data *ts)
 
 		if (ts->power_sig_enabled) {
 			pr_debug("%s: power_sig is enabled, wait for signal\n",
-					__func__);
+				__func__);
 			mutex_unlock(&hbtp->mutex);
 			rc = wait_for_completion_interruptible(
-					&hbtp->power_suspend_sig);
+				&hbtp->power_suspend_sig);
 			if (rc != 0) {
 				pr_err("%s: wait for suspend is interrupted\n",
-						__func__);
+					__func__);
 			}
 			mutex_lock(&hbtp->mutex);
-			pr_debug("%s: Wait is done for suspend\n",
-					__func__);
+			pr_debug("%s: Wait is done for suspend\n", __func__);
 		} else {
-			pr_debug("%s: power_sig is NOT enabled",
-					__func__);
+			pr_debug("%s: power_sig is NOT enabled", __func__);
 		}
 	}
 
 	mutex_unlock(&hbtp->mutex);
 	return 0;
-err_power_disable:
-	hbtp_pinctrl_enable(ts, true);
+
 err_pin_disable:
 	mutex_unlock(&hbtp->mutex);
 	return rc;
@@ -1314,11 +1274,6 @@ static int hbtp_fb_early_resume(struct hbtp_data *ts)
 			mutex_unlock(&hbtp->mutex);
 			return 0;
 		}
-		rc = hbtp_pdev_power_on(ts, true);
-		if (rc) {
-			pr_err("%s: failed to enable panel power\n", __func__);
-			goto err_power_on;
-		}
 
 		rc = hbtp_pinctrl_enable(ts, true);
 
@@ -1327,85 +1282,61 @@ static int hbtp_fb_early_resume(struct hbtp_data *ts)
 			goto err_pin_enable;
 		}
 
-		if (ts->fb_resume_seq_delay) {
-			usleep_range(ts->fb_resume_seq_delay,
+		ts->power_suspended = false;
+
+		if (ts->input_dev) {
+
+			kobject_uevent_env(&ts->input_dev->dev.kobj,
+							KOBJ_ONLINE, envp);
+
+			if (ts->power_sig_enabled) {
+				pr_err("%s: power_sig is enabled, wait for signal\n",
+					__func__);
+				mutex_unlock(&hbtp->mutex);
+				rc = wait_for_completion_interruptible(
+					&hbtp->power_resume_sig);
+				if (rc != 0) {
+					pr_err("%s: wait for resume is interrupted\n",
+						__func__);
+				}
+				mutex_lock(&hbtp->mutex);
+				pr_debug("%s: wait is done\n", __func__);
+			} else {
+				pr_debug("%s: power_sig is NOT enabled\n",
+					__func__);
+			}
+
+			if (ts->fb_resume_seq_delay) {
+				usleep_range(ts->fb_resume_seq_delay,
 					ts->fb_resume_seq_delay +
 					HBTP_HOLD_DURATION_US);
-			pr_debug("%s: fb_resume_seq_delay = %u\n",
+				pr_err("%s: fb_resume_seq_delay = %u\n",
 					__func__, ts->fb_resume_seq_delay);
-		}
-
-		ts->power_suspended = false;
-	}
-
-	if (ts->input_dev) {
-
-		kobject_uevent_env(&ts->input_dev->dev.kobj,
-				KOBJ_ONLINE, envp);
-
-		if (ts->power_sig_enabled) {
-			pr_err("%s: power_sig is enabled, wait for signal\n",
-					__func__);
-			mutex_unlock(&hbtp->mutex);
-			rc = wait_for_completion_interruptible(
-					&hbtp->power_resume_sig);
-			if (rc != 0) {
-				pr_err("%s: wait for resume is interrupted\n",
-						__func__);
 			}
-			mutex_lock(&hbtp->mutex);
-			pr_debug("%s: wait is done\n", __func__);
-		} else {
-			pr_debug("%s: power_sig is NOT enabled\n",
-					__func__);
 		}
 	}
-
 	mutex_unlock(&hbtp->mutex);
 	return 0;
 
 err_pin_enable:
 	hbtp_pdev_power_on(ts, false);
-err_power_on:
-	mutex_unlock(&hbtp->mutex);
 	return rc;
 }
 
-static int hbtp_fb_revert_resume(struct hbtp_data *ts)
+static int hbtp_fb_resume(struct hbtp_data *ts)
 {
 	char *envp[2] = {HBTP_EVENT_TYPE_DISPLAY, NULL};
-	int rc = 0;
 
 	mutex_lock(&hbtp->mutex);
-
-	pr_debug("%s: hbtp_fb_revert_resume\n", __func__);
-
-	if (ts->pdev && (!ts->power_sync_enabled)) {
-		pr_debug("%s: power_sync is not enabled\n", __func__);
-
+	if (!ts->power_sync_enabled) {
+		pr_debug("%s: power_sync is disabled, send uevent\n", __func__);
 		if (ts->input_dev) {
 			kobject_uevent_env(&ts->input_dev->dev.kobj,
-					KOBJ_ONLINE, envp);
-
-			if (ts->power_sig_enabled) {
-				pr_debug("%s: power_sig is enabled, wait for signal\n",
-						__func__);
-				mutex_unlock(&hbtp->mutex);
-				rc = wait_for_completion_interruptible(
-						&hbtp->power_resume_sig);
-				if (rc != 0) {
-					pr_warn("%s: wait for revert resume is interrupted\n",
-							__func__);
-				}
-				pr_debug("%s: wait is done\n", __func__);
-			} else {
-				pr_debug("%s: power_sig is NOT enabled\n",
-						__func__);
-			}
+				KOBJ_ONLINE, envp);
 		}
 	}
-
-	return rc;
+	mutex_unlock(&hbtp->mutex);
+	return 0;
 }
 
 static int hbtp_pdev_probe(struct platform_device *pdev)
@@ -1475,6 +1406,12 @@ static int hbtp_pdev_probe(struct platform_device *pdev)
 		hbtp->vcc_dig = vcc_dig;
 	}
 
+	error = hbtp_pdev_power_on(hbtp, true);
+	if (error) {
+		pr_err("%s: failed to power on\n", __func__);
+		return error;
+	}
+
 	return 0;
 }
 
@@ -1539,6 +1476,7 @@ static int __init hbtp_init(void)
 	}
 
 #if defined(CONFIG_FB)
+	INIT_WORK(&hbtp->pm_work, hbtp_pm_worker);
 	hbtp->fb_notif.notifier_call = fb_notifier_callback;
 	error = fb_register_client(&hbtp->fb_notif);
 	if (error) {
