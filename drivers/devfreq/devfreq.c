@@ -512,6 +512,7 @@ struct devfreq *devfreq_add_device(struct device *dev,
 	devfreq->previous_freq = profile->initial_freq;
 	devfreq->data = data;
 	devfreq->nb.notifier_call = devfreq_notifier_call;
+	devfreq->dev_suspended = false;
 
 	devfreq->trans_table =	devm_kzalloc(dev, sizeof(unsigned int) *
 						devfreq->profile->max_state *
@@ -657,12 +658,16 @@ int devfreq_suspend_device(struct devfreq *devfreq)
 	if (!devfreq)
 		return -EINVAL;
 
-	if (!devfreq->governor)
-		return 0;
-
 	mutex_lock(&devfreq->event_lock);
+	if (!devfreq->governor || devfreq->dev_suspended) {
+		mutex_unlock(&devfreq->event_lock);
+		return 0;
+	}
+
 	ret = devfreq->governor->event_handler(devfreq,
 				DEVFREQ_GOV_SUSPEND, NULL);
+	if (!ret)
+		devfreq->dev_suspended = true;
 	mutex_unlock(&devfreq->event_lock);
 	return ret;
 }
@@ -682,12 +687,16 @@ int devfreq_resume_device(struct devfreq *devfreq)
 	if (!devfreq)
 		return -EINVAL;
 
-	if (!devfreq->governor)
-		return 0;
-
 	mutex_lock(&devfreq->event_lock);
+	if (!devfreq->governor) {
+		mutex_unlock(&devfreq->event_lock);
+		return 0;
+	}
+
 	ret = devfreq->governor->event_handler(devfreq,
 				DEVFREQ_GOV_RESUME, NULL);
+	if (!ret)
+		devfreq->dev_suspended = false;
 	mutex_unlock(&devfreq->event_lock);
 	return ret;
 }
@@ -846,6 +855,10 @@ static ssize_t governor_store(struct device *dev, struct device_attribute *attr,
 	}
 
 	mutex_lock(&df->event_lock);
+	if (df->dev_suspended) {
+		ret = -EINVAL;
+		goto gov_stop_out;
+	}
 	if (df->governor) {
 		ret = df->governor->event_handler(df, DEVFREQ_GOV_STOP, NULL);
 		if (ret) {
