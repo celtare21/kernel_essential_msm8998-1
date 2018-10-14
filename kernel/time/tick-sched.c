@@ -827,9 +827,8 @@ static ktime_t tick_nohz_stop_sched_tick(struct tick_sched *ts,
 	if (!ts->tick_stopped) {
 		nohz_balance_enter_idle(cpu);
 		calc_load_enter_idle();
-		quiet_vmstat();
 		cpu_load_update_nohz_start();
-		quiet_vmstat();
+                quiet_vmstat();
 
 		ts->last_tick = hrtimer_get_expires(&ts->sched_timer);
 		ts->tick_stopped = 1;
