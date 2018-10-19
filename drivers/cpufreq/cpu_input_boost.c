@@ -22,7 +22,7 @@
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 static bool stune_boost_active;
 static int boost_slot;
-static unsigned short dynamic_stune_boost;
+static unsigned short dynamic_stune_boost = 10;
 #endif
 
 /* Available bits for boost_drv state */
