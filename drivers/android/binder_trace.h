@@ -261,7 +261,7 @@ TRACE_EVENT(binder_transaction_fd_send,
 		__entry->fd = fd;
 		__entry->offset = offset;
 	),
-	TP_printk("transaction=%d src_fd=%d offset=%ld",
+	TP_printk("transaction=%d src_fd=%d offset=%zu",
 		  __entry->debug_id, __entry->fd, __entry->offset)
 );
 
@@ -279,7 +279,7 @@ TRACE_EVENT(binder_transaction_fd_recv,
 		__entry->fd = fd;
 		__entry->offset = offset;
 	),
-	TP_printk("transaction=%d dest_fd=%d offset=%ld",
+	TP_printk("transaction=%d dest_fd=%d offset=%zu",
 		  __entry->debug_id, __entry->fd, __entry->offset)
 );
 
