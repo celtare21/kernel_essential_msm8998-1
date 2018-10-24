@@ -183,7 +183,6 @@ TRACE_EVENT(sched_migrate_task,
 		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
 		__entry->pid		= p->pid;
                 __entry->prio           = p->prio; /* XXX SCHED_DEADLINE */
-		__entry->load		= load;
 		__entry->orig_cpu	= task_cpu(p);
 		__entry->dest_cpu	= dest_cpu;
 	),
