@@ -731,7 +731,7 @@ TRACE_EVENT(sched_load_avg_task,
 		__entry->util_avg_pelt  = avg->util_avg;
 		__entry->util_avg_walt  = 0;
 #ifdef CONFIG_SCHED_WALT
-		__entry->util_avg_walt = (((unsigned long)((struct ravg*)_ravg)->demand) << SCHED_CAPACITY_SHIFT);
+		__entry->util_avg_walt = (((unsigned long)((struct ravg*)_ravg)->demand) << NICE_0_LOAD_SHIFT);
 		do_div(__entry->util_avg_walt, walt_ravg_window);
 		if (!walt_disabled && sysctl_sched_use_walt_task_util)
 			__entry->util_avg = __entry->util_avg_walt;
@@ -778,7 +778,7 @@ TRACE_EVENT(sched_load_avg_cpu,
 #ifdef CONFIG_SCHED_WALT
 		__entry->util_avg_walt =
 				div64_u64(cpu_rq(cpu)->cumulative_runnable_avg,
-						  walt_ravg_window >> SCHED_CAPACITY_SHIFT);
+						  walt_ravg_window >> NICE_0_LOAD_SHIFT);
 		if (!walt_disabled && sysctl_sched_use_walt_cpu_util)
 			__entry->util_avg		= __entry->util_avg_walt;
 #endif
@@ -1079,7 +1079,7 @@ TRACE_EVENT(walt_update_task_ravg,
 		__entry->irqtime        = irqtime;
 		__entry->cs             = rq->curr_runnable_sum;
 		__entry->ps             = rq->prev_runnable_sum;
-		__entry->util           = rq->prev_runnable_sum << SCHED_CAPACITY_SHIFT;
+		__entry->util           = rq->prev_runnable_sum << NICE_0_LOAD_SHIFT;
 		do_div(__entry->util, walt_ravg_window);
 		__entry->curr_window	= p->ravg.curr_window;
 		__entry->prev_window	= p->ravg.prev_window;
@@ -1128,7 +1128,7 @@ TRACE_EVENT(walt_update_history,
 		__entry->samples        = samples;
 		__entry->evt            = evt;
 		__entry->demand         = p->ravg.demand;
-		__entry->walt_avg	= (__entry->demand << SCHED_CAPACITY_SHIFT);
+		__entry->walt_avg	= (__entry->demand << 10);
 		do_div(__entry->walt_avg, walt_ravg_window);
 		__entry->pelt_avg	= p->se.avg.util_avg;
 		memcpy(__entry->hist, p->ravg.sum_history,
