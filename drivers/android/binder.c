@@ -70,7 +70,6 @@
 #include <linux/pid_namespace.h>
 #include <linux/security.h>
 #include <linux/spinlock.h>
-#include <linux/kthread.h>
 #include <linux/ratelimit.h>
 
 #include <uapi/linux/android/binder.h>
@@ -91,9 +90,6 @@ static struct dentry *binder_debugfs_dir_entry_root;
 static struct dentry *binder_debugfs_dir_entry_proc;
 static atomic_t binder_last_id;
 static struct workqueue_struct *binder_deferred_workqueue;
-
-static struct task_struct *binder_deferred_task;
-static DECLARE_WAIT_QUEUE_HEAD(binder_deferred_wq);
 
 #define BINDER_DEBUG_ENTRY(name) \
 static int binder_##name##_open(struct inode *inode, struct file *file) \
@@ -5306,22 +5302,14 @@ static void binder_deferred_release(struct binder_proc *proc)
 	binder_proc_dec_tmpref(proc);
 }
 
-static int binder_deferred_thread(void *ignore)
+static void binder_deferred_func(struct work_struct *work)
 {
 	struct binder_proc *proc;
 	struct files_struct *files;
 
-	int ret;
 	int defer;
 
-	for (;;) {
-
-		do {
-			ret = wait_event_interruptible(binder_deferred_wq, !hlist_empty(&binder_deferred_list));
-		} while (ret == -ERESTARTSYS);
-		if (kthread_should_stop())
-			break;
-
+	do {
 		spin_lock(&binder_deferred_lock);
 		if (!hlist_empty(&binder_deferred_list)) {
 			proc = hlist_entry(binder_deferred_list.first,
@@ -5336,37 +5324,37 @@ static int binder_deferred_thread(void *ignore)
 		spin_unlock(&binder_deferred_lock);
 
 		files = NULL;
-		if (proc != NULL) {
-			if (defer & BINDER_DEFERRED_PUT_FILES) {
-				mutex_lock(&proc->files_lock);
-				files = proc->files;
-				if (files)
-					proc->files = NULL;
-				mutex_unlock(&proc->files_lock);
-			}
+		if (defer & BINDER_DEFERRED_PUT_FILES) {
+			mutex_lock(&proc->files_lock);
+			files = proc->files;
+			if (files)
+				proc->files = NULL;
+			mutex_unlock(&proc->files_lock);
+		}
 
 		if (defer & BINDER_DEFERRED_FLUSH)
 			binder_deferred_flush(proc);
 
 		if (defer & BINDER_DEFERRED_RELEASE)
 			binder_deferred_release(proc); /* frees proc */
-		}
+
 		if (files)
 			put_files_struct(files);
-	}
-	return 0;
+	} while (proc);
 }
+static DECLARE_WORK(binder_deferred_work, binder_deferred_func);
 
 static void
 binder_defer_work(struct binder_proc *proc, enum binder_deferred_state defer)
 {
 	spin_lock(&binder_deferred_lock);
 	proc->deferred_work |= defer;
-	if (hlist_unhashed(&proc->deferred_work_node))
+	if (hlist_unhashed(&proc->deferred_work_node)) {
 		hlist_add_head(&proc->deferred_work_node,
 				&binder_deferred_list);
+		queue_work(binder_deferred_workqueue, &binder_deferred_work);
+	}
 	spin_unlock(&binder_deferred_lock);
-	wake_up_interruptible(&binder_deferred_wq);
 }
 
 static void print_binder_transaction_ilocked(struct seq_file *m,
@@ -6004,11 +5992,7 @@ static int __init binder_init(void)
 		if (ret)
 			goto err_init_binder_device_failed;
 	}
-	if (ret == 0) {
-		binder_deferred_task = kthread_run(binder_deferred_thread, NULL, "binder_deferred_thread");
-		if (binder_deferred_task == NULL)
-			ret = PTR_ERR(binder_deferred_task);
-	}
+
 	return ret;
 
 err_init_binder_device_failed:
