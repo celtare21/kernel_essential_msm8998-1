@@ -325,34 +325,6 @@ static int xhci_plat_remove(struct platform_device *dev)
 	return 0;
 }
 
-#ifdef CONFIG_PM_SLEEP
-static int xhci_plat_suspend(struct device *dev)
-{
-	struct usb_hcd *hcd = dev_get_drvdata(dev);
-	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-
-	if (!xhci)
-		return 0;
-
-	dev_dbg(dev, "xhci-plat PM suspend\n");
-
-	return xhci_suspend(xhci, true);
-}
-
-static int xhci_plat_resume(struct device *dev)
-{
-	struct usb_hcd *hcd = dev_get_drvdata(dev);
-	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
-
-	if (!xhci)
-		return 0;
-
-	dev_dbg(dev, "xhci-plat PM resume\n");
-
-	return xhci_resume(xhci, false);
-}
-#endif
-
 #ifdef CONFIG_PM
 static int xhci_plat_runtime_idle(struct device *dev)
 {
@@ -434,11 +406,7 @@ static int xhci_plat_runtime_resume(struct device *dev)
 }
 
 static const struct dev_pm_ops xhci_plat_pm_ops = {
-	.suspend	= xhci_plat_suspend,
-	.resume		= xhci_plat_resume,
-	.freeze		= xhci_plat_pm_freeze,
-	.restore	= xhci_plat_pm_restore,
-	.thaw		= xhci_plat_pm_restore,
+	SET_SYSTEM_SLEEP_PM_OPS(NULL, NULL)
 	SET_RUNTIME_PM_OPS(xhci_plat_runtime_suspend, xhci_plat_runtime_resume,
 			   xhci_plat_runtime_idle)
 };
