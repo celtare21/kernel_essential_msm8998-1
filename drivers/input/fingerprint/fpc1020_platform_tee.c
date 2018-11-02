@@ -34,7 +34,6 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
-#include <linux/wakelock.h>
 
 #define RESET_LOW_SLEEP_MIN_US 5000
 #define RESET_LOW_SLEEP_MAX_US (RESET_LOW_SLEEP_MIN_US + 100)
