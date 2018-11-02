@@ -2265,10 +2265,13 @@ static void qpnp_timed_enable_worker(struct work_struct *work)
 	struct qpnp_hap *hap = container_of(work, struct qpnp_hap,
 					 td_work);
 	int rc, time_ms;
+	bool state;
 
 	spin_lock(&hap->td_lock);
 	time_ms = hap->td_time_ms;
 	spin_unlock(&hap->td_lock);
+
+	state = !!time_ms;
 
 	if (time_ms < 0)
 		return;
