@@ -466,7 +466,7 @@ int ipa3_send(struct ipa3_sys_context *sys,
 	struct sps_transfer transfer = { 0 };
 	struct sps_iovec *iovec;
 	struct gsi_xfer_elem *gsi_xfer_elem_array = NULL;
-	dma_addr_t dma_addr;
+	dma_addr_t dma_addr = 0;
 	int i = 0;
 	int j;
 	int result;

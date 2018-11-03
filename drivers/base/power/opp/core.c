@@ -601,7 +601,7 @@ int dev_pm_opp_set_rate(struct device *dev, unsigned long target_freq)
 	struct clk *clk;
 	unsigned long freq, old_freq;
 	unsigned long u_volt, u_volt_min, u_volt_max;
-	unsigned long ou_volt, ou_volt_min, ou_volt_max;
+	unsigned long ou_volt = 0, ou_volt_min = 0, ou_volt_max = 0;
 	int ret;
 
 	if (unlikely(!target_freq)) {

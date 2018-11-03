@@ -517,7 +517,7 @@ static void qpnp_handle_sc_irq(struct work_struct *work)
 {
 	struct qpnp_hap *hap = container_of(work,
 				struct qpnp_hap, sc_work.work);
-	u8 val;
+	u8 val = 0;
 
 	qpnp_hap_read_reg(hap, QPNP_HAP_STATUS(hap->base), &val);
 
@@ -600,7 +600,7 @@ static ssize_t qpnp_hap_dump_regs_show(struct device *dev,
 	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
 					 timed_dev);
 	int count = 0, i;
-	u8 val;
+	u8 val = 0;
 
 	for (i = 0; i < ARRAY_SIZE(qpnp_hap_dbg_regs); i++) {
 		qpnp_hap_read_reg(hap, hap->base + qpnp_hap_dbg_regs[i], &val);
@@ -646,7 +646,7 @@ static irqreturn_t qpnp_hap_sc_irq(int irq, void *_hap)
 {
 	struct qpnp_hap *hap = _hap;
 	int rc;
-	u8 val;
+	u8 val = 0;
 
 	pr_debug("Short circuit detected\n");
 
@@ -1654,7 +1654,7 @@ static ssize_t qpnp_hap_hi_z_period_show(struct device *dev,
 	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
 	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
 					 timed_dev);
-	char *str;
+	char *str = NULL;
 
 	switch (hap->ares_cfg.lra_high_z) {
 	case QPNP_HAP_LRA_HIGH_Z_NONE:

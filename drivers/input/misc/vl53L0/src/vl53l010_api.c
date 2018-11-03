@@ -602,12 +602,12 @@ VL53L0_Error VL53L010_StaticInit(VL53L0_DEV Dev)
 	if (Status == VL53L0_ERROR_NONE)
 		Status = VL53L0_WrByte(Dev, 0x88, 0x00);
 
-    /* this function do nothing if it has been called before */
-    if (Status == VL53L0_ERROR_NONE)
-	Status = VL53L010_get_info_from_device(Dev);
+        /* this function do nothing if it has been called before */
+        if (Status == VL53L0_ERROR_NONE)
+                Status = VL53L010_get_info_from_device(Dev);
 
-    if (Status == VL53L0_ERROR_NONE)
-        Revision = VL53L010_GETDEVICESPECIFICPARAMETER(Dev, Revision);
+        if (Status == VL53L0_ERROR_NONE)
+                Revision = VL53L010_GETDEVICESPECIFICPARAMETER(Dev, Revision);
 
 	if (Status == VL53L0_ERROR_NONE) {
 		if (Revision == 0)
@@ -1096,7 +1096,7 @@ VL53L0_Error VL53L010_GetMeasurementTimingBudgetMicroSeconds(VL53L0_DEV Dev,
 	VL53L0_Error Status = VL53L0_ERROR_NONE;
 	VL53L0_DeviceParameters_t CurrentParameters;
 	uint8_t CurrentVCSELPulsePeriod;
-	uint8_t CurrentVCSELPulsePeriodPClk;
+	uint8_t CurrentVCSELPulsePeriodPClk = 0;
 	uint16_t encodedTimeOut;
 	uint32_t RangATimingBudgetMicroSeconds = 0;
 	uint32_t RangBTimingBudgetMicroSeconds = 0;

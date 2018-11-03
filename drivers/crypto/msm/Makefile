@@ -14,3 +14,5 @@ obj-$(CONFIG_CRYPTO_DEV_QCOM_ICE) += ice.o
 # TODO: remove me b/62058353
 subdir-ccflags-y += \
 	$(call cc-option,-Wno-frame-larger-than=)
+
+ccflags-y += -Wno-array-bounds

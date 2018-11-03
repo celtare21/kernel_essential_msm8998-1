@@ -400,7 +400,7 @@ static int msm_lmh_dcvs_probe(struct platform_device *pdev)
 	struct thermal_zone_device *tzdev;
 	struct device_node *dn = pdev->dev.of_node;
 	struct device_node *cpu_node, *lmh_node;
-	uint32_t id, max_freq, request_reg, clear_reg;
+	uint32_t id, max_freq = 0, request_reg, clear_reg;
 	int cpu;
 	cpumask_t mask = { CPU_BITS_NONE };
 

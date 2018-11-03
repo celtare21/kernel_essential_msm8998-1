@@ -662,7 +662,7 @@ static int iw_handler_get_iwstats(struct net_device *		dev,
 				  char *			extra)
 {
 	/* Get stats from the driver */
-	struct iw_statistics *stats;
+	struct iw_statistics *stats = { 0 };
 
 	stats = get_wireless_stats(dev);
 	if (stats) {

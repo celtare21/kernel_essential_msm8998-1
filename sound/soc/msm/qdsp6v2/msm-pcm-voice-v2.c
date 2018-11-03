@@ -500,7 +500,7 @@ static int msm_voice_sidetone_put(struct snd_kcontrol *kcontrol,
 	uint32_t session_id = ALL_SESSION_VSID;
 
 	ret = voc_set_afe_sidetone(session_id, sidetone_enable);
-	pr_debug("%s: AFE Sidetone enable=%ld session_id=0x%x ret=%d\n",
+	pr_debug("%s: AFE Sidetone enable=%d session_id=0x%x ret=%d\n",
 		 __func__, sidetone_enable, session_id, ret);
 	return ret;
 }

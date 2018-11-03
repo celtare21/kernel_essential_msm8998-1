@@ -758,7 +758,7 @@ static long ppp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 #ifdef CONFIG_PPP_FILTER
 	case PPPIOCSPASS:
 	{
-		struct sock_filter *code;
+		struct sock_filter *code = { 0 };
 
 		err = get_filter(argp, &code);
 		if (err >= 0) {
@@ -784,7 +784,7 @@ static long ppp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	}
 	case PPPIOCSACTIVE:
 	{
-		struct sock_filter *code;
+		struct sock_filter *code = { 0 };
 
 		err = get_filter(argp, &code);
 		if (err >= 0) {

@@ -684,7 +684,7 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, unsigned attr,
 		if (err)
 			goto bail;
 		if (sess->smmu.enabled) {
-			attrs |= DMA_ATTR_EXEC_MAPPING;
+			attrs = DMA_ATTR_EXEC_MAPPING;
 			if ((map->attr & FASTRPC_ATTR_NON_COHERENT) ||
 				(sess->smmu.coherent && map->uncached))
 				attrs |= DMA_ATTR_FORCE_NON_COHERENT;

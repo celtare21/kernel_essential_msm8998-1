@@ -935,9 +935,10 @@ void sch_process_pre_beacon_ind(tpAniSirGlobal pMac, tpSirMsgQ limMsg)
 			write_beacon_to_memory(pMac, (uint16_t) beaconSize,
 					       (uint16_t) beaconSize,
 					       psessionEntry);
-		else
+		else {
 			pe_err("can not send beacon for PEER session entry");
 			break;
+		}
 
 	case eLIM_AP_ROLE: {
 		uint8_t *ptr =
