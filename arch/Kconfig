@@ -443,7 +443,7 @@ config HAVE_ARCH_WITHIN_STACK_FRAMES
 	  which is used by CONFIG_HARDENED_USERCOPY.
 
 config LD_DEAD_CODE_DATA_ELIMINATION
-	bool
+	bool "Use dead code elimination"
 	help
 	  Select this if the architecture wants to do dead code and
 	  data elimination with the linker by compiling with
