@@ -1669,6 +1669,9 @@ static ssize_t qpnp_hap_hi_z_period_show(struct device *dev,
 	case QPNP_HAP_LRA_HIGH_Z_OPT3:
 		str = "high_z_opt3";
 		break;
+	default:
+		str = "";
+		break;
 	}
 
 	return snprintf(buf, PAGE_SIZE, "%s\n", str);

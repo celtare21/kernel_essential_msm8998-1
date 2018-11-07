@@ -1758,8 +1758,8 @@ static int pp_igc_lut_cache_params_pipe_v3(
 		struct mdp_igc_lut_data *config, struct mdss_mdp_pipe *pipe,
 		u32 copy_from_kernel)
 {
-	struct mdp_igc_lut_data_config *v3_cache_data = NULL;
-	struct mdp_igc_lut_data_payload v3_usr_config;
+	struct mdp_igc_lut_data_config *v3_cache_data = { 0 };
+	struct mdp_igc_lut_data_payload v3_usr_config = { 0 };
 	u32 *c0_c1_data, *c2_data, len;
 	int ret = 0, fix_up = 0, i = 0;
 	u32 table_fmt = mdp_igc_rec_max, strength = 0;

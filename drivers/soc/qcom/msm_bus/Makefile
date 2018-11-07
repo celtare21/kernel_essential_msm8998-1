@@ -14,6 +14,4 @@ obj-$(CONFIG_DEBUG_FS) += msm_bus_dbg.o
 
 # TODO: remove me b/62058353
 subdir-ccflags-y += \
-	-Wno-self-assign \
-	-Wno-parentheses-equality
-
+	-Wno-self-assign
