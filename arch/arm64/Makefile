@@ -28,20 +28,11 @@ KBUILD_DEFCONFIG := defconfig
 # Check for binutils support for specific extensions
 lseinstr := $(call as-instr,.arch_extension lse,-DCONFIG_AS_LSE=1)
 
-KBUILD_CFLAGS	+= $(call cc-option,-march=armv8-a+crypto+crc,) \
-	$(call cc-option,-mcpu=cortex-a53+crypto+crc,)
-
 ifeq ($(CONFIG_ARM64_LSE_ATOMICS), y)
   ifeq ($(lseinstr),)
 $(warning LSE atomics not supported by binutils)
   endif
 endif
-
-KBUILD_CFLAGS	+= $(call cc-option,-march=armv8-a+crypto+crc,) $(call cc-option,-mcpu=cortex-a53+crypto+crc,)
-
-GEN_FLAGS := -O3 -fopenmp
-
-KBUILD_CFLAGS	+= $(GEN_FLAGS)
 
 ifeq ($(CONFIG_COMPAT_VDSO), y)
   CROSS_COMPILE_ARM32 ?= $(CONFIG_CROSS_COMPILE_ARM32:"%"=%)
@@ -81,8 +72,12 @@ KBUILD_CFLAGS	+= -mllvm -polly \
 					-mllvm -polly-vectorizer=stripmine \
 					-mllvm -polly-detect-keep-going
 
-KBUILD_CFLAGS	+= -O3
 endif
+
+KBUILD_CFLAGS   += $(call cc-option,-march=armv8-a+crypto+crc,) \
+        $(call cc-option,-mcpu=cortex-a53+crypto+crc,)
+GEN_FLAGS 	:= -fopenmp
+KBUILD_CFLAGS	+= $(GEN_FLAGS)
 
 KBUILD_CFLAGS	+= $(lseinstr) $(vdso32)
 KBUILD_CFLAGS	+= -mgeneral-regs-only
