@@ -166,7 +166,7 @@ int blkdev_issue_write_same(struct block_device *bdev, sector_t sector,
 		return -EINVAL;
 
 	/* Ensure that max_write_same_sectors doesn't overflow bi_size */
-	max_write_same_sectors = bio_allowed_max_sectors(q);
+	max_write_same_sectors = UINT_MAX >> 9;
 
 	atomic_set(&bb.done, 1);
 	bb.error = 0;
