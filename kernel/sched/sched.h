@@ -5,7 +5,6 @@
 #include <linux/u64_stats_sync.h>
 #include <linux/sched/deadline.h>
 #include <linux/kernel_stat.h>
-#include <linux/binfmts.h>
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
 #include <linux/stop_machine.h>
@@ -1005,18 +1004,6 @@ static inline unsigned int group_first_cpu(struct sched_group *group)
 }
 
 extern int group_balance_cpu(struct sched_group *sg);
-
-#if defined(CONFIG_SCHED_DEBUG) && defined(CONFIG_SYSCTL)
-void register_sched_domain_sysctl(void);
-void unregister_sched_domain_sysctl(void);
-#else
-static inline void register_sched_domain_sysctl(void)
-{
-}
-static inline void unregister_sched_domain_sysctl(void)
-{
-}
-#endif
 
 #else
 
