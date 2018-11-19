@@ -1691,7 +1691,8 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 	int lookup_flags = 0;
 	bool user_request = !(current->flags & PF_KTHREAD);
 
-	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
+	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW |
+			UMOUNT_WAIT))
 		return -EINVAL;
 
 	if (!may_mount())
@@ -1714,6 +1715,8 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 	retval = -EPERM;
 	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
 		goto dput_and_out;
+	if (flags & UMOUNT_WAIT)
+		flush_delayed_fput();
 
 	/* flush delayed_fput to put mnt_count */
 	if (user_request)
@@ -1724,6 +1727,12 @@ dput_and_out:
 	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
 	dput(path.dentry);
 	mntput_no_expire(mnt);
+	if (!retval && (flags & UMOUNT_WAIT)) {
+		if (likely(!(current->flags & PF_KTHREAD)))
+			task_work_run();
+		else
+			flush_scheduled_work();
+	}
 
 	if (!user_request)
 		goto out;
