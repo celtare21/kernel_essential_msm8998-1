@@ -79,9 +79,9 @@ static int find_deepest_state(struct cpuidle_driver *drv,
 			      bool freeze)
 {
 	unsigned int latency_req = 0;
-	int i, ret = 0;
+	int i, ret = -ENXIO;
 
-	for (i = 1; i < drv->state_count; i++) {
+	for (i = 0; i < drv->state_count; i++) {
 		struct cpuidle_state *s = &drv->states[i];
 		struct cpuidle_state_usage *su = &dev->states_usage[i];
 
@@ -97,24 +97,7 @@ static int find_deepest_state(struct cpuidle_driver *drv,
 	return ret;
 }
 
-/**
- * cpuidle_use_deepest_state - Set/clear governor override flag.
- * @enable: New value of the flag.
- *
- * Set/unset the current CPU to use the deepest idle state (override governors
- * going forward if set).
- */
-void cpuidle_use_deepest_state(bool enable)
-{
-	struct cpuidle_device *dev;
-
-	preempt_disable();
-	dev = cpuidle_get_device();
-	if (dev)
-		dev->use_deepest_state = enable;
-	preempt_enable();
-}
-
+#ifdef CONFIG_SUSPEND
 /**
  * cpuidle_find_deepest_state - Find the deepest available idle state.
  * @drv: cpuidle driver for the given CPU.
@@ -126,14 +109,9 @@ int cpuidle_find_deepest_state(struct cpuidle_driver *drv,
 	return find_deepest_state(drv, dev, UINT_MAX, 0, false);
 }
 
-#ifdef CONFIG_SUSPEND
 static void enter_freeze_proper(struct cpuidle_driver *drv,
 				struct cpuidle_device *dev, int index)
 {
-	ktime_t time_start, time_end;
-
-	time_start = ns_to_ktime(local_clock());
-
 	/*
 	 * trace_suspend_resume() called by tick_freeze() for the last CPU
 	 * executing it contains RCU usage regarded as invalid in the idle
@@ -155,11 +133,6 @@ static void enter_freeze_proper(struct cpuidle_driver *drv,
 	 */
 	RCU_NONIDLE(tick_unfreeze());
 	start_critical_timings();
-
-	time_end = ns_to_ktime(local_clock());
-
-	dev->states_usage[index].s2idle_time += ktime_us_delta(time_end, time_start);
-	dev->states_usage[index].s2idle_usage++;
 }
 
 /**
@@ -180,7 +153,7 @@ int cpuidle_enter_freeze(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 	 * be frozen safely.
 	 */
 	index = find_deepest_state(drv, dev, UINT_MAX, 0, true);
-	if (index > 0)
+	if (index >= 0)
 		enter_freeze_proper(drv, dev, index);
 
 	return index;
@@ -223,14 +196,13 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 	sched_idle_set_state(target_state, index);
 
 	trace_cpu_idle_rcuidle(index, dev->cpu);
-	time_start = ns_to_ktime(local_clock());
+	time_start = ktime_get();
 
 	stop_critical_timings();
 	entered_state = target_state->enter(dev, drv, index);
 	start_critical_timings();
 
-	sched_clock_idle_wakeup_event(0);
-	time_end = ns_to_ktime(local_clock());
+	time_end = ktime_get();
 	trace_cpu_idle_rcuidle(PWR_EVENT_EXIT, dev->cpu);
 
 	/* The cpu is no longer idle or about to enter idle. */
@@ -246,7 +218,7 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 	if (!cpuidle_state_is_coupled(drv, index))
 		local_irq_enable();
 
-	diff = ktime_us_delta(time_end, time_start);
+	diff = ktime_to_us(ktime_sub(time_end, time_start));
 	if (diff > INT_MAX)
 		diff = INT_MAX;
 
@@ -271,18 +243,12 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
  *
  * @drv: the cpuidle driver
  * @dev: the cpuidle device
- * @stop_tick: indication on whether or not to stop the tick
  *
- * Returns the index of the idle state.  The return value must not be negative.
- *
- * The memory location pointed to by @stop_tick is expected to be written the
- * 'false' boolean value if the scheduler tick should not be stopped before
- * entering the returned state.
+ * Returns the index of the idle state.
  */
-int cpuidle_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
-		   bool *stop_tick)
+int cpuidle_select(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 {
-	return cpuidle_curr_governor->select(drv, dev, stop_tick);
+	return cpuidle_curr_governor->select(drv, dev);
 }
 
 /**
@@ -402,12 +368,9 @@ int cpuidle_enable_device(struct cpuidle_device *dev)
 	if (dev->enabled)
 		return 0;
 
-	if (!cpuidle_curr_governor)
-		return -EIO;
-
 	drv = cpuidle_get_cpu_driver(dev);
 
-	if (!drv)
+	if (!drv || !cpuidle_curr_governor)
 		return -EIO;
 
 	if (!dev->registered)
@@ -417,11 +380,9 @@ int cpuidle_enable_device(struct cpuidle_device *dev)
 	if (ret)
 		return ret;
 
-	if (cpuidle_curr_governor->enable) {
-		ret = cpuidle_curr_governor->enable(drv, dev);
-		if (ret)
-			goto fail_sysfs;
-	}
+	if (cpuidle_curr_governor->enable &&
+	    (ret = cpuidle_curr_governor->enable(drv, dev)))
+		goto fail_sysfs;
 
 	smp_wmb();
 
