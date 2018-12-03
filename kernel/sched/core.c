@@ -4695,7 +4695,7 @@ static int __sched_setscheduler(struct task_struct *p,
 	int reset_on_fork;
 	int queue_flags = DEQUEUE_SAVE | DEQUEUE_MOVE | DEQUEUE_NOCLOCK;
 
-        /* The pi code expects interrupts enabled */
+	/* The pi code expects interrupts enabled */
 	BUG_ON(pi && in_interrupt());
 recheck:
 	/* double check policy once rq lock held */
