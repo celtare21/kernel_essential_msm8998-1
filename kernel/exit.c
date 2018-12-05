@@ -526,7 +526,7 @@ static void exit_mm(struct task_struct *tsk)
 
 	mm_released = mmput(mm);
 	if (test_thread_flag(TIF_MEMDIE))
-                exit_oom_victim();
+		exit_oom_victim();
 	if (mm_released)
 		set_tsk_thread_flag(tsk, TIF_MM_RELEASED);
 }
