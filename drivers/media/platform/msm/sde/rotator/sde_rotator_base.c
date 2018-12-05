@@ -513,8 +513,6 @@ static int sde_mdp_parse_dt_misc(struct platform_device *pdev,
 		 "qcom,mdss-rot-qos-cpu-dma-latency", &data);
 	mdata->rot_pm_qos_cpu_dma_latency = (!rc ? data : 0);
 
-	sde_rotator_pm_qos_add(mdata);
-
 	mdata->mdp_base = mdata->sde_io.base + SDE_MDP_OFFSET;
 
 	node = of_get_child_by_name(pdev->dev.of_node,
