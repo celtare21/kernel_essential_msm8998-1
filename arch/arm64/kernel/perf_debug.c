@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,7 +24,6 @@
 static char *descriptions =
 	" 0 arm64: perf: add debug patch logging framework\n"
 	" 1 Perf: arm64: Add L1 counters to tracepoints\n"
-	" 5 Perf: arm64: add perf user-mode permissions\n"
 	" 6 Perf: arm64: Add debugfs node to clear PMU\n"
 	" 7 Perf: arm64: Update PMU force reset\n"
 	"10 Perf: arm64: tracectr: initialize counts after hotplug\n"

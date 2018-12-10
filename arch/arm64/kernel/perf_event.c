@@ -734,23 +734,6 @@ static int armv8pmu_set_event_filter(struct hw_perf_event *event,
 	return 0;
 }
 
-#ifdef CONFIG_PERF_EVENTS_USERMODE
-static void armv8pmu_init_usermode(void)
-{
-	/* Enable access from userspace. */
-	asm volatile("msr pmuserenr_el0, %0" :: "r" (0xF));
-
-}
-#else
-static inline void armv8pmu_init_usermode(void)
-{
-	/* Disable access from userspace. */
-	asm volatile("msr pmuserenr_el0, %0" :: "r" (0));
-
-}
-#endif
-
-
 static void armv8pmu_idle_update(struct arm_pmu *cpu_pmu)
 {
 	struct pmu_hw_events *hw_events;
@@ -796,8 +779,6 @@ static void armv8pmu_reset(void *info)
 	 * 64 bit cycle counter but cheat in armv8pmu_write_counter().
 	 */
 	armv8pmu_pmcr_write(armv8pmu_pmcr_read() | ARMV8_PMU_PMCR_P | ARMV8_PMU_PMCR_C | ARMV8_PMU_PMCR_LC);
-
-	armv8pmu_init_usermode();
 }
 
 static int armv8_pmuv3_map_event(struct perf_event *event)
