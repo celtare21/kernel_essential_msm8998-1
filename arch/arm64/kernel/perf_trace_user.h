@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014,2017 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,7 +18,7 @@
 #include <linux/tracepoint.h>
 
 #define CNTENSET_CC    0x80000000
-#define NUM_L1_CTRS             4
+#define NUM_L1_CTRS             6
 
 TRACE_EVENT(perf_trace_user,
 	TP_PROTO(char *string, u32 cnten_val),
@@ -30,8 +30,8 @@ TRACE_EVENT(perf_trace_user,
 		__field(u32, ctr1)
 		__field(u32, ctr2)
 		__field(u32, ctr3)
-		__field(u32, lctr0)
-		__field(u32, lctr1)
+		__field(u32, ctr4)
+		__field(u32, ctr5)
 		__string(user_string, string)
 		),
 
@@ -42,19 +42,17 @@ TRACE_EVENT(perf_trace_user,
 
 		if (cnten_val & CNTENSET_CC) {
 			/* Read value */
-			asm volatile("mrs %0, pmccntr_el0" : "=r" (cnt));
+			cnt = read_sysreg(pmccntr_el0);
 			__entry->cctr = cnt;
 		} else
 			__entry->cctr = 0;
 		for (i = 0; i < NUM_L1_CTRS; i++) {
 			if (cnten_val & (1 << i)) {
 				/* Select */
-				asm volatile("msr pmselr_el0, %0"
-					     : : "r" (i));
+				write_sysreg(i, pmselr_el0);
 				isb();
 				/* Read value */
-				asm volatile("mrs %0, pmxevcntr_el0"
-					     : "=r" (cnt));
+				cnt = read_sysreg(pmxevcntr_el0);
 				l1_cnts[i] = cnt;
 			} else {
 				l1_cnts[i] = 0;
@@ -65,16 +63,17 @@ TRACE_EVENT(perf_trace_user,
 		__entry->ctr1 = l1_cnts[1];
 		__entry->ctr2 = l1_cnts[2];
 		__entry->ctr3 = l1_cnts[3];
-		__entry->lctr0 = 0;
-		__entry->lctr1 = 0;
+		__entry->ctr4 = l1_cnts[4];
+		__entry->ctr5 = l1_cnts[5];
 		__assign_str(user_string, string);
 		),
 
-		TP_printk("CCNTR: %u, CTR0: %u, CTR1: %u, CTR2: %u, CTR3: %u, L2CTR0: %u, L2CTR1: %u, MSG=%s",
-			  __entry->cctr, __entry->ctr0, __entry->ctr1,
-			  __entry->ctr2, __entry->ctr3,
-			  __entry->lctr0, __entry->lctr1,
-			  __get_str(user_string)
+		TP_printk("CCNTR: %u, CTR0: %u, CTR1: %u, CTR2: %u, CTR3: %u, CTR4: %u, CTR5: %u, MSG=%s",
+				__entry->cctr,
+				__entry->ctr0, __entry->ctr1,
+				__entry->ctr2, __entry->ctr3,
+				__entry->ctr4, __entry->ctr5,
+				__get_str(user_string)
 			)
 	);
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014,2017 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -59,15 +59,15 @@ TRACE_EVENT(sched_switch_with_ctrs,
 			u32 total_ccnt = 0;
 			u32 total_cnt = 0;
 			u32 delta_l1_cnts[NUM_L1_CTRS];
+
 			__entry->old_pid	= prev;
 			__entry->new_pid	= next;
 
 			cnten_val = per_cpu(cntenset_val, cpu);
 
 			if (cnten_val & CC) {
-				asm volatile("mrs %0, pmccntr_el0"
-							: "=r" (total_ccnt));
 				/* Read value */
+				total_ccnt = read_sysreg(pmccntr_el0);
 				__entry->cctr = total_ccnt -
 					per_cpu(previous_ccnt, cpu);
 				per_cpu(previous_ccnt, cpu) = total_ccnt;
@@ -75,12 +75,10 @@ TRACE_EVENT(sched_switch_with_ctrs,
 			for (i = 0; i < NUM_L1_CTRS; i++) {
 				if (cnten_val & (1 << i)) {
 					/* Select */
-					asm volatile("msr pmselr_el0, %0"
-							: : "r" (i));
+					write_sysreg(i, pmselr_el0);
 					isb();
-					asm volatile("mrs %0, pmxevcntr_el0"
-							: "=r" (total_cnt));
 					/* Read value */
+					total_cnt = read_sysreg(pmxevcntr_el0);
 					delta_l1_cnts[i] = total_cnt -
 					  per_cpu(previous_l1_cnts[i], cpu);
 					per_cpu(previous_l1_cnts[i], cpu) =
@@ -99,7 +97,8 @@ TRACE_EVENT(sched_switch_with_ctrs,
 
 		TP_printk("prev_pid=%d, next_pid=%d, CCNTR: %u, CTR0: %u, CTR1: %u, CTR2: %u, CTR3: %u, CTR4: %u, CTR5: %u",
 				__entry->old_pid, __entry->new_pid,
-				__entry->cctr, __entry->ctr0, __entry->ctr1,
+				__entry->cctr,
+				__entry->ctr0, __entry->ctr1,
 				__entry->ctr2, __entry->ctr3,
 				__entry->ctr4, __entry->ctr5)
 );

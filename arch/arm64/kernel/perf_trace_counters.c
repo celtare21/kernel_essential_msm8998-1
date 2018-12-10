@@ -45,17 +45,17 @@ static void setup_prev_cnts(u32 cpu, u32 cnten_val)
 	int i;
 
 	if (cnten_val & CC)
-		asm volatile("mrs %0, pmccntr_el0"
-			: "=r"(per_cpu(previous_ccnt, cpu)));
+		per_cpu(previous_ccnt, cpu) =
+			read_sysreg(pmccntr_el0);
 
 	for (i = 0; i < NUM_L1_CTRS; i++) {
 		if (cnten_val & (1 << i)) {
 			/* Select */
-			asm volatile("msr pmselr_el0, %0" : : "r"(i));
+			write_sysreg(i, pmselr_el0);
 			isb();
 			/* Read value */
-			asm volatile("mrs %0, pmxevcntr_el0"
-				: "=r"(per_cpu(previous_l1_cnts[i], cpu)));
+			per_cpu(previous_l1_cnts[i], cpu) =
+				read_sysreg(pmxevcntr_el0);
 		}
 	}
 }
@@ -71,10 +71,10 @@ void tracectr_notifier(void *ignore, bool preempt,
 		return;
 	current_pid = next->pid;
 	if (per_cpu(old_pid, cpu) != -1) {
-		asm volatile("mrs %0, pmcntenset_el0" : "=r" (cnten_val));
+		cnten_val = read_sysreg(pmcntenset_el0);
 		per_cpu(cntenset_val, cpu) = cnten_val;
 		/* Disable all the counters that were enabled */
-		asm volatile("msr pmcntenclr_el0, %0" : : "r" (cnten_val));
+		write_sysreg(cnten_val, pmcntenclr_el0);
 
 		if (per_cpu(hotplug_flag, cpu) == 1) {
 			per_cpu(hotplug_flag, cpu) = 0;
@@ -85,7 +85,7 @@ void tracectr_notifier(void *ignore, bool preempt,
 		}
 
 		/* Enable all the counters that were disabled */
-		asm volatile("msr pmcntenset_el0, %0" : : "r" (cnten_val));
+		write_sysreg(cnten_val, pmcntenset_el0);
 	}
 	per_cpu(old_pid, cpu) = current_pid;
 }
