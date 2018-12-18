@@ -120,12 +120,12 @@
  */
 static inline u32 __attribute_const__ read_cpuid_id(void)
 {
-	return read_cpuid(SYS_MIDR_EL1);
+	return read_cpuid(MIDR_EL1);
 }
 
 static inline u64 __attribute_const__ read_cpuid_mpidr(void)
 {
-	return read_cpuid(SYS_MPIDR_EL1);
+	return read_cpuid(MPIDR_EL1);
 }
 
 static inline unsigned int __attribute_const__ read_cpuid_implementor(void)
@@ -140,7 +140,7 @@ static inline unsigned int __attribute_const__ read_cpuid_part_number(void)
 
 static inline u32 __attribute_const__ read_cpuid_cachetype(void)
 {
-	return read_cpuid(SYS_CTR_EL0);
+	return read_cpuid(CTR_EL0);
 }
 #endif /* __ASSEMBLY__ */
 
