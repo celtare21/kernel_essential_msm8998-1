@@ -458,7 +458,7 @@ config LD_DEAD_CODE_DATA_ELIMINATION
 	  is used to distinguish them from label names / C identifiers.
 
 config THIN_ARCHIVES
-	bool
+	def_bool y
 	help
 	  Select this if the architecture wants to use thin archives
 	  instead of ld -r to create the built-in.o files.
