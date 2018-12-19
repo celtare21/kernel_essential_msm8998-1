@@ -286,6 +286,10 @@ config PGTABLE_LEVELS
 	default 3 if ARM64_16K_PAGES && ARM64_VA_BITS_47
 	default 4 if !ARM64_64K_PAGES && ARM64_VA_BITS_48
 
+config POLLY_CLANG
+	bool "Enable polly flags for the clang compiler"
+	default y if !LTO_CLANG
+
 config MSM_GVM
 	bool "Enable virtualization Support for MSM kernel"
 	help
