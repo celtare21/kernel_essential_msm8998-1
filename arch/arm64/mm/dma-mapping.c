@@ -1193,7 +1193,7 @@ static void __dma_clear_buffer(struct page *page, size_t size,
 	if ((attrs & DMA_ATTR_SKIP_ZEROING) == 0)
 		memset(ptr, 0, size);
 	if (!is_coherent)
-		dmac_flush_area(ptr, size);
+		__dma_flush_area(ptr, size);
 }
 
 static inline dma_addr_t __alloc_iova(struct dma_iommu_mapping *mapping,

@@ -92,12 +92,12 @@ static inline void flush_cache_page(struct vm_area_struct *vma,
 extern void __dma_map_area(const void *, size_t, int);
 extern void __dma_unmap_area(const void *, size_t, int);
 extern void __dma_flush_area(const void *, size_t);
-extern void __dma_inv_range(const void *, const void *);
-extern void __dma_clean_range(const void *, const void *);
+extern void __dma_inv_area(const void *, size_t);
+extern void __dma_clean_area(const void *, size_t);
 
-#define dmac_flush_range __dma_flush_range
-#define dmac_inv_range __dma_inv_range
-#define dmac_clean_range __dma_clean_range
+#define dmac_flush_range(start, end) __dma_flush_area(start, (void *)(end) - (void *)(start))
+#define dmac_inv_range(start, end) __dma_inv_area(start, (void *)(end) - (void *)(start))
+#define dmac_clean_range(start, end) __dma_clean_area(start, (void *)(end) - (void *)(start))
 
 /*
  * Copy user data from/to a page which is mapped into a different
