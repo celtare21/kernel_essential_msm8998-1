@@ -28,6 +28,8 @@
 #ifndef WMA_TGT_CFG_H
 #define WMA_TGT_CFG_H
 
+#include "wma_sar_public_structs.h"
+
 /**
  * struct wma_tgt_services - target services
  * @sta_power_save: sta power save
@@ -44,6 +46,9 @@
  * @en_tdls_uapsd_buf_sta: enable sta tdls uapsd buf
  * @en_tdls_uapsd_sleep_sta: enable sta tdls uapsd sleep
  * @en_roam_offload: enable roam offload
+ * @get_peer_info_enabled: PEER info feature
+ * @is_fils_roaming_supported: Fast Initial Link Setup feature
+ * @is_fw_mawc_capable: Motion Aided Wireless Connectivity feature
  */
 struct wma_tgt_services {
 	uint32_t sta_power_save;
@@ -69,6 +74,7 @@ struct wma_tgt_services {
 #endif /* WLAN_FEATURE_ROAM_OFFLOAD */
 	bool get_peer_info_enabled;
 	bool is_fils_roaming_supported;
+	bool is_fw_mawc_capable;
 	bool is_11k_offload_supported;
 };
 
@@ -154,6 +160,7 @@ struct wma_dfs_radar_ind {
  * @bool is_ra_rate_limit_enabled: RA filter support
  * @tx_bfee_8ss_enabled: Tx Beamformee support for 8x8
  * @rcpi_enabled: for checking rcpi support
+ * @sar_version: Version of SAR supported by firmware
  */
 struct wma_tgt_cfg {
 	uint32_t target_fw_version;
@@ -174,7 +181,7 @@ struct wma_tgt_cfg {
 	bool egap_support;
 #endif
 	uint32_t fine_time_measurement_cap;
-	bool bpf_enabled;
+	bool apf_enabled;
 #ifdef FEATURE_WLAN_RA_FILTERING
 	bool is_ra_rate_limit_enabled;
 #endif
@@ -185,5 +192,6 @@ struct wma_tgt_cfg {
 	uint16_t wmi_max_len;
 	bool tx_bfee_8ss_enabled;
 	bool rcpi_enabled;
+	enum sar_version sar_version;
 };
 #endif /* WMA_TGT_CFG_H */

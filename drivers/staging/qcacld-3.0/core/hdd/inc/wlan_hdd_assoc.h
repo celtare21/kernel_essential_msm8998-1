@@ -41,6 +41,8 @@
 #include <net/cfg80211.h>
 #include <linux/ieee80211.h>
 
+#define HDD_TIME_STRING_LEN 24
+
 /* Preprocessor Definitions and Constants */
 #ifdef FEATURE_WLAN_TDLS
 #define HDD_MAX_NUM_TDLS_STA          8
@@ -175,6 +177,10 @@ struct hdd_conn_flag {
  * @signal: holds rssi info
  * @assoc_status_code: holds assoc fail reason
  * @congestion: holds congestion percentage
+ * @last_ssid: holds last ssid
+ * @last_auth_type: holds last auth type
+ * @auth_time: last authentication established time
+ * @connect_time: last association established time
  */
 typedef struct connection_info_s {
 	eConnectionState connState;
@@ -207,6 +213,11 @@ typedef struct connection_info_s {
 	int8_t signal;
 	int32_t assoc_status_code;
 	uint32_t cca;
+	tCsrSSIDInfo last_ssid;
+	eCsrAuthType last_auth_type;
+	char auth_time[HDD_TIME_STRING_LEN];
+	char connect_time[HDD_TIME_STRING_LEN];
+	enum phy_ch_width ch_width;
 } connection_info_t;
 
 /* Forward declarations */
@@ -235,10 +246,10 @@ bool hdd_conn_is_connected(hdd_station_ctx_t *pHddStaCtx);
  * hdd_conn_get_connected_band() - get current connection radio band
  * @pHddStaCtx:    pointer to global HDD Station context
  *
- * Return: eCSR_BAND_24 or eCSR_BAND_5G based on current AP connection
- *      eCSR_BAND_ALL if not connected
+ * Return: SIR_BAND_2_4_GHZ or SIR_BAND_5_GHZ based on current AP connection
+ *      SIR_BAND_ALL if not connected
  */
-eCsrBand hdd_conn_get_connected_band(hdd_station_ctx_t *pHddStaCtx);
+tSirRFBand hdd_conn_get_connected_band(hdd_station_ctx_t *pHddStaCtx);
 
 /**
  * hdd_get_sta_connection_in_progress() - get STA for which connection

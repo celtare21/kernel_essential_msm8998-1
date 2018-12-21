@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -623,6 +623,16 @@ int ce_send_fast(struct CE_handle *copyeng, qdf_nbuf_t msdu,
 
 	Q_TARGET_ACCESS_BEGIN(scn);
 
+	/*
+	 * Create a log assuming the call will go through, and if not, we would
+	 * add an error trace as well.
+	 * Please add the same failure log for any additional error paths.
+	 */
+	DPTRACE(qdf_dp_trace(msdu,
+			QDF_DP_TRACE_CE_FAST_PACKET_PTR_RECORD,
+			qdf_nbuf_data_addr(msdu),
+			sizeof(qdf_nbuf_data(msdu)), QDF_TX));
+
 	qdf_spin_lock_bh(&ce_state->ce_index_lock);
 	src_ring->sw_index = CE_SRC_RING_READ_IDX_GET_FROM_DDR(scn, ctrl_addr);
 	write_index = src_ring->write_index;
@@ -634,12 +644,22 @@ int ce_send_fast(struct CE_handle *copyeng, qdf_nbuf_t msdu,
 
 	if (qdf_unlikely(CE_RING_DELTA(nentries_mask, write_index, sw_index - 1)
 			 < SLOTS_PER_DATAPATH_TX)) {
-		HIF_ERROR("Source ring full, required %d, available %d",
-		      SLOTS_PER_DATAPATH_TX,
-		      CE_RING_DELTA(nentries_mask, write_index, sw_index - 1));
+		static unsigned int rate_limit;
+
+		if (rate_limit & 0x0f)
+			HIF_ERROR("Source ring full, required %d, available %d",
+				  SLOTS_PER_DATAPATH_TX,
+				  CE_RING_DELTA(nentries_mask, write_index,
+						sw_index - 1));
+		rate_limit++;
 		OL_ATH_CE_PKT_ERROR_COUNT_INCR(scn, CE_RING_DELTA_FAIL);
 		Q_TARGET_ACCESS_END(scn);
 		qdf_spin_unlock_bh(&ce_state->ce_index_lock);
+
+		DPTRACE(qdf_dp_trace(NULL,
+				QDF_DP_TRACE_CE_FAST_PACKET_ERR_RECORD,
+				NULL, 0, QDF_TX));
+
 		return 0;
 	}
 
@@ -732,12 +752,6 @@ int ce_send_fast(struct CE_handle *copyeng, qdf_nbuf_t msdu,
 		hif_pm_runtime_put(hif_hdl);
 	}
 	qdf_spin_unlock_bh(&ce_state->ce_index_lock);
-
-	DPTRACE(qdf_dp_trace(msdu,
-			QDF_DP_TRACE_CE_FAST_PACKET_PTR_RECORD,
-			qdf_nbuf_data_addr(msdu),
-			sizeof(qdf_nbuf_data(msdu)), QDF_TX));
-
 
 	hif_record_ce_desc_event(scn, ce_state->id, type,
 				 NULL, NULL, write_index);
@@ -1794,7 +1808,8 @@ more_data:
 		CE_ENGINE_INT_STATUS_CLEAR(scn, ctrl_addr,
 					   HOST_IS_COPY_COMPLETE_MASK);
 	} else {
-		HIF_ERROR("%s: target access is not allowed", __func__);
+		HIF_ERROR_RL(HIF_RATE_LIMIT_CE_ACCESS_LOG,
+			"%s: target access is not allowed", __func__);
 		return;
 	}
 
@@ -1993,7 +2008,8 @@ more_watermarks:
 					   CE_WATERMARK_MASK |
 					   HOST_IS_COPY_COMPLETE_MASK);
 	} else {
-		HIF_ERROR("%s: target access is not allowed", __func__);
+		HIF_ERROR_RL(HIF_RATE_LIMIT_CE_ACCESS_LOG,
+			"%s: target access is not allowed", __func__);
 		goto unlock_end;
 	}
 
@@ -2112,7 +2128,8 @@ ce_per_engine_handler_adjust(struct CE_state *CE_state,
 		return;
 
 	if (!TARGET_REGISTER_ACCESS_ALLOW(scn)) {
-		HIF_ERROR("%s: target access is not allowed", __func__);
+		HIF_ERROR_RL(HIF_RATE_LIMIT_CE_ACCESS_LOG,
+			"%s: target access is not allowed", __func__);
 		return;
 	}
 

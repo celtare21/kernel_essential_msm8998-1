@@ -51,6 +51,7 @@
 #include "ol_txrx_osif_api.h" /* ol_rx_callback_fp */
 #include "cdp_txrx_flow_ctrl_v2.h"
 #include "cdp_txrx_peer_ops.h"
+#include <qdf_trace.h>
 
 /*
  * The target may allocate multiple IDs for a peer.
@@ -211,6 +212,7 @@ struct ol_tx_desc_t {
 #endif
 	void *tso_desc;
 	void *tso_num_desc;
+	bool notify_tx_comp;
 };
 
 typedef TAILQ_HEAD(some_struct_name, ol_tx_desc_t) ol_tx_desc_list;
@@ -529,6 +531,7 @@ struct ol_tx_flow_pool_t {
 /*
  * struct ol_txrx_peer_id_map - Map of firmware peer_ids to peers on host
  * @peer: Pointer to peer object
+ * @peer_ref: Pointer to peer marked as stale
  * @peer_id_ref_cnt: No. of firmware references to the peer_id
  * @del_peer_id_ref_cnt: No. of outstanding unmap events for peer_id
  *                       after the peer object is deleted on the host.
@@ -537,6 +540,7 @@ struct ol_tx_flow_pool_t {
  */
 struct ol_txrx_peer_id_map {
 	struct ol_txrx_peer_t *peer;
+	struct ol_txrx_peer_t *peer_ref;
 	qdf_atomic_t peer_id_ref_cnt;
 	qdf_atomic_t del_peer_id_ref_cnt;
 };
@@ -551,6 +555,7 @@ struct ol_txrx_stats_req_internal {
     int serviced; /* state of this request */
     int offset;
 };
+
 
 /*
  * As depicted in the diagram below, the pdev contains an array of
@@ -672,6 +677,8 @@ struct ol_txrx_pdev_t {
 	TAILQ_HEAD(, ol_txrx_stats_req_internal) req_list;
 	int req_list_depth;
 	qdf_spinlock_t req_list_spinlock;
+
+	TAILQ_HEAD(, ol_txrx_roam_stale_peer_t) roam_stale_peer_list;
 
 	/* peer ID to peer object map (array of pointers to peer objects) */
 	struct ol_txrx_peer_id_map *peer_id_to_obj_map;
@@ -1024,9 +1031,15 @@ struct ol_txrx_pdev_t {
 	ol_tx_pause_callback_fp pause_cb;
 
 	struct {
-		void (*lro_flush_cb)(void *);
-	} lro_info;
+		void (*offld_flush_cb)(void *);
+	} rx_offld_info;
 	struct ol_txrx_peer_t *self_peer;
+
+	/* dp debug fs */
+	struct dentry *dpt_stats_log_dir;
+	enum qdf_dpt_debugfs_state state;
+	struct qdf_debugfs_fops dpt_debugfs_fops;
+
 };
 
 struct ol_txrx_ocb_chan_info {
@@ -1055,6 +1068,9 @@ struct ol_txrx_vdev_t {
 	ol_txrx_rx_fp rx; /* receive function used by this vdev */
 	ol_txrx_stats_rx_fp stats_rx; /* receive function used by this vdev */
 
+	/* completion function used by this vdev*/
+	ol_txrx_completion_fp tx_comp;
+
 	struct {
 		/*
 		 * If the vdev object couldn't be deleted immediately because
@@ -1069,6 +1085,7 @@ struct ol_txrx_vdev_t {
 		 */
 		ol_txrx_vdev_delete_cb callback;
 		void *context;
+		atomic_t detaching;
 	} delete;
 
 	/* safe mode control to bypass the encrypt and decipher process */
@@ -1221,6 +1238,12 @@ struct ol_txrx_cached_bufq_t {
 	uint32_t dropped;
 };
 
+struct ol_txrx_roam_stale_peer_t {
+	ol_txrx_peer_handle peer;
+
+	TAILQ_ENTRY(ol_txrx_roam_stale_peer_t) next_stale_entry;
+};
+
 struct ol_txrx_peer_t {
 	struct ol_txrx_vdev_t *vdev;
 
@@ -1265,6 +1288,7 @@ struct ol_txrx_peer_t {
 	struct ol_rx_reorder_t tids_rx_reorder[OL_TXRX_NUM_EXT_TIDS];
 	union htt_rx_pn_t tids_last_pn[OL_TXRX_NUM_EXT_TIDS];
 	uint8_t tids_last_pn_valid[OL_TXRX_NUM_EXT_TIDS];
+	uint8_t tids_rekey_flag[OL_TXRX_NUM_EXT_TIDS];
 	uint16_t tids_next_rel_idx[OL_TXRX_NUM_EXT_TIDS];
 	uint16_t tids_last_seq[OL_TXRX_NUM_EXT_TIDS];
 	uint16_t tids_mcast_last_seq[OL_TXRX_NUM_EXT_TIDS];

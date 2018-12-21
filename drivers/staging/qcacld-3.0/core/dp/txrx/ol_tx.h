@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -39,10 +39,13 @@
 
 #include <ol_txrx_types.h>      /* ol_tx_desc_t, ol_txrx_msdu_info_t */
 
-qdf_nbuf_t ol_tx_ll(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list);
-qdf_nbuf_t ol_tx_ll_wrapper(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list);
+qdf_nbuf_t ol_tx_ll(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list,
+		    bool notify_tx_comp);
+qdf_nbuf_t ol_tx_ll_wrapper(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list,
+			    bool notify_tx_comp);
 #ifdef WLAN_FEATURE_FASTPATH
-qdf_nbuf_t ol_tx_ll_fast(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list);
+qdf_nbuf_t ol_tx_ll_fast(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list,
+			 bool notify_tx_comp);
 #endif
 
 qdf_nbuf_t ol_tx_ll_queue(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list);
@@ -60,10 +63,10 @@ qdf_nbuf_t ol_tx_ll_queue(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list);
 #endif
 
 #ifdef QCA_LL_LEGACY_TX_FLOW_CONTROL
-void ol_tx_vdev_ll_pause_queue_send(void *context);
+void ol_tx_vdev_ll_pause_queue_send(unsigned long context);
 void ol_tx_pdev_ll_pause_queue_send_all(struct ol_txrx_pdev_t *pdev);
 #else
-static inline void ol_tx_vdev_ll_pause_queue_send(void *context)
+static inline void ol_tx_vdev_ll_pause_queue_send(unsigned long context)
 {
 }
 static inline

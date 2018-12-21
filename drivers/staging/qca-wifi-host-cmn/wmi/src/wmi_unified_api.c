@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -1617,6 +1617,17 @@ QDF_STATUS wmi_unified_roam_scan_offload_rssi_thresh_cmd(void *wmi_hdl,
 	return QDF_STATUS_E_FAILURE;
 }
 
+QDF_STATUS wmi_unified_roam_mawc_params_cmd(
+			void *wmi_hdl, struct wmi_mawc_roam_params *params)
+{
+	wmi_unified_t wmi_handle = (wmi_unified_t) wmi_hdl;
+
+	if (wmi_handle->ops->send_roam_mawc_params_cmd)
+		return wmi_handle->ops->send_roam_mawc_params_cmd(
+				wmi_handle, params);
+
+	return QDF_STATUS_E_FAILURE;
+}
 /**
  * wmi_unified_roam_scan_filter_cmd() - send roam scan whitelist,
  *                                      blacklist and preferred list
@@ -1895,6 +1906,24 @@ QDF_STATUS wmi_unified_pno_start_cmd(void *wmi_hdl,
 	return QDF_STATUS_E_FAILURE;
 }
 #endif
+
+/**
+ * wmi_unified_nlo_mawc_cmd() - NLO MAWC cmd configuration
+ * @wmi_hdl: wmi handle
+ * @params: Configuration parameters
+ *
+ * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
+ */
+QDF_STATUS wmi_unified_nlo_mawc_cmd(void *wmi_hdl,
+		struct nlo_mawc_params *params)
+{
+	wmi_unified_t wmi_handle = (wmi_unified_t) wmi_hdl;
+
+	if (wmi_handle->ops->send_nlo_mawc_cmd)
+		return wmi_handle->ops->send_nlo_mawc_cmd(wmi_handle, params);
+
+	return QDF_STATUS_E_FAILURE;
+}
 
 /* wmi_unified_set_ric_req_cmd() - set ric request element
  * @wmi_hdl: wmi handle
@@ -2295,6 +2324,28 @@ QDF_STATUS wmi_unified_wow_sta_ra_filter_cmd(void *wmi_hdl,
 #endif /* FEATURE_WLAN_RA_FILTERING */
 
 /**
+ * wmi_unified_wow_timer_pattern_cmd() - set timer pattern tlv, so that firmware
+ * will wake up host after specified time is elapsed
+ * @wmi_handle: wmi handle
+ * @vdev_id: vdev id
+ * @cookie: value to identify reason why host set up wake call.
+ * @time: time in ms
+ *
+ * Return: CDF status
+ */
+QDF_STATUS wmi_unified_wow_timer_pattern_cmd(void *wmi_hdl, uint8_t vdev_id,
+					     uint32_t cookie, uint32_t time)
+{
+	wmi_unified_t wmi_handle = (wmi_unified_t) wmi_hdl;
+
+	if (wmi_handle->ops->send_wow_timer_pattern_cmd)
+		return wmi_handle->ops->send_wow_timer_pattern_cmd(wmi_handle,
+							vdev_id, cookie, time);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+/**
  * wmi_unified_nat_keepalive_en_cmd() - enable NAT keepalive filter
  * @wmi_handle: wmi handle
  * @vdev_id: vdev id
@@ -2308,6 +2359,18 @@ QDF_STATUS wmi_unified_nat_keepalive_en_cmd(void *wmi_hdl, uint8_t vdev_id)
 	if (wmi_handle->ops->send_nat_keepalive_en_cmd)
 		return wmi_handle->ops->send_nat_keepalive_en_cmd(wmi_handle,
 			    vdev_id);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+QDF_STATUS wmi_unified_wlm_latency_level_cmd(void *wmi_hdl,
+					struct wlm_latency_level_param *param)
+{
+	wmi_unified_t wmi_handle = (wmi_unified_t) wmi_hdl;
+
+	if (wmi_handle->ops->send_wlm_latency_level_cmd)
+		return wmi_handle->ops->send_wlm_latency_level_cmd(wmi_handle,
+								   param);
 
 	return QDF_STATUS_E_FAILURE;
 }
@@ -3587,21 +3650,64 @@ QDF_STATUS wmi_unified_get_buf_extscan_hotlist_cmd(void *wmi_hdl,
 }
 
 QDF_STATUS
-wmi_unified_set_active_bpf_mode_cmd(void *wmi_hdl,
+wmi_unified_set_active_apf_mode_cmd(wmi_unified_t wmi,
 				    uint8_t vdev_id,
 				    FW_ACTIVE_BPF_MODE ucast_mode,
 				    FW_ACTIVE_BPF_MODE mcast_bcast_mode)
 {
-	wmi_unified_t wmi = (wmi_unified_t)wmi_hdl;
 
-	if (!wmi->ops->send_set_active_bpf_mode_cmd) {
-		WMI_LOGD("send_set_active_bpf_mode_cmd op is NULL");
-		return QDF_STATUS_E_FAILURE;
-	}
+	if (wmi->ops->send_set_active_apf_mode_cmd)
+		return wmi->ops->send_set_active_apf_mode_cmd(wmi, vdev_id,
+							      ucast_mode,
+							      mcast_bcast_mode);
+	return QDF_STATUS_E_FAILURE;
+}
 
-	return wmi->ops->send_set_active_bpf_mode_cmd(wmi, vdev_id,
-						      ucast_mode,
-						      mcast_bcast_mode);
+QDF_STATUS
+wmi_unified_send_apf_enable_cmd(wmi_unified_t wmi,
+				uint32_t vdev_id, bool enable)
+{
+	if (wmi->ops->send_apf_enable_cmd)
+		return wmi->ops->send_apf_enable_cmd(wmi, vdev_id, enable);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+QDF_STATUS
+wmi_unified_send_apf_write_work_memory_cmd(wmi_unified_t wmi,
+					   struct wmi_apf_write_memory_params
+								  *write_params)
+{
+	if (wmi->ops->send_apf_write_work_memory_cmd)
+		return wmi->ops->send_apf_write_work_memory_cmd(wmi,
+								write_params);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+QDF_STATUS
+wmi_unified_send_apf_read_work_memory_cmd(wmi_unified_t wmi,
+					  struct wmi_apf_read_memory_params
+								   *read_params)
+{
+	if (wmi->ops->send_apf_read_work_memory_cmd)
+		return wmi->ops->send_apf_read_work_memory_cmd(wmi,
+							       read_params);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+QDF_STATUS
+wmi_extract_apf_read_memory_resp_event(wmi_unified_t wmi, void *evt_buf,
+				struct wmi_apf_read_memory_resp_event_params
+								*read_mem_evt)
+{
+	if (wmi->ops->extract_apf_read_memory_resp_event)
+		return wmi->ops->extract_apf_read_memory_resp_event(wmi,
+								evt_buf,
+								read_mem_evt);
+
+	return QDF_STATUS_E_FAILURE;
 }
 
 /**
@@ -6298,6 +6404,43 @@ QDF_STATUS wmi_unified_send_sar_limit_cmd(void *wmi_hdl,
 	return QDF_STATUS_E_FAILURE;
 }
 
+QDF_STATUS wmi_unified_get_sar_limit_cmd(void *wmi_hdl)
+{
+	wmi_unified_t wmi_handle = wmi_hdl;
+
+	if (wmi_handle->ops->get_sar_limit_cmd)
+		return wmi_handle->ops->get_sar_limit_cmd(wmi_handle);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+QDF_STATUS wmi_unified_extract_sar_limit_event(void *wmi_hdl,
+					       uint8_t *evt_buf,
+					       struct sar_limit_event *event)
+{
+	wmi_unified_t wmi_handle = wmi_hdl;
+
+	if (wmi_handle->ops->extract_sar_limit_event)
+		return wmi_handle->ops->extract_sar_limit_event(wmi_handle,
+								evt_buf,
+								event);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+QDF_STATUS wmi_unified_extract_sar2_result_event(void *handle,
+						 uint8_t *event, uint32_t len)
+{
+	wmi_unified_t wmi_handle = handle;
+
+	if (wmi_handle->ops->extract_sar2_result_event)
+		return wmi_handle->ops->extract_sar2_result_event(wmi_handle,
+								  event,
+								  len);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
 /**
  * wmi_unified_encrypt_decrypt_send_cmd() - send encryptdecrypt cmd to fw
  * @wmi_hdl: wmi handle
@@ -6391,6 +6534,19 @@ QDF_STATUS wmi_unified_send_limit_off_chan_cmd(void *wmi_hdl,
 	return QDF_STATUS_E_FAILURE;
 }
 
+QDF_STATUS
+wmi_unified_send_roam_scan_stats_cmd(void *wmi_hdl,
+				     struct wmi_roam_scan_stats_req *params)
+{
+	wmi_unified_t wmi_handle = (wmi_unified_t) wmi_hdl;
+
+	if (wmi_handle->ops->send_roam_scan_stats_cmd)
+		return wmi_handle->ops->send_roam_scan_stats_cmd(wmi_handle,
+								 params);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
 QDF_STATUS wmi_unified_offload_11k_cmd(void *wmi_hdl,
 				struct wmi_11k_offload_params *params)
 {
@@ -6411,6 +6567,19 @@ QDF_STATUS wmi_unified_invoke_neighbor_report_cmd(void *wmi_hdl,
 	if (wmi_handle->ops->send_invoke_neighbor_report_cmd)
 		return wmi_handle->ops->send_invoke_neighbor_report_cmd(
 				wmi_handle, params);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+QDF_STATUS
+wmi_extract_roam_scan_stats_res_evt(wmi_unified_t wmi, void *evt_buf,
+				    uint32_t *vdev_id,
+				    struct wmi_roam_scan_stats_res **res_param)
+{
+	if (wmi->ops->extract_roam_scan_stats_res_evt)
+		return wmi->ops->extract_roam_scan_stats_res_evt(wmi,
+							evt_buf,
+							vdev_id, res_param);
 
 	return QDF_STATUS_E_FAILURE;
 }

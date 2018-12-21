@@ -145,14 +145,20 @@ QDF_STATUS csr_neighbor_roam_update_fast_roaming_enabled(tpAniSirGlobal mac_ctx,
 
 	switch (neighbor_roam_info->neighborRoamState) {
 	case eCSR_NEIGHBOR_ROAM_STATE_CONNECTED:
-		if (fast_roam_enabled) {
-			csr_roam_offload_scan(mac_ctx, session_id,
-					      ROAM_SCAN_OFFLOAD_START,
-					      REASON_CONNECT);
+		qdf_status = sme_acquire_global_lock(&mac_ctx->sme);
+		if (QDF_IS_STATUS_SUCCESS(qdf_status)) {
+			if (fast_roam_enabled) {
+				csr_roam_offload_scan(mac_ctx, session_id,
+						ROAM_SCAN_OFFLOAD_START,
+						REASON_CONNECT);
+			} else {
+				csr_roam_offload_scan(mac_ctx, session_id,
+						ROAM_SCAN_OFFLOAD_STOP,
+						REASON_DISCONNECTED);
+			}
+			sme_release_global_lock(&mac_ctx->sme);
 		} else {
-			csr_roam_offload_scan(mac_ctx, session_id,
-					      ROAM_SCAN_OFFLOAD_STOP,
-					      REASON_DISCONNECTED);
+			sme_err("Failed to acquire SME lock");
 		}
 	break;
 	case eCSR_NEIGHBOR_ROAM_STATE_INIT:
@@ -949,6 +955,7 @@ static void csr_neighbor_roam_info_ctx_init(
 	tpCsrNeighborRoamControlInfo ngbr_roam_info =
 		&pMac->roam.neighborRoamInfo[session_id];
 	tCsrRoamSession *session = &pMac->roam.roamSession[session_id];
+	struct tagCsrRoamProfile *roam_profile = session->pCurRoamProfile;
 
 	int init_ft_flag = false;
 
@@ -1047,10 +1054,9 @@ static void csr_neighbor_roam_info_ctx_init(
 				ROAM_SCAN_OFFLOAD_START,
 				REASON_CTX_INIT);
 
-			if (session->pCurRoamProfile &&
-				 session->pCurRoamProfile->do_not_roam) {
+			if (roam_profile &&
+				roam_profile->supplicant_disabled_roaming) {
 				sme_debug("Supplicant disabled driver roaming");
-
 				csr_roam_offload_scan(pMac, session_id,
 					ROAM_SCAN_OFFLOAD_STOP,
 					REASON_SUPPLICANT_DISABLED_ROAMING);

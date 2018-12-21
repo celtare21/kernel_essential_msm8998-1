@@ -543,19 +543,19 @@ hdd_parse_get_ibss_peer_info(uint8_t *pValue, struct qdf_mac_addr *pPeerMacAddr)
 
 static void hdd_get_band_helper(hdd_context_t *hdd_ctx, int *pBand)
 {
-	eCsrBand band = -1;
+	tSirRFBand band = SIR_BAND_UNKNOWN;
 
 	sme_get_freq_band((tHalHandle) (hdd_ctx->hHal), &band);
 	switch (band) {
-	case eCSR_BAND_ALL:
+	case SIR_BAND_ALL:
 		*pBand = WLAN_HDD_UI_BAND_AUTO;
 		break;
 
-	case eCSR_BAND_24:
+	case SIR_BAND_2_4_GHZ:
 		*pBand = WLAN_HDD_UI_BAND_2_4_GHZ;
 		break;
 
-	case eCSR_BAND_5G:
+	case SIR_BAND_5_GHZ:
 		*pBand = WLAN_HDD_UI_BAND_5_GHZ;
 		break;
 
@@ -2241,7 +2241,7 @@ static int hdd_get_dwell_time(struct hdd_config *pCfg, uint8_t *command,
 				 (int)pCfg->nPassiveMinChnTime);
 		return 0;
 	} else if (strncmp(command, "GETDWELLTIME", 12) == 0) {
-		*len = scnprintf(extra, n, "GETDWELLTIME %u \n",
+		*len = scnprintf(extra, n, "GETDWELLTIME %u\n",
 				 (int)pCfg->nActiveMaxChnTime);
 		return 0;
 	}
@@ -2863,25 +2863,23 @@ static int drv_cmd_p2p_dev_addr(hdd_adapter_t *adapter,
 				uint8_t command_len,
 				hdd_priv_data_t *priv_data)
 {
-	int ret = 0;
+	struct qdf_mac_addr *addr = &hdd_ctx->p2pDeviceAddress;
+	size_t user_size = QDF_MIN(sizeof(addr->bytes), priv_data->total_len);
 
 	MTRACE(qdf_trace(QDF_MODULE_ID_HDD,
 			 TRACE_CODE_HDD_P2P_DEV_ADDR_IOCTL,
 			 adapter->sessionId,
-			(unsigned int)(*(hdd_ctx->p2pDeviceAddress.bytes + 2)
-				<< 24 | *(hdd_ctx->p2pDeviceAddress.bytes
-				+ 3) << 16 | *(hdd_ctx->
-				p2pDeviceAddress.bytes + 4) << 8 |
-				*(hdd_ctx->p2pDeviceAddress.bytes +
-				5))));
+			 (unsigned int)(*(addr->bytes + 2) << 24 |
+				*(addr->bytes + 3) << 16 |
+				*(addr->bytes + 4) << 8 |
+				*(addr->bytes + 5))));
 
-	if (copy_to_user(priv_data->buf, hdd_ctx->p2pDeviceAddress.bytes,
-			 sizeof(tSirMacAddr))) {
+	if (copy_to_user(priv_data->buf, addr->bytes, user_size)) {
 		hdd_err("failed to copy data to user buffer");
-		ret = -EFAULT;
+		return -EFAULT;
 	}
 
-	return ret;
+	return 0;
 }
 
 /**
@@ -2973,8 +2971,37 @@ static int drv_cmd_country(hdd_adapter_t *adapter,
 	QDF_STATUS status;
 	unsigned long rc;
 	char *country_code;
+	int32_t cc_from_db;
 
-	country_code = command + 8;
+	country_code = strnchr(command, strlen(command), ' ');
+	/* no argument after the command*/
+	if (!country_code)
+		return -EINVAL;
+
+	/* no space after the command*/
+	if (SPACE_ASCII_VALUE != *country_code)
+		return -EINVAL;
+
+	country_code++;
+
+	/* removing empty spaces*/
+	while ((SPACE_ASCII_VALUE  == *country_code) &&
+		   ('\0' !=  *country_code))
+		country_code++;
+
+	/* no or less than 2  arguments followed by spaces*/
+	if (*country_code == '\0' || *(country_code + 1) == '\0')
+		return -EINVAL;
+
+	if (!((country_code[0] == 'X' && country_code[1] == 'X') ||
+	    (country_code[0] == '0' && country_code[1] == '0'))) {
+		cc_from_db = cds_get_country_from_alpha2(country_code);
+		if (cc_from_db == CTRY_DEFAULT) {
+			hdd_err("Invalid country code: %c%c",
+				country_code[0], country_code[1]);
+			return -EINVAL;
+		}
+	}
 
 	INIT_COMPLETION(adapter->change_country_code);
 
@@ -3267,11 +3294,6 @@ static int drv_cmd_set_roam_mode(hdd_adapter_t *adapter,
 	int ret = 0;
 	uint8_t *value = command;
 	uint8_t roamMode = CFG_LFR_FEATURE_ENABLED_DEFAULT;
-
-	if (!adapter->fast_roaming_allowed) {
-		hdd_err("Roaming is always disabled on this interface");
-		goto exit;
-	}
 
 	/* Move pointer to ahead of SETROAMMODE<delimiter> */
 	value = value + SIZE_OF_SETROAMMODE + 1;
@@ -4310,11 +4332,6 @@ static int drv_cmd_set_fast_roam(hdd_adapter_t *adapter,
 	uint8_t *value = command;
 	uint8_t lfrMode = CFG_LFR_FEATURE_ENABLED_DEFAULT;
 
-	if (!adapter->fast_roaming_allowed) {
-		hdd_err("Roaming is always disabled on this interface");
-		goto exit;
-	}
-
 	/* Move pointer to ahead of SETFASTROAM<delimiter> */
 	value = value + command_len + 1;
 
@@ -5044,13 +5061,16 @@ static int drv_cmd_get_ibss_peer_info_all(hdd_adapter_t *adapter,
 	/* Handle the command */
 	status = hdd_cfg80211_get_ibss_peer_info_all(adapter);
 	if (QDF_STATUS_SUCCESS == status) {
+		size_t user_size = QDF_MIN(WLAN_MAX_BUF_SIZE,
+					   priv_data->total_len);
+
 		/*
 		 * The variable extra needed to be allocated on the heap since
 		 * amount of memory required to copy the data for 32 devices
 		 * exceeds the size of 1024 bytes of default stack size. On
 		 * 64 bit devices, the default max stack size of 2048 bytes
 		 */
-		extra = qdf_mem_malloc(WLAN_MAX_BUF_SIZE);
+		extra = qdf_mem_malloc(user_size);
 
 		if (NULL == extra) {
 			hdd_err("memory allocation failed");
@@ -5059,7 +5079,7 @@ static int drv_cmd_get_ibss_peer_info_all(hdd_adapter_t *adapter,
 		}
 
 		/* Copy number of stations */
-		length = scnprintf(extra, WLAN_MAX_BUF_SIZE, "%d ",
+		length = scnprintf(extra, user_size, "%d ",
 				   pHddStaCtx->ibss_peer_info.numPeers);
 		numOfBytestoPrint = length;
 		for (idx = 0; idx < pHddStaCtx->ibss_peer_info.numPeers;
@@ -5082,8 +5102,8 @@ static int drv_cmd_get_ibss_peer_info_all(hdd_adapter_t *adapter,
 			rssi = pHddStaCtx->ibss_peer_info.peerInfoParams[idx].
 									rssi;
 
-			length += scnprintf((extra + length),
-				WLAN_MAX_BUF_SIZE - length,
+			length += scnprintf(extra + length,
+				user_size - length,
 				"%02x:%02x:%02x:%02x:%02x:%02x %d %d ",
 				mac_addr[0], mac_addr[1], mac_addr[2],
 				mac_addr[3], mac_addr[4], mac_addr[5],
@@ -5527,7 +5547,7 @@ static int drv_cmd_ccx_beacon_req(hdd_adapter_t *adapter,
 {
 	int ret;
 	uint8_t *value = command;
-	tCsrEseBeaconReq eseBcnReq;
+	tCsrEseBeaconReq eseBcnReq = {0};
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 
 	if (QDF_STA_MODE != adapter->device_mode) {
@@ -5545,6 +5565,10 @@ static int drv_cmd_ccx_beacon_req(hdd_adapter_t *adapter,
 
 	if (!hdd_conn_is_connected(WLAN_HDD_GET_STATION_CTX_PTR(adapter))) {
 		hdd_debug("Not associated");
+
+		if (!eseBcnReq.numBcnReqIe)
+			return -EINVAL;
+
 		hdd_indicate_ese_bcn_report_no_results(adapter,
 			eseBcnReq.bcnReq[0].measurementToken,
 			0x02, /* BIT(1) set for measurement done */
@@ -5658,12 +5682,6 @@ static int drv_cmd_set_ccx_mode(hdd_adapter_t *adapter,
 		goto exit;
 	}
 
-	if (!adapter->fast_roaming_allowed) {
-		hdd_warn("Fast roaming is not allowed on this device hence this operation is not permitted!");
-		ret = -EPERM;
-		goto exit;
-	}
-
 	/* Move pointer to ahead of SETCCXMODE<delimiter> */
 	value = value + command_len + 1;
 
@@ -5710,7 +5728,7 @@ static int drv_cmd_set_mc_rate(hdd_adapter_t *adapter,
 {
 	int ret = 0;
 	uint8_t *value = command;
-	int targetRate;
+	int targetRate = 0;
 
 	/* input value is in units of hundred kbps */
 
@@ -6836,310 +6854,6 @@ static int drv_cmd_set_channel_switch(hdd_adapter_t *adapter,
 	return 0;
 }
 
-void wlan_hdd_free_cache_channels(hdd_context_t *hdd_ctx)
-{
-	ENTER();
-
-	if (!hdd_ctx->original_channels)
-		return;
-
-	qdf_mutex_acquire(&hdd_ctx->cache_channel_lock);
-	hdd_ctx->original_channels->num_channels = 0;
-	qdf_mem_free(hdd_ctx->original_channels->channel_info);
-	hdd_ctx->original_channels->channel_info = NULL;
-	qdf_mem_free(hdd_ctx->original_channels);
-	hdd_ctx->original_channels = NULL;
-	qdf_mutex_release(&hdd_ctx->cache_channel_lock);
-
-	EXIT();
-}
-
-/**
- * hdd_alloc_chan_cache() - Allocate the memory to cache the channel
- * info for the channels received in command SET_DISABLE_CHANNEL_LIST
- * @hdd_ctx: Pointer to HDD context
- * @num_chan: Number of channels for which memory needs to
- * be allocated
- *
- * Return: 0 on success and error code on failure
- */
-static int hdd_alloc_chan_cache(hdd_context_t *hdd_ctx, int num_chan)
-{
-	hdd_ctx->original_channels =
-			qdf_mem_malloc(sizeof(struct hdd_cache_channels));
-	if (!hdd_ctx->original_channels) {
-		hdd_err("QDF_MALLOC_ERR");
-		return -ENOMEM;
-	}
-	hdd_ctx->original_channels->num_channels = num_chan;
-	hdd_ctx->original_channels->channel_info =
-					qdf_mem_malloc(num_chan *
-					sizeof(struct hdd_cache_channel_info));
-	if (!hdd_ctx->original_channels->channel_info) {
-		hdd_err("QDF_MALLOC_ERR");
-		hdd_ctx->original_channels->num_channels = 0;
-		qdf_mem_free(hdd_ctx->original_channels);
-		hdd_ctx->original_channels = NULL;
-		return -ENOMEM;
-	}
-	return 0;
-}
-
-/**
- * hdd_parse_disable_chan_cmd() - Parse the channel list received
- * in command.
- * @adapter: pointer to hdd adapter
- * @ptr: Pointer to the command string
- *
- * This function parses the channel list received in the command.
- * command should be a string having format
- * SET_DISABLE_CHANNEL_LIST <num of channels>
- * <channels separated by spaces>.
- * If the command comes multiple times than this function will compare
- * the channels received in the command with the channles cached in the
- * first command, if the channel list matches with the cached channles,
- * it returns success otherwise returns failure.
- *
- * Return: 0 on success, Error code on failure
- */
-
-static int hdd_parse_disable_chan_cmd(hdd_adapter_t *adapter, uint8_t *ptr)
-{
-	hdd_context_t *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
-	uint8_t *param;
-	int j, i, temp_int, ret = 0, num_channels;
-	int parsed_channels[MAX_CHANNEL];
-	bool is_command_repeated = false;
-
-	if (NULL == hdd_ctx) {
-		hdd_err("HDD Context is NULL");
-		return -EINVAL;
-	}
-
-	param = strnchr(ptr, strlen(ptr), ' ');
-	/*no argument after the command*/
-	if (NULL == param)
-		return -EINVAL;
-
-	/*no space after the command*/
-	else if (SPACE_ASCII_VALUE != *param)
-		return -EINVAL;
-
-	param++;
-
-	/*removing empty spaces*/
-	while ((SPACE_ASCII_VALUE  == *param) && ('\0' !=  *param))
-		param++;
-
-	/*no argument followed by spaces*/
-	if ('\0' == *param)
-		return -EINVAL;
-
-	/*getting the first argument ie the number of channels*/
-	if (sscanf(param, "%d ", &temp_int) != 1) {
-		hdd_err("Cannot get number of channels from input");
-		return -EINVAL;
-	}
-
-	if (temp_int < 0 || temp_int > MAX_CHANNEL) {
-		hdd_err("Invalid Number of channel received");
-		return -EINVAL;
-	}
-
-	hdd_debug("Number of channel to disable are: %d", temp_int);
-
-	if (!temp_int) {
-		if (!wlan_hdd_restore_channels(hdd_ctx)) {
-			/*
-			 * Free the cache channels only when the command is
-			 * received with num channels as 0
-			 */
-			wlan_hdd_free_cache_channels(hdd_ctx);
-		}
-		return 0;
-	}
-
-	qdf_mutex_acquire(&hdd_ctx->cache_channel_lock);
-
-	if (!hdd_ctx->original_channels) {
-		if (hdd_alloc_chan_cache(hdd_ctx, temp_int)) {
-			ret = -ENOMEM;
-			goto mem_alloc_failed;
-		}
-	} else if (hdd_ctx->original_channels->num_channels != temp_int) {
-		hdd_err("Invalid Number of channels");
-		ret = -EINVAL;
-		is_command_repeated = true;
-		goto parse_failed;
-	} else {
-		is_command_repeated = true;
-	}
-	num_channels = temp_int;
-	for (j = 0; j < num_channels; j++) {
-		/*
-		 * param pointing to the beginning of first space
-		 * after number of channels
-		 */
-		param = strpbrk(param, " ");
-		/*no channel list after the number of channels argument*/
-		if (NULL == param) {
-			hdd_err("Invalid No of channel provided in the list");
-			ret = -EINVAL;
-			goto parse_failed;
-		}
-
-		param++;
-
-		/*removing empty space*/
-		while ((SPACE_ASCII_VALUE == *param) && ('\0' != *param))
-			param++;
-
-		if ('\0' == *param) {
-			hdd_err("No channel is provided in the list");
-			ret = -EINVAL;
-			goto parse_failed;
-		}
-
-		if (sscanf(param, "%d ", &temp_int) != 1) {
-			hdd_err("Cannot read channel number");
-			ret = -EINVAL;
-			goto parse_failed;
-		}
-
-		if (!IS_CHANNEL_VALID(temp_int)) {
-			hdd_err("Invalid channel number received");
-			ret = -EINVAL;
-			goto parse_failed;
-		}
-
-		hdd_debug("channel[%d] = %d", j, temp_int);
-		parsed_channels[j] = temp_int;
-	}
-
-	/*extra arguments check*/
-	param = strpbrk(param, " ");
-	if (NULL != param) {
-		while ((SPACE_ASCII_VALUE == *param) && ('\0' != *param))
-			param++;
-
-		if ('\0' !=  *param) {
-			hdd_err("Invalid argument received");
-			ret = -EINVAL;
-			goto parse_failed;
-		}
-	}
-
-	/*
-	 * If command is received first time, cache the channels to
-	 * be disabled else compare the channels received in the
-	 * command with the cached channels, if channel list matches
-	 * return success otherewise return failure.
-	 */
-	if (!is_command_repeated)
-		for (j = 0; j < num_channels; j++)
-			hdd_ctx->original_channels->
-					channel_info[j].channel_num =
-							parsed_channels[j];
-	else {
-		for (i = 0; i < num_channels; i++) {
-			for (j = 0; j < num_channels; j++)
-				if (hdd_ctx->original_channels->
-					channel_info[i].channel_num ==
-							parsed_channels[j])
-					break;
-			if (j == num_channels) {
-				ret = -EINVAL;
-				goto parse_failed;
-			}
-		}
-		ret = 0;
-	}
-mem_alloc_failed:
-
-	qdf_mutex_release(&hdd_ctx->cache_channel_lock);
-	EXIT();
-
-	return ret;
-
-parse_failed:
-	qdf_mutex_release(&hdd_ctx->cache_channel_lock);
-	if (!is_command_repeated)
-		wlan_hdd_free_cache_channels(hdd_ctx);
-	EXIT();
-
-	return ret;
-}
-
-static int drv_cmd_set_disable_chan_list(hdd_adapter_t *adapter,
-					 hdd_context_t *hdd_ctx,
-					 uint8_t *command,
-					 uint8_t command_len,
-					 hdd_priv_data_t *priv_data)
-{
-	return hdd_parse_disable_chan_cmd(adapter, command);
-}
-
-/**
- * hdd_get_disable_ch_list() - get disable channel list
- * @hdd_ctx: hdd context
- * @buf: buffer to hold disable channel list
- * @buf_len: buffer length
- *
- * Return: length of data copied to buf
- */
-static int hdd_get_disable_ch_list(hdd_context_t *hdd_ctx, uint8_t *buf,
-				   uint32_t buf_len)
-{
-	struct hdd_cache_channel_info *ch_list;
-	unsigned char i, num_ch;
-	int len = 0;
-
-	qdf_mutex_acquire(&hdd_ctx->cache_channel_lock);
-	if (hdd_ctx->original_channels &&
-	    hdd_ctx->original_channels->num_channels &&
-	    hdd_ctx->original_channels->channel_info) {
-		num_ch = hdd_ctx->original_channels->num_channels;
-
-		len = scnprintf(buf, buf_len, "%s %hhu",
-				"GET_DISABLE_CHANNEL_LIST", num_ch);
-		ch_list = hdd_ctx->original_channels->channel_info;
-		for (i = 0; (i < num_ch) && len <= buf_len; i++) {
-			len += scnprintf(buf + len, buf_len - len,
-					 " %d", ch_list[i].channel_num);
-		}
-	}
-	qdf_mutex_release(&hdd_ctx->cache_channel_lock);
-
-	return len;
-}
-
-static int drv_cmd_get_disable_chan_list(hdd_adapter_t *adapter,
-					 hdd_context_t *hdd_ctx,
-					 uint8_t *command,
-					 uint8_t command_len,
-					 hdd_priv_data_t *priv_data)
-{
-	char extra[512] = {0};
-	int max_len, copied_length;
-
-	hdd_debug("Received Command to get disable Channels list");
-
-	max_len = QDF_MIN(priv_data->total_len, sizeof(extra));
-	copied_length = hdd_get_disable_ch_list(hdd_ctx, extra, max_len);
-	if (copied_length == 0) {
-		hdd_err("disable channel list is not yet programmed");
-		return -EINVAL;
-	}
-
-	if (copy_to_user(priv_data->buf, &extra, copied_length + 1)) {
-		hdd_err("failed to copy data to user buffer");
-		return -EFAULT;
-	}
-
-	hdd_debug("data:%s", extra);
-	return 0;
-}
-
 /*
  * The following table contains all supported WLAN HDD
  * IOCTL driver commands and the handler for each of them.
@@ -7153,8 +6867,6 @@ static const struct hdd_drv_cmd hdd_drv_cmds[] = {
 	{"COUNTRY",                   drv_cmd_country, true},
 	{"SETSUSPENDMODE",            drv_cmd_dummy, false},
 	{"SET_AP_WPS_P2P_IE",         drv_cmd_dummy, false},
-	{"BTCOEXSCAN",                drv_cmd_dummy, false},
-	{"RXFILTER",                  drv_cmd_dummy, false},
 	{"SETROAMTRIGGER",            drv_cmd_set_roam_trigger, true},
 	{"GETROAMTRIGGER",            drv_cmd_get_roam_trigger, false},
 	{"SETROAMSCANPERIOD",         drv_cmd_set_roam_scan_period, true},
@@ -7250,9 +6962,12 @@ static const struct hdd_drv_cmd hdd_drv_cmds[] = {
 	{"CHANNEL_SWITCH",            drv_cmd_set_channel_switch, true},
 	{"SETANTENNAMODE",            drv_cmd_set_antenna_mode, true},
 	{"GETANTENNAMODE",            drv_cmd_get_antenna_mode, false},
-	{"SET_DISABLE_CHANNEL_LIST",  drv_cmd_set_disable_chan_list, true},
-	{"GET_DISABLE_CHANNEL_LIST",  drv_cmd_get_disable_chan_list, false},
+	/* Deprecated commands */
 	{"STOP",                      drv_cmd_dummy, false},
+        {"RXFILTER-START",            drv_cmd_dummy, false},
+        {"RXFILTER-STOP",             drv_cmd_dummy, false},
+        {"BTCOEXSCAN-START",          drv_cmd_dummy, false},
+        {"BTCOEXSCAN-STOP",           drv_cmd_dummy, false},
 };
 
 /**

@@ -1612,7 +1612,7 @@ static void proc_dnld_rsp(tpAniSirGlobal pMac, uint16_t length, uint32_t *pParam
 	retVal = WNI_CFG_SUCCESS;
 	pe_debug("<CFG> Completed successfully");
 
-end :
+end:
 
 	if (retVal != WNI_CFG_SUCCESS)
 		pMac->cfg.gCfgStatus = CFG_FAILURE;
@@ -1664,72 +1664,72 @@ static void proc_get_req(tpAniSirGlobal pMac, uint16_t length, uint32_t *pParam)
 	for (i = 0; i < length / 4; i++)
 		pe_debug("[%2d] 0x%08x", i, pParam[i]);
 
-	if (!pMac->cfg.gCfgStatus) {
-		cfgId = (uint16_t) sir_read_u32_n((uint8_t *) pParam);
-		pe_debug("CFG not ready, param %d", cfgId);
-		pMac->cfg.gParamList[WNI_CFG_GET_RSP_RES] =
-			WNI_CFG_NOT_READY;
-		pMac->cfg.gParamList[WNI_CFG_GET_RSP_PID] = cfgId;
-		pMac->cfg.gParamList[WNI_CFG_GET_RSP_PLEN] = 0;
-		cfg_send_host_msg(pMac, WNI_CFG_GET_RSP,
-				  WNI_CFG_GET_RSP_PARTIAL_LEN, WNI_CFG_GET_RSP_NUM,
-				  pMac->cfg.gParamList, 0, 0);
-	} else {
-		/* Process all parameter ID's on the list */
-		while (length >= sizeof(uint32_t)) {
-			cfgId = (uint16_t) *pParam++;
-			pValue = 0;
-			valueLen = 0;
-
-			pe_debug("Cfg get param %d", cfgId);
-			/* Check for valid parameter ID, etc... */
-			if (check_param
-				    (pMac, cfgId, CFG_CTL_RE, WNI_CFG_WO_PARAM,
-				    &result)) {
-				if ((pMac->cfg.gCfgEntry[cfgId].
-				     control & CFG_CTL_INT) != 0) {
-					/* Get integer parameter */
-					result =
-						(wlan_cfg_get_int(pMac, cfgId, &value)
-						 ==
-						 eSIR_SUCCESS ? WNI_CFG_SUCCESS :
-						 WNI_CFG_OTHER_ERROR);
-					pValue = &value;
-					valueLen = sizeof(uint32_t);
-				} else {
-					/* Get string parameter */
-					valueLen = sizeof(pMac->cfg.gSBuffer);
-					result =
-						(wlan_cfg_get_str
-							 (pMac, cfgId, pMac->cfg.gSBuffer,
-							 &valueLen)
-						 == eSIR_SUCCESS ? WNI_CFG_SUCCESS :
-						 WNI_CFG_OTHER_ERROR);
-					pValue =
-						(uint32_t *) pMac->cfg.gSBuffer;
-				}
-			} else {
-			pe_warn("Check param failed, param %d",
-						       cfgId);
-				result = WNI_CFG_INVALID_LEN;
-			}
-
-			/* Send response message to host */
-			pMac->cfg.gParamList[WNI_CFG_GET_RSP_RES] = result;
+		if (!pMac->cfg.gCfgStatus) {
+			cfgId = (uint16_t) sir_read_u32_n((uint8_t *) pParam);
+			pe_debug("CFG not ready, param %d", cfgId);
+			pMac->cfg.gParamList[WNI_CFG_GET_RSP_RES] =
+				WNI_CFG_NOT_READY;
 			pMac->cfg.gParamList[WNI_CFG_GET_RSP_PID] = cfgId;
-			pMac->cfg.gParamList[WNI_CFG_GET_RSP_PLEN] = valueLen;
-
-			/* We need to round up buffer length to word-increment */
-			valueLen = (((valueLen + 3) >> 2) << 2);
+			pMac->cfg.gParamList[WNI_CFG_GET_RSP_PLEN] = 0;
 			cfg_send_host_msg(pMac, WNI_CFG_GET_RSP,
-					  WNI_CFG_GET_RSP_PARTIAL_LEN + valueLen,
-					  WNI_CFG_GET_RSP_NUM,
-					  pMac->cfg.gParamList, valueLen, pValue);
+					  WNI_CFG_GET_RSP_PARTIAL_LEN, WNI_CFG_GET_RSP_NUM,
+					  pMac->cfg.gParamList, 0, 0);
+		} else {
+			/* Process all parameter ID's on the list */
+			while (length >= sizeof(uint32_t)) {
+				cfgId = (uint16_t) *pParam++;
+				pValue = 0;
+				valueLen = 0;
 
-			/* Decrement length */
-			length -= sizeof(uint32_t);
+				pe_debug("Cfg get param %d", cfgId);
+				/* Check for valid parameter ID, etc... */
+				if (check_param
+					    (pMac, cfgId, CFG_CTL_RE, WNI_CFG_WO_PARAM,
+					    &result)) {
+					if ((pMac->cfg.gCfgEntry[cfgId].
+					     control & CFG_CTL_INT) != 0) {
+						/* Get integer parameter */
+						result =
+							(wlan_cfg_get_int(pMac, cfgId, &value)
+							 ==
+							 eSIR_SUCCESS ? WNI_CFG_SUCCESS :
+							 WNI_CFG_OTHER_ERROR);
+						pValue = &value;
+						valueLen = sizeof(uint32_t);
+					} else {
+						/* Get string parameter */
+						valueLen = sizeof(pMac->cfg.gSBuffer);
+						result =
+							(wlan_cfg_get_str
+								 (pMac, cfgId, pMac->cfg.gSBuffer,
+								 &valueLen)
+							 == eSIR_SUCCESS ? WNI_CFG_SUCCESS :
+							 WNI_CFG_OTHER_ERROR);
+						pValue =
+							(uint32_t *) pMac->cfg.gSBuffer;
+					}
+				} else {
+					pe_warn("Check param failed, param %d",
+						       cfgId);
+					result = WNI_CFG_INVALID_LEN;
+				}
+
+				/* Send response message to host */
+				pMac->cfg.gParamList[WNI_CFG_GET_RSP_RES] = result;
+				pMac->cfg.gParamList[WNI_CFG_GET_RSP_PID] = cfgId;
+				pMac->cfg.gParamList[WNI_CFG_GET_RSP_PLEN] = valueLen;
+
+				/* We need to round up buffer length to word-increment */
+				valueLen = (((valueLen + 3) >> 2) << 2);
+				cfg_send_host_msg(pMac, WNI_CFG_GET_RSP,
+						  WNI_CFG_GET_RSP_PARTIAL_LEN + valueLen,
+						  WNI_CFG_GET_RSP_NUM,
+						  pMac->cfg.gParamList, valueLen, pValue);
+
+				/* Decrement length */
+				length -= sizeof(uint32_t);
+			}
 		}
-	}
 
 } /*** end procGetReq() ***/
 
@@ -1765,19 +1765,19 @@ check_param(tpAniSirGlobal pMac, uint16_t cfgId, uint32_t flag,
 	/* Check if parameter ID is out of bound */
 	if (cfgId >= CFG_PARAM_MAX_NUM) {
 		pe_warn("Invalid param id: %d", cfgId);
-		* pResult = WNI_CFG_INVALID_PID;
+		*pResult = WNI_CFG_INVALID_PID;
 	} else {
 		/* Check if parameter is valid */
 		if ((pMac->cfg.gCfgEntry[cfgId].control & CFG_CTL_VALID) == 0) {
 			pe_warn("Param id: %d not valid", cfgId);
-			* pResult = WNI_CFG_INVALID_PID;
+			*pResult = WNI_CFG_INVALID_PID;
 		} else {
 			/* Check control field against flag */
 			if ((pMac->cfg.gCfgEntry[cfgId].control & flag) == 0) {
 				pe_debug("Param id: %d wrong permissions: %x",
 					       cfgId,
 					       pMac->cfg.gCfgEntry[cfgId].control);
-				* pResult = failedResult;
+				*pResult = failedResult;
 			} else
 				return true;
 		}
@@ -1867,6 +1867,7 @@ process_cfg_download_req(tpAniSirGlobal pMac)
 			pMac->cfg.gCfgIBuf[index]    = cfg_static[i].cfgIVal;
 		} else {
 			uint8_t maxSavedLen;
+
 			if ((pMac->cfg.gCfgEntry[i].control & CFG_CTL_VALID) == 0)
 				continue;
 			if (index >= pMac->cfg.gCfgMaxSBufSize)

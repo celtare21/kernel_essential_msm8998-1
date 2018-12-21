@@ -149,7 +149,7 @@ typedef struct {
 #define WLAN_IS_TDLS_SETUP_ACTION(action) \
 	((SIR_MAC_TDLS_SETUP_REQ <= action) && \
 	(SIR_MAC_TDLS_SETUP_CNF >= action))
-#if !defined (TDLS_MGMT_VERSION2)
+#if !defined(TDLS_MGMT_VERSION2)
 #define TDLS_MGMT_VERSION2 0
 #endif
 
@@ -495,7 +495,7 @@ static inline int wlan_hdd_send_roam_auth_event(hdd_adapter_t *adapter,
 
 int wlan_hdd_cfg80211_update_apies(hdd_adapter_t *adapter);
 
-#if !(defined (SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) &&	\
+#if !(defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) &&	\
 	(LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)) &&	\
 	!(defined(WITH_BACKPORTS))
 
@@ -540,10 +540,7 @@ int wlan_hdd_disable_dfs_chan_scan(hdd_context_t *hdd_ctx,
 				   uint32_t no_dfs_flag);
 
 int wlan_hdd_cfg80211_update_band(struct wiphy *wiphy,
-				  eCsrBand eBand);
-
-void hdd_get_bpf_offload_cb(void *hdd_context, struct sir_bpf_get_offload *);
-void hdd_init_bpf_completion(void);
+				  tSirRFBand eBand);
 
 #if defined(CFG80211_DISCONNECTED_V2) || \
 (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0))
@@ -674,6 +671,13 @@ void wlan_hdd_save_gtk_offload_params(hdd_adapter_t *adapter,
 					     uint8_t *replay_ctr,
 					     bool big_endian,
 					     uint32_t ul_flags);
+/**
+ * wlan_hdd_send_mode_change_event() - API to send hw mode change event to
+ * userspace
+ *
+ * Return : 0 on success and errno on failure
+ */
+int wlan_hdd_send_mode_change_event(void);
 
 /*
  * wlan_hdd_send_sta_authorized_event() - Function to send station authorized
@@ -692,14 +696,4 @@ QDF_STATUS wlan_hdd_send_sta_authorized_event(
 					hdd_adapter_t *pAdapter,
 					hdd_context_t *pHddCtx,
 					const struct qdf_mac_addr *mac_addr);
-
-/**
- * wlan_hdd_restore_channels() - Restore the channels which were cached
- * and disabled in wlan_hdd_disable_channels api.
- * @hdd_ctx: Pointer to the HDD context
- *
- * Return: 0 on success, Error code on failure
- */
-int wlan_hdd_restore_channels(hdd_context_t *hdd_ctx);
-
 #endif

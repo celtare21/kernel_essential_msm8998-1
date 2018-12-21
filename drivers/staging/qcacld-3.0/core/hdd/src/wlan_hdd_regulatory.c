@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -60,23 +60,28 @@
 #define REG_RULE_5500_5720    REG_RULE(5500-10, 5720+10, 160, 0, 20, \
 		NL80211_RRF_PASSIVE_SCAN | NL80211_RRF_NO_IBSS)
 
+#define REG_RULE_5500_5700    REG_RULE(5500-10, 5700+10, 160, 0, 20, \
+		NL80211_RRF_PASSIVE_SCAN | NL80211_RRF_NO_IBSS)
+
 #define REG_RULE_5745_5925    REG_RULE(5745-10, 5925+10, 80, 0, 20, \
 		NL80211_RRF_PASSIVE_SCAN | NL80211_RRF_NO_IBSS)
+
+#define REG_RULE_5745_5825    REG_RULE(5745-10, 5825+10, 80, 0, 20, \
+				       NL80211_RRF_NO_IR)
 
 static bool init_by_driver;
 static bool init_by_reg_core;
 
 static const struct ieee80211_regdomain
 hdd_world_regrules_60_61_62 = {
-	.n_reg_rules = 6,
+	.n_reg_rules = 5,
 	.alpha2 =  "00",
 	.reg_rules = {
 		REG_RULE_2412_2462,
 		REG_RULE_2467_2472,
-		REG_RULE_2484,
 		REG_RULE_5180_5320,
-		REG_RULE_5500_5720,
-		REG_RULE_5745_5925,
+		REG_RULE_5500_5700,
+		REG_RULE_5745_5825,
 	}
 };
 
@@ -491,6 +496,17 @@ static void hdd_process_regulatory_data(hdd_context_t *hdd_ctx,
 
 			wiphy_chan =
 				&(wiphy->bands[band_num]->channels[chan_num]);
+
+			while ((wiphy_chan->center_freq !=
+					chan_mapping[chan_enum].center_freq) &&
+					(chan_enum < NUM_CHANNELS))
+				chan_enum++;
+			if (NUM_CHANNELS == chan_enum) {
+				hdd_alert("wiphy channel freq %d not found",
+						wiphy_chan->center_freq);
+				break;
+			}
+
 			cds_chan = &(reg_channels[chan_enum]);
 			if (CHAN_ENUM_144 == chan_enum)
 				wiphy_chan_144 = wiphy_chan;
@@ -730,7 +746,7 @@ void hdd_reg_notifier(struct wiphy *wiphy,
 	enum dfs_region dfs_reg;
 	int32_t ret_val;
 
-	hdd_info("country: %c%c, initiator %d, dfs_region: %d",
+	hdd_debug("country: %c%c, initiator %d, dfs_region: %d",
 		  request->alpha2[0],
 		  request->alpha2[1],
 		  request->initiator,

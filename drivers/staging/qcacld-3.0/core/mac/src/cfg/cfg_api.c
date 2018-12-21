@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -58,7 +58,7 @@ typedef enum {
 } eRfBandMode;
 
 extern cfgstatic_string cfg_static_string[CFG_MAX_STATIC_STRING];
-extern cgstatic cfg_static[CFG_PARAM_MAX_NUM] ;
+extern cgstatic cfg_static[CFG_PARAM_MAX_NUM];
 
 /* --------------------------------------------------------------------- */
 uint32_t cfg_need_restart(tpAniSirGlobal pMac, uint16_t cfgId)
@@ -277,12 +277,11 @@ tSirRetStatus cfg_set_int(tpAniSirGlobal pMac, uint16_t cfgId, uint32_t value)
 		control = pMac->cfg.gCfgEntry[cfgId].control;
 		/* Update hardware if necessary */
 		mask = control & CFG_CTL_NTF_MASK;
-		if ((mask & CFG_CTL_NTF_HW) != 0) {
+		if ((mask & CFG_CTL_NTF_HW) != 0)
 			pe_debug("CFG notify HW not supported!!!");
 			/* notify other modules if necessary */
 			if ((mask & CFG_CTL_NTF_MASK) != 0)
 				notify(pMac, cfgId, mask);
-                }
 	}
 	return status;
 } /*** end cfg_set_int ***/
@@ -936,43 +935,13 @@ uint8_t *cfg_get_vendor_ie_ptr_from_oui(tpAniSirGlobal mac_ctx,
 			return NULL;
 		}
 		if (SIR_MAC_EID_VENDOR == elem_id) {
-			if (memcmp(&ptr[2], oui, oui_size) == 0)
+			if ((elem_len >= oui_size) &&
+				(memcmp(&ptr[2], oui, oui_size) == 0))
 				return ptr;
 		}
 
 		left -= elem_len;
 		ptr += (elem_len + 2);
-	}
-	return NULL;
-}
-
-uint8_t *wlan_cfg_get_ie_ptr(uint8_t *p_ie, int length, uint8_t eid,
-			     enum size_of_len_field size_of_len_field)
-{
-	int left = length;
-	uint8_t *ptr = p_ie;
-	uint8_t elem_id;
-	uint16_t elem_len;
-
-	while (left >= (size_of_len_field + 1)) {
-		elem_id = ptr[0];
-		if (size_of_len_field == TWO_BYTE)
-			elem_len = ((uint16_t)ptr[1]) | (ptr[2] << 8);
-		else
-			elem_len = ptr[1];
-
-		left -= (size_of_len_field + 1);
-		if (elem_len > left) {
-			pe_err("Invalid IEs eid: %d elem_len: %d left: %d",
-			       eid, elem_len, left);
-			return NULL;
-		}
-
-		if (elem_id == eid)
-			return ptr;
-
-		left -= elem_len;
-		ptr += (elem_len + (size_of_len_field + 1));
 	}
 	return NULL;
 }

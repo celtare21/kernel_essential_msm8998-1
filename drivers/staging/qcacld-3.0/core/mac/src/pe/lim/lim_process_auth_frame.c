@@ -106,12 +106,12 @@ static void lim_process_auth_shared_system_algo(tpAniSirGlobal mac_ctx,
 		tpSirMacMgmtHdr mac_hdr,
 		tSirMacAuthFrameBody *rx_auth_frm_body,
 		tSirMacAuthFrameBody *auth_frame,
-		uint8_t *challenge_txt_arr,
 		tpPESession pe_session)
 {
 	uint32_t val;
-	uint8_t cfg_privacy_opt_imp, *challenge;
+	uint8_t cfg_privacy_opt_imp;
 	struct tLimPreAuthNode *auth_node;
+	uint8_t challenge_txt_arr[SIR_MAC_SAP_AUTH_CHALLENGE_LENGTH] = {0};
 
 	pe_debug("=======> eSIR_SHARED_KEY");
 	if (LIM_IS_AP_ROLE(pe_session))
@@ -192,19 +192,39 @@ static void lim_process_auth_shared_system_algo(tpAniSirGlobal mac_ctx,
 			lim_delete_pre_auth_node(mac_ctx, mac_hdr->sa);
 			return;
 		}
-		lim_activate_auth_rsp_timer(mac_ctx, auth_node);
-		auth_node->fTimerStarted = 1;
+
 		/*
 		 * get random bytes and use as challenge text.
-		 * If it fails we already have random stack bytes.
 		 */
-		if (!QDF_IS_STATUS_SUCCESS(cds_rand_get_bytes(0,
-				(uint8_t *) challenge_txt_arr,
-				SIR_MAC_SAP_AUTH_CHALLENGE_LENGTH)))
+		get_random_bytes(challenge_txt_arr,
+				 SIR_MAC_SAP_AUTH_CHALLENGE_LENGTH);
+		qdf_mem_zero(auth_node->challengeText,
+			     SIR_MAC_SAP_AUTH_CHALLENGE_LENGTH);
+		if (!qdf_mem_cmp(challenge_txt_arr,
+				 auth_node->challengeText,
+				 SIR_MAC_SAP_AUTH_CHALLENGE_LENGTH)) {
 			pe_err("Challenge text preparation failed");
-		challenge = auth_node->challengeText;
-		qdf_mem_copy(challenge, (uint8_t *)challenge_txt_arr,
-				sizeof(challenge_txt_arr));
+			lim_print_mac_addr(mac_ctx, mac_hdr->sa, LOGW);
+			auth_frame->authAlgoNumber =
+				rx_auth_frm_body->authAlgoNumber;
+			auth_frame->authTransactionSeqNumber =
+				rx_auth_frm_body->authTransactionSeqNumber + 1;
+			auth_frame->authStatusCode = eSIR_MAC_TRY_AGAIN_LATER;
+			lim_send_auth_mgmt_frame(mac_ctx,
+						 auth_frame,
+						 mac_hdr->sa,
+						 LIM_NO_WEP_IN_FC,
+						 pe_session);
+			lim_delete_pre_auth_node(mac_ctx, mac_hdr->sa);
+			return;
+		}
+
+		lim_activate_auth_rsp_timer(mac_ctx, auth_node);
+		auth_node->fTimerStarted = 1;
+
+		qdf_mem_copy(auth_node->challengeText,
+			     challenge_txt_arr,
+			     sizeof(challenge_txt_arr));
 		/*
 		 * Sending Authenticaton frame with challenge.
 		 */
@@ -273,7 +293,6 @@ static void lim_process_auth_frame_type1(tpAniSirGlobal mac_ctx,
 {
 	tpDphHashNode sta_ds_ptr = NULL;
 	struct tLimPreAuthNode *auth_node;
-	uint8_t challenge_txt_arr[SIR_MAC_SAP_AUTH_CHALLENGE_LENGTH];
 	uint32_t maxnum_preauth;
 	uint16_t associd = 0;
 
@@ -455,8 +474,7 @@ static void lim_process_auth_frame_type1(tpAniSirGlobal mac_ctx,
 
 		case eSIR_SHARED_KEY:
 			lim_process_auth_shared_system_algo(mac_ctx, mac_hdr,
-				rx_auth_frm_body, auth_frame,
-				challenge_txt_arr, pe_session);
+				rx_auth_frm_body, auth_frame, pe_session);
 			break;
 		default:
 			pe_err("rx Auth frm for unsupported auth algo %d "
@@ -1019,43 +1037,6 @@ static void lim_process_auth_frame_type4(tpAniSirGlobal mac_ctx,
 	}
 }
 
-void lim_send_open_system_auth(void *ctx, uint32_t param)
-{
-	tLimMlmAuthReq *auth_req;
-	tpPESession session_entry;
-	tpAniSirGlobal mac_ctx = (tpAniSirGlobal)ctx;
-	uint8_t session_id;
-
-	session_id = mac_ctx->lim.limTimers.open_sys_auth_timer.sessionId;
-	session_entry = pe_find_session_by_session_id(mac_ctx, session_id);
-
-	if (!session_entry)
-		return;
-	/* Trigger MAC based Authentication */
-	auth_req = qdf_mem_malloc(sizeof(tLimMlmAuthReq));
-	if (!auth_req) {
-		pe_err("mlmAuthReq :Memory alloc failed");
-		lim_handle_sme_join_result(mac_ctx,
-					eSIR_SME_AUTH_TIMEOUT_RESULT_CODE,
-					eSIR_MAC_AUTH_ALGO_NOT_SUPPORTED_STATUS,
-					session_entry);
-		tx_timer_deactivate(&mac_ctx->lim.limTimers.
-				    open_sys_auth_timer);
-		return;
-	}
-	sir_copy_mac_addr(auth_req->peerMacAddr, session_entry->bssId);
-	auth_req->authType = eSIR_OPEN_SYSTEM;
-	/* Update PE session Id */
-	auth_req->sessionId = session_id;
-	if (wlan_cfg_get_int(mac_ctx, WNI_CFG_AUTHENTICATE_FAILURE_TIMEOUT,
-	    (uint32_t *) &auth_req->authFailureTimeout) != eSIR_SUCCESS) {
-		pe_err("Fail:retrieve AuthFailureTimeout");
-	}
-	lim_post_mlm_message(mac_ctx, LIM_MLM_AUTH_REQ, (uint32_t *) auth_req);
-	tx_timer_deactivate(&mac_ctx->lim.limTimers.open_sys_auth_timer);
-
-}
-
 /**
  * lim_process_auth_frame() - to process auth frame
  * @mac_ctx - Pointer to Global MAC structure
@@ -1131,6 +1112,13 @@ lim_process_auth_frame(tpAniSirGlobal mac_ctx, uint8_t *rx_pkt_info,
 		pe_session->limMlmState, MAC_ADDR_ARRAY(mac_hdr->bssId),
 		(uint) abs((int8_t) WMA_GET_RX_RSSI_NORMALIZED(rx_pkt_info)));
 
+	/*
+	 * IOT AP configured in WEP open type sends auth frame with
+	 * same sequence number. DUT sends auth frame, first with auth
+	 * algo as shared key and then as open system. Since, AP sends
+	 * auth frame with same sequence number, DUT drops the second
+	 * auth frame from AP which results in authentication failure.
+	 */
 	if (pe_session->prev_auth_seq_num == curr_seq_num &&
 	    mac_hdr->fc.retry) {
 		pe_err("auth frame, seq num: %d is already processed, drop it",
@@ -1318,6 +1306,7 @@ lim_process_auth_frame(tpAniSirGlobal mac_ctx, uint8_t *rx_pkt_info,
 
 		if (LIM_IS_AP_ROLE(pe_session)) {
 			tpSirKeys key_ptr;
+
 			key_ptr = &pe_session->WEPKeyMaterial[key_id].key[0];
 			qdf_mem_copy(defaultkey, key_ptr->key,
 					key_ptr->keyLength);

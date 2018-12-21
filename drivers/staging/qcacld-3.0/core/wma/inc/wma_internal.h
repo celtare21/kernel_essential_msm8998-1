@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -221,6 +221,19 @@ void wma_process_roam_synch_fail(WMA_HANDLE handle,
 
 int wma_roam_synch_event_handler(void *handle, uint8_t *event,
 					uint32_t len);
+
+/**
+ * wma_roam_synch_frame_event_handler() - roam synch frame event handler
+ * @handle: wma handle
+ * @event: event data
+ * @len: length of data
+ *
+ * This function is roam synch frame event handler.
+ *
+ * Return: Success or Failure status
+ */
+int wma_roam_synch_frame_event_handler(void *handle, uint8_t *event,
+					uint32_t len);
 #endif
 
 /**
@@ -263,6 +276,9 @@ QDF_STATUS wma_roam_scan_offload_mode(tp_wma_handle wma_handle,
 				      scan_cmd_fp,
 				      tSirRoamOffloadScanReq *roam_req,
 				      uint32_t mode, uint32_t vdev_id);
+
+QDF_STATUS wma_roam_scan_mawc_params(tp_wma_handle wma_handle,
+		tSirRoamOffloadScanReq *roam_req);
 
 QDF_STATUS wma_roam_scan_offload_rssi_thresh(tp_wma_handle wma_handle,
 					     tSirRoamOffloadScanReq *roam_req);
@@ -624,6 +640,8 @@ void wma_set_vdev_intrabss_fwd(tp_wma_handle wma_handle,
 
 void wma_delete_bss_ho_fail(tp_wma_handle wma, tpDeleteBssParams params);
 
+uint32_t wma_get_bcn_rate_code(uint16_t rate);
+
 /*
  * wma_mgmt.c functions declarations
  */
@@ -950,6 +968,18 @@ wma_process_ftm_command(tp_wma_handle wma_handle,
  * wma_features.c functions declarations
  */
 
+/**
+ * wma_sar_register_event_handlers() - Register SAR event handlers
+ * @handle: WMA Handle
+ *
+ * Function to be called during WMA initialization to register SAR
+ * event handlers with WMI
+ *
+ * Return: QDF_STATUS_SUCCESS if registration is successful, otherwise
+ *         an error enumeration
+ */
+QDF_STATUS wma_sar_register_event_handlers(WMA_HANDLE handle);
+
 void wma_process_link_status_req(tp_wma_handle wma,
 				 tAniGetLinkStatus *pGetLinkStatus);
 
@@ -1087,7 +1117,7 @@ void wma_config_plm(tp_wma_handle wma, tpSirPlmReq plm);
 #endif
 
 QDF_STATUS wma_process_mcbc_set_filter_req(tp_wma_handle wma_handle,
-					   tSirRcvFltMcAddrList * mcbc_param);
+					   struct sSirRcvFltMcAddrList *mcbc_param);
 #ifdef WLAN_FEATURE_GTK_OFFLOAD
 QDF_STATUS wma_process_gtk_offload_req(tp_wma_handle wma,
 					      tpSirGtkOffloadParams params);
@@ -1138,7 +1168,7 @@ QDF_STATUS wma_stats_ext_req(void *wma_ptr, tpStatsExtRequest preq);
 #endif
 
 QDF_STATUS wma_process_ibss_route_table_update_ind(void *wma_handle,
-						   tAniIbssRouteTable * pData);
+						   struct sAniIbssRouteTable *pData);
 
 #ifdef WLAN_FEATURE_EXTWOW_SUPPORT
 QDF_STATUS wma_enable_ext_wow(tp_wma_handle wma, tpSirExtWoWParams params);
@@ -1204,6 +1234,16 @@ int wma_process_dhcpserver_offload(tp_wma_handle wma_handle,
 QDF_STATUS wma_set_led_flashing(tp_wma_handle wma_handle,
 				tSirLedFlashingReq *flashing);
 #endif
+
+/**
+ * wma_sar_rsp_evt_handler() -  process sar response event from FW.
+ * @scn_handle: scn handle
+ * @event: event buffer
+ * @len: buffer length
+ *
+ * Return: 0 for success or error code
+ */
+int wma_sar_rsp_evt_handler(ol_scn_t scn_handle, uint8_t *event, uint32_t len);
 
 #ifdef FEATURE_WLAN_CH_AVOID
 int wma_channel_avoid_evt_handler(void *handle, uint8_t *event,
@@ -1539,5 +1579,26 @@ int wma_rx_aggr_failure_event_handler(void *handle, u_int8_t *event_buf,
  * Return: 'true' on valid vdev else 'false'
  */
 bool wma_is_vdev_valid(uint32_t vdev_id);
+
+/**
+ * wma_get_roam_scan_stats() - Get roam scan stats request
+ * @handle: wma handle
+ * @req: request details
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wma_get_roam_scan_stats(WMA_HANDLE handle,
+				   struct sir_roam_scan_stats *req);
+
+/**
+ * wma_roam_scan_stats_event_handler() - roam scan stats event handler
+ * @handle: wma handle
+ * @event: event data
+ * @len: length of data
+ *
+ * Return: Success or Failure status
+ */
+int wma_roam_scan_stats_event_handler(void *handle, uint8_t *event,
+				      uint32_t len);
 
 #endif

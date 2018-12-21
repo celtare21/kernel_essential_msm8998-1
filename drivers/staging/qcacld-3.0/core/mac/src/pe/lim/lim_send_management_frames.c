@@ -209,7 +209,7 @@ lim_send_probe_req_mgmt_frame(tpAniSirGlobal mac_ctx,
 			      uint8_t channel,
 			      tSirMacAddr self_macaddr,
 			      uint32_t dot11mode,
-			      uint32_t additional_ielen, uint8_t *additional_ie)
+			      uint16_t *additional_ielen, uint8_t *additional_ie)
 {
 	tDot11fProbeRequest pr;
 	uint32_t status, bytes, payload;
@@ -223,11 +223,14 @@ lim_send_probe_req_mgmt_frame(tpAniSirGlobal mac_ctx,
 	uint8_t sme_sessionid = 0;
 	bool is_vht_enabled = false;
 	uint8_t txPower;
-	uint16_t addn_ielen = additional_ielen;
+	uint16_t addn_ielen = 0;
 	bool extracted_ext_cap_flag = false;
 	tDot11fIEExtCap extracted_ext_cap;
 	tSirRetStatus sir_status;
 	uint8_t *qcn_ie = NULL;
+
+	if (additional_ielen)
+		addn_ielen = *additional_ielen;
 
 	/* The probe req should not send 11ac capabilieties if band is 2.4GHz,
 	 * unless enableVhtFor24GHz is enabled in INI. So if enableVhtFor24GHz
@@ -368,6 +371,8 @@ lim_send_probe_req_mgmt_frame(tpAniSirGlobal mac_ctx,
 					(&extracted_ext_cap);
 			extracted_ext_cap_flag =
 				(extracted_ext_cap.num_bytes > 0);
+			if (additional_ielen)
+				*additional_ielen = addn_ielen;
 		}
 		qcn_ie = cfg_get_vendor_ie_ptr_from_oui(mac_ctx,
 				SIR_MAC_QCN_OUI_TYPE, SIR_MAC_QCN_OUI_TYPE_SIZE,
@@ -1829,6 +1834,11 @@ lim_send_assoc_req_mgmt_frame(tpAniSirGlobal mac_ctx,
 		frm->vendor_vht_ie.sub_type =
 			pe_session->vendor_specific_vht_ie_sub_type;
 		frm->vendor_vht_ie.VHTCaps.present = 1;
+		if (!mac_ctx->roam.configParam.enable_subfee_vendor_vhtie &&
+		    pe_session->vht_config.su_beam_formee) {
+			pe_debug("Disable SU beamformee for vendor IE");
+			pe_session->vht_config.su_beam_formee = 0;
+		}
 		populate_dot11f_vht_caps(mac_ctx, pe_session,
 				&frm->vendor_vht_ie.VHTCaps);
 		vht_enabled = true;
@@ -1892,7 +1902,8 @@ lim_send_assoc_req_mgmt_frame(tpAniSirGlobal mac_ctx,
 		if (pe_session->beacon && pe_session->bcnLen > ie_offset) {
 			bcn_ie = pe_session->beacon + ie_offset;
 			bcn_ie_len = pe_session->bcnLen - ie_offset;
-			p_ext_cap = wlan_cfg_get_ie_ptr(bcn_ie,
+			p_ext_cap = lim_get_ie_ptr_new(mac_ctx,
+							bcn_ie,
 							bcn_ie_len,
 							DOT11F_EID_EXTCAP,
 							ONE_BYTE);
@@ -2073,7 +2084,8 @@ static QDF_STATUS lim_auth_tx_complete_cnf(tpAniSirGlobal mac_ctx,
 	uint16_t auth_ack_status;
 	uint16_t reason_code;
 
-	pe_debug("tx_complete= %d", tx_complete);
+	pe_debug("tx_complete = %d %s", tx_complete,
+		(tx_complete ? "success":"fail"));
 	if (tx_complete) {
 		mac_ctx->auth_ack_status = LIM_AUTH_ACK_RCD_SUCCESS;
 		auth_ack_status = ACKED;
@@ -2650,6 +2662,7 @@ lim_send_disassoc_mgmt_frame(tpAniSirGlobal pMac,
 	uint8_t txFlag = 0;
 	uint32_t val = 0;
 	uint8_t smeSessionId = 0;
+
 	if (NULL == psessionEntry) {
 		return;
 	}

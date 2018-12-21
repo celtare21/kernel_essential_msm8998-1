@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -56,10 +56,12 @@
 #define CDS_24_GHZ_BASE_FREQ   (2407)
 #define CDS_5_GHZ_BASE_FREQ    (5000)
 #define CDS_24_GHZ_CHANNEL_6   (6)
+#define CDS_24_GHZ_CHANNEL_1   (1)
 #define CDS_5_GHZ_CHANNEL_36   (36)
 #define CDS_24_GHZ_CHANNEL_14  (14)
 #define CDS_24_GHZ_CHANNEL_15  (15)
 #define CDS_24_GHZ_CHANNEL_27  (27)
+#define CDS_5_GHZ_CHANNEL_165  (165)
 #define CDS_5_GHZ_CHANNEL_170  (170)
 #define CDS_CHAN_SPACING_5MHZ  (5)
 #define CDS_CHAN_SPACING_20MHZ (20)
@@ -108,8 +110,6 @@ enum cds_band_type {
  *			off the async scan
  * ENABLE_DBS_CXN_AND_ENABLE_SCAN_WITH_ASYNC_SCAN_OFF: enable dbs support for
  *			connection and scan but switch off the async scan
- * ENABLE_DBS_CXN_AND_DISABLE_DBS_SCAN: Enable DBS support for connection and
- *			disable DBS support for scan
  */
 enum dbs_support {
 	ENABLE_DBS_CXN_AND_SCAN,
@@ -117,7 +117,6 @@ enum dbs_support {
 	DISABLE_DBS_CXN_AND_ENABLE_DBS_SCAN,
 	DISABLE_DBS_CXN_AND_ENABLE_DBS_SCAN_WITH_ASYNC_SCAN_OFF,
 	ENABLE_DBS_CXN_AND_ENABLE_SCAN_WITH_ASYNC_SCAN_OFF,
-	ENABLE_DBS_CXN_AND_DISABLE_DBS_SCAN,
 };
 
 /*-------------------------------------------------------------------------

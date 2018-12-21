@@ -45,6 +45,10 @@
 #define HDD_ETHERTYPE_802_1_X_FRAME_OFFSET 12
 #ifdef FEATURE_WLAN_WAPI
 #define HDD_ETHERTYPE_WAI                  0x88b4
+#define IS_HDD_ETHERTYPE_WAI(_skb) (ntohs(_skb->protocol) == \
+					HDD_ETHERTYPE_WAI)
+#else
+#define IS_HDD_ETHERTYPE_WAI(_skb) (false)
 #endif
 
 #define HDD_PSB_CFG_INVALID                   0xFF
@@ -54,7 +58,7 @@
 #define SME_QOS_UAPSD_CFG_VI_CHANGED_MASK     0xF4
 #define SME_QOS_UAPSD_CFG_VO_CHANGED_MASK     0xF8
 
-int hdd_hard_start_xmit(struct sk_buff *skb, struct net_device *dev);
+netdev_tx_t hdd_hard_start_xmit(struct sk_buff *skb, struct net_device *dev);
 void hdd_tx_timeout(struct net_device *dev);
 
 QDF_STATUS hdd_init_tx_rx(hdd_adapter_t *pAdapter);
@@ -81,6 +85,46 @@ void hdd_reset_all_adapters_connectivity_stats(hdd_context_t *hdd_ctx);
 void hdd_tx_rx_collect_connectivity_stats_info(struct sk_buff *skb,
 		void *adapter, enum connectivity_stats_pkt_status action,
 		uint8_t *pkt_type);
+
+/**
+ * hdd_rx_ol_init() - Initialize Rx mode(LRO or GRO) method
+ * @hdd_ctx: pointer to HDD Station Context
+ *
+ * Return: 0 on success and non zero on failure.
+ */
+int hdd_rx_ol_init(hdd_context_t *hdd_ctx);
+void hdd_gro_destroy(void);
+void ol_deregister_offld_flush_cb(void (*offload_deinit_cb)(void *data));
+
+/**
+ * hdd_enable_rx_ol_in_concurrency() - Enable Rx offload
+ * @hdd_ctx: hdd context
+ *
+ * Enable Rx offload if for inactive concurrency is not active
+ *
+ * Return: none
+ */
+void hdd_enable_rx_ol_in_concurrency(hdd_context_t *hdd_ctx);
+
+/**
+ * hdd_disable_rx_ol_in_concurrency() - Disable Rx offload due to concurrency
+ * @hdd_ctx: hdd context
+ *
+ * Return: none
+ */
+void hdd_disable_rx_ol_in_concurrency(hdd_context_t *hdd_ctx);
+
+/**
+ * hdd_disable_rx_ol_for_low_tput() - Disable Rx offload in low TPUT scenario
+ * @hdd_ctx: hdd context
+ * @disable: 1 disable, 0 enable
+ *
+ * Return: none
+ */
+void hdd_disable_rx_ol_for_low_tput(hdd_context_t *hdd_ctx, bool disable);
+
+#define CFG_LRO_ENABLED		1
+#define CFG_GRO_ENABLED		2
 
 #ifdef IPA_OFFLOAD
 QDF_STATUS hdd_rx_mul_packet_cbk(void *cds_context,
@@ -193,7 +237,7 @@ static inline void netif_trans_update(struct net_device *dev)
 #endif
 
 static inline void
-hdd_skb_fill_gso_size (struct net_device *dev,
+hdd_skb_fill_gso_size(struct net_device *dev,
 					struct sk_buff *skb) {
 	if (skb_cloned(skb) && skb_is_nonlinear(skb) &&
 		skb_shinfo(skb)->gso_size == 0 &&
@@ -203,5 +247,23 @@ hdd_skb_fill_gso_size (struct net_device *dev,
 				+ tcp_hdrlen(skb));
 	}
 }
+
+#ifdef CONFIG_HL_SUPPORT
+static inline QDF_STATUS
+hdd_skb_nontso_linearize(struct sk_buff *skb)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#else
+static inline QDF_STATUS
+hdd_skb_nontso_linearize(struct sk_buff *skb)
+{
+	if (qdf_nbuf_is_nonlinear(skb) && qdf_nbuf_is_tso(skb) == false) {
+		if (qdf_unlikely(skb_linearize(skb)))
+			return QDF_STATUS_E_NOMEM;
+	}
+	return QDF_STATUS_SUCCESS;
+}
+#endif
 
 #endif /* end #if !defined(WLAN_HDD_TX_RX_H) */

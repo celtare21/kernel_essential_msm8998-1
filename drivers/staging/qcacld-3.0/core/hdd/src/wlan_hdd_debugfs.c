@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -35,6 +35,10 @@
  */
 
 #ifdef WLAN_OPEN_SOURCE
+#if defined(CONFIG_ANDROID) && !defined(CONFIG_DEBUG_FS)
+#define CONFIG_DEBUG_FS
+#endif
+
 #include <wlan_hdd_includes.h>
 #include <wlan_hdd_debugfs.h>
 #include <wlan_hdd_wowl.h>
@@ -48,6 +52,52 @@
 #ifdef WLAN_POWER_DEBUGFS
 #define POWER_DEBUGFS_BUFFER_MAX_LEN 4096
 #endif
+
+#define MAX_DEBUGFS_WAIT_ITERATIONS 20
+#define DEBUGFS_WAIT_SLEEP_TIME 100
+
+static qdf_atomic_t debugfs_thread_count;
+
+void hdd_debugfs_thread_increment(void)
+{
+	qdf_atomic_inc(&debugfs_thread_count);
+}
+
+void hdd_debugfs_thread_decrement(void)
+{
+	qdf_atomic_dec(&debugfs_thread_count);
+}
+
+int hdd_return_debugfs_threads_count(void)
+{
+	return qdf_atomic_read(&debugfs_thread_count);
+}
+
+bool hdd_wait_for_debugfs_threads_completion(void)
+{
+	int count = MAX_DEBUGFS_WAIT_ITERATIONS;
+	int r;
+
+	while (count) {
+
+		r = hdd_return_debugfs_threads_count();
+		if (!r)
+			break;
+
+		if (--count) {
+			hdd_debug("Waiting for %d debugfs threads to exit", r);
+			msleep(DEBUGFS_WAIT_SLEEP_TIME);
+		}
+	}
+
+	/* at least one debugfs thread is executing */
+	if (!count) {
+		hdd_err("Timed-out waiting for debugfs threads");
+		return false;
+	}
+
+	return true;
+}
 
 /**
  * __wcnss_wowenable_write() - wow_enable debugfs handler
@@ -898,6 +948,9 @@ QDF_STATUS hdd_debugfs_init(hdd_adapter_t *adapter)
 
 	if (NULL == adapter->debugfs_phy)
 		return QDF_STATUS_E_FAILURE;
+
+	if (IS_ENABLED(CONFIG_BOARD_B1C1))
+		return wlan_hdd_init_power_stats_debugfs(adapter);
 
 	if (NULL == debugfs_create_file("wow_enable", 00400 | 00200,
 					adapter->debugfs_phy, adapter,

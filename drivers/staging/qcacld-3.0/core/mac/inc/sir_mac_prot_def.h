@@ -215,7 +215,13 @@
 /* Public Action for 20/40 BSS Coexistence */
 #define SIR_MAC_ACTION_2040_BSS_COEXISTENCE     0
 #define SIR_MAC_ACTION_EXT_CHANNEL_SWITCH_ID    4
+#define SIR_MAC_ACTION_MEASUREMENT_PILOT        7
 
+/* Public Action frames for GAS */
+#define SIR_MAC_ACTION_GAS_INITIAL_REQUEST      0x0A
+#define SIR_MAC_ACTION_GAS_INITIAL_RESPONSE     0x0B
+#define SIR_MAC_ACTION_GAS_COMEBACK_REQUEST     0x0C
+#define SIR_MAC_ACTION_GAS_COMEBACK_RESPONSE    0x0D
 
 #ifdef WLAN_FEATURE_11W
 /* 11w SA query request/response action frame category code */
@@ -998,10 +1004,10 @@ struct merged_mac_rate_set {
 	uint8_t num_rates;
 	uint8_t rate[2 * SIR_MAC_RATESET_EID_MAX];
 };
-
+/* Reserve 1 byte for NULL character in the SSID name field to print in %s */
 typedef struct sSirMacSSid {
 	uint8_t length;
-	uint8_t ssId[SIR_MAC_MAX_SSID_LENGTH];
+	uint8_t ssId[SIR_MAC_MAX_SSID_LENGTH + 1];
 } qdf_packed tSirMacSSid;
 
 typedef struct sSirMacWpaInfo {
