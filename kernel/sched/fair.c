@@ -2614,6 +2614,27 @@ static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
 		account_entity_enqueue(cfs_rq, se);
 }
 
+u32 sched_get_wake_up_idle(struct task_struct *p)
+{
+	u32 enabled = p->flags & PF_WAKE_UP_IDLE;
+
+	return !!enabled;
+}
+EXPORT_SYMBOL(sched_get_wake_up_idle);
+
+int sched_set_wake_up_idle(struct task_struct *p, int wake_up_idle)
+{
+	int enable = !!wake_up_idle;
+
+	if (enable)
+		p->flags |= PF_WAKE_UP_IDLE;
+	else
+		p->flags &= ~PF_WAKE_UP_IDLE;
+
+	return 0;
+}
+EXPORT_SYMBOL(sched_set_wake_up_idle);
+
 static inline int throttled_hierarchy(struct cfs_rq *cfs_rq);
 
 static void update_cfs_shares(struct sched_entity *se)
