@@ -483,7 +483,7 @@ begin:
 	if (get_nulls_value(node) != slot2)
 		goto begin;
 	if (result) {
-		if (unlikely(!atomic_inc_not_zero_hint(&result->sk_refcnt, 2)))
+		if (unlikely(!atomic_inc_not_zero(&result->sk_refcnt)))
 			result = NULL;
 		else if (unlikely(compute_score2(result, net, saddr, sport,
 				  daddr, hnum, dif) < badness)) {
@@ -565,7 +565,7 @@ begin:
 		goto begin;
 
 	if (result) {
-		if (unlikely(!atomic_inc_not_zero_hint(&result->sk_refcnt, 2)))
+		if (unlikely(!atomic_inc_not_zero(&result->sk_refcnt)))
 			result = NULL;
 		else if (unlikely(compute_score(result, net, saddr, hnum, sport,
 				  daddr, dport, dif) < badness)) {
@@ -1926,7 +1926,7 @@ begin:
 
 	if (result) {
 		if (count != 1 ||
-		    unlikely(!atomic_inc_not_zero_hint(&result->sk_refcnt, 2)))
+		    unlikely(!atomic_inc_not_zero(&result->sk_refcnt)))
 			result = NULL;
 		else if (unlikely(!__udp_is_mcast_sock(net, result,
 						       loc_port, loc_addr,
@@ -1969,7 +1969,7 @@ static struct sock *__udp4_lib_demux_lookup(struct net *net,
 	}
 
 	if (result) {
-		if (unlikely(!atomic_inc_not_zero_hint(&result->sk_refcnt, 2)))
+		if (unlikely(!atomic_inc_not_zero(&result->sk_refcnt)))
 			result = NULL;
 		else if (unlikely(!INET_MATCH(sk, net, acookie,
 					      rmt_addr, loc_addr,

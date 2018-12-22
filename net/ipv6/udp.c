@@ -274,7 +274,7 @@ begin:
 		goto begin;
 
 	if (result) {
-		if (unlikely(!atomic_inc_not_zero_hint(&result->sk_refcnt, 2)))
+		if (unlikely(!atomic_inc_not_zero(&result->sk_refcnt)))
 			result = NULL;
 		else if (unlikely(compute_score2(result, net, saddr, sport,
 				  daddr, hnum, dif) < badness)) {
@@ -353,7 +353,7 @@ begin:
 		goto begin;
 
 	if (result) {
-		if (unlikely(!atomic_inc_not_zero_hint(&result->sk_refcnt, 2)))
+		if (unlikely(!atomic_inc_not_zero(&result->sk_refcnt)))
 			result = NULL;
 		else if (unlikely(compute_score(result, net, hnum, saddr, sport,
 					daddr, dport, dif) < badness)) {
@@ -1005,7 +1005,7 @@ static void udp_v6_early_demux(struct sk_buff *skb)
 	else
 		return;
 
-	if (!sk || !atomic_inc_not_zero_hint(&sk->sk_refcnt, 2))
+	if (!sk || !atomic_inc_not_zero(&sk->sk_refcnt))
 		return;
 
 	skb->sk = sk;
