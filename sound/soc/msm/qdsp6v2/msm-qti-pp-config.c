@@ -91,7 +91,7 @@ static void msm_qti_pp_send_eq_values_(int eq_idx)
 	ac = q6asm_get_audio_client(fe_dai.strm_id);
 
 	if (ac == NULL) {
-		pr_err("%s: Could not get audio client for session: %d\n",
+		pr_debug("%s: Could not get audio client for session: %d\n",
 		      __func__, fe_dai.strm_id);
 		goto done;
 	}
@@ -99,7 +99,7 @@ static void msm_qti_pp_send_eq_values_(int eq_idx)
 	result = q6asm_equalizer(ac, &eq_data[eq_idx]);
 
 	if (result < 0)
-		pr_err("%s: Call to ASM equalizer failed, returned = %d\n",
+		pr_debug("%s: Call to ASM equalizer failed, returned = %d\n",
 		      __func__, result);
 done:
 	return;
@@ -186,7 +186,7 @@ static int msm_qti_pp_put_dtmf_module_enable
 	fe_id = ((struct soc_multi_mixer_control *)
 			kcontrol->private_value)->shift;
 	if (fe_id >= MSM_FRONTEND_DAI_MM_SIZE) {
-		pr_err("%s: invalid FE %d\n", __func__, fe_id);
+		pr_debug("%s: invalid FE %d\n", __func__, fe_id);
 		return -EINVAL;
 	}
 
@@ -194,7 +194,7 @@ static int msm_qti_pp_put_dtmf_module_enable
 	ac = q6asm_get_audio_client(fe_dai.strm_id);
 
 	if (ac == NULL) {
-		pr_err("%s ac is null.\n", __func__);
+		pr_debug("%s ac is null.\n", __func__);
 		ret = -EINVAL;
 		goto done;
 	}
@@ -296,7 +296,7 @@ int msm_qti_pp_send_stereo_to_custom_stereo_cmd(int port_id, int copp_idx,
 		 session_id);
 	params_value = kzalloc(params_length, GFP_KERNEL);
 	if (!params_value) {
-		pr_err("%s, params memory alloc failed\n", __func__);
+		pr_debug("%s, params memory alloc failed\n", __func__);
 		return -ENOMEM;
 	}
 	update_params_value32 = (int *)params_value;
@@ -345,7 +345,7 @@ int msm_qti_pp_send_stereo_to_custom_stereo_cmd(int port_id, int copp_idx,
 						params_length,
 						ADM_MATRIX_ID_AUDIO_RX);
 		if (rc) {
-			pr_err("%s: send params failed rc=%d\n", __func__, rc);
+			pr_debug("%s: send params failed rc=%d\n", __func__, rc);
 			kfree(params_value);
 			return -EINVAL;
 		}
@@ -353,7 +353,7 @@ int msm_qti_pp_send_stereo_to_custom_stereo_cmd(int port_id, int copp_idx,
 	kfree(params_value);
 	return 0;
 skip_send_cmd:
-		pr_err("%s: insufficient memory, send cmd failed\n",
+		pr_debug("%s: insufficient memory, send cmd failed\n",
 			__func__);
 		kfree(params_value);
 		return -ENOMEM;
@@ -382,14 +382,14 @@ static int msm_qti_pp_get_rms_value_control(struct snd_kcontrol *kcontrol,
 			break;
 	}
 	if ((be_idx >= MSM_BACKEND_DAI_MAX) || !msm_bedai.active) {
-		pr_err("%s, back not active to query rms be_idx:%d\n",
+		pr_debug("%s, back not active to query rms be_idx:%d\n",
 			__func__, be_idx);
 		rc = -EINVAL;
 		goto get_rms_value_err;
 	}
 	copp_idx = adm_get_default_copp_idx(SLIMBUS_0_TX);
 	if ((copp_idx < 0) || (copp_idx > MAX_COPPS_PER_PORT)) {
-		pr_err("%s, no active copp to query rms copp_idx:%d\n",
+		pr_debug("%s, no active copp to query rms copp_idx:%d\n",
 			__func__ , copp_idx);
 		rc = -EINVAL;
 		goto get_rms_value_err;
@@ -401,7 +401,7 @@ static int msm_qti_pp_get_rms_value_control(struct snd_kcontrol *kcontrol,
 	rc = adm_get_pp_params(SLIMBUS_0_TX, copp_idx, ADM_CLIENT_ID_DEFAULT,
 			       NULL, &param_hdr, param_value);
 	if (rc) {
-		pr_err("%s: get parameters failed rc=%d\n", __func__, rc);
+		pr_debug("%s: get parameters failed rc=%d\n", __func__, rc);
 		rc = -EINVAL;
 		goto get_rms_value_err;
 	}
@@ -516,7 +516,7 @@ static int msm_qti_pp_set_slimbus_7_lb_vol_mixer(struct snd_kcontrol *kcontrol,
 				ucontrol->value.integer.value[0]);
 
 	if (ret)
-		pr_err("%s: failed to set LB vol for SLIMBUS_7_TX, err %d\n",
+		pr_debug("%s: failed to set LB vol for SLIMBUS_7_TX, err %d\n",
 			__func__, ret);
 	else
 		msm_afe_slimbus_7_lb_vol_ctrl =
@@ -541,7 +541,7 @@ static int msm_qti_pp_set_slimbus_8_lb_vol_mixer(struct snd_kcontrol *kcontrol,
 				ucontrol->value.integer.value[0]);
 
 	if (ret)
-		pr_err("%s: failed to set LB vol for SLIMBUS_8_TX", __func__);
+		pr_debug("%s: failed to set LB vol for SLIMBUS_8_TX", __func__);
 	else
 		msm_afe_slimbus_8_lb_vol_ctrl =
 				ucontrol->value.integer.value[0];
@@ -742,7 +742,7 @@ static int msm_qti_pp_asphere_send_params(int port_id, int copp_idx, bool force)
 					      (u8 *) &asphere_state.strength,
 					      &param_size);
 		if (ret) {
-			pr_err("%s: Failed to pack params, error %d\n",
+			pr_debug("%s: Failed to pack params, error %d\n",
 			       __func__, ret);
 			goto done;
 		}
@@ -757,7 +757,7 @@ static int msm_qti_pp_asphere_send_params(int port_id, int copp_idx, bool force)
 					(u8 *) &asphere_state.enabled,
 					&param_size);
 		if (ret) {
-			pr_err("%s: Failed to pack params, error %d\n",
+			pr_debug("%s: Failed to pack params, error %d\n",
 			       __func__, ret);
 			goto done;
 		}
@@ -768,7 +768,7 @@ static int msm_qti_pp_asphere_send_params(int port_id, int copp_idx, bool force)
 	ret = adm_set_pp_params(port_id, copp_idx, NULL, packed_params,
 				packed_params_size);
 	if (ret)
-		pr_err("%s: set param failed with err=%d\n", __func__, ret);
+		pr_debug("%s: set param failed with err=%d\n", __func__, ret);
 
 done:
 	kfree(packed_params);
@@ -782,7 +782,7 @@ int msm_qti_pp_asphere_init(int port_id, int copp_idx)
 
 	pr_debug("%s, port_id %d, copp_id %d\n", __func__, port_id, copp_idx);
 	if (index < 0) {
-		pr_err("%s: Invalid port idx %d port_id %#x\n", __func__, index,
+		pr_debug("%s: Invalid port idx %d port_id %#x\n", __func__, index,
 			port_id);
 		return -EINVAL;
 	}
@@ -803,7 +803,7 @@ void msm_qti_pp_asphere_deinit(int port_id)
 
 	pr_debug("%s, port_id %d\n", __func__, port_id);
 	if (index < 0) {
-		pr_err("%s: Invalid port idx %d port_id %#x\n", __func__, index,
+		pr_debug("%s: Invalid port idx %d port_id %#x\n", __func__, index,
 			port_id);
 		return;
 	}
@@ -871,7 +871,7 @@ int msm_adsp_init_mixer_ctl_pp_event_queue(struct snd_soc_pcm_runtime *rtd)
 	struct dsp_stream_callback_prtd *kctl_prtd = NULL;
 
 	if (!rtd) {
-		pr_err("%s: rtd is NULL\n", __func__);
+		pr_debug("%s: rtd is NULL\n", __func__);
 		ret = -EINVAL;
 		goto done;
 	}
@@ -888,13 +888,13 @@ int msm_adsp_init_mixer_ctl_pp_event_queue(struct snd_soc_pcm_runtime *rtd)
 	kctl = snd_soc_card_get_kcontrol(rtd->card, mixer_str);
 	kfree(mixer_str);
 	if (!kctl) {
-		pr_err("%s: failed to get kctl.\n", __func__);
+		pr_debug("%s: failed to get kctl.\n", __func__);
 		ret = -EINVAL;
 		goto done;
 	}
 
 	if (kctl->private_data != NULL) {
-		pr_err("%s: kctl_prtd is not NULL at initialization.\n",
+		pr_debug("%s: kctl_prtd is not NULL at initialization.\n",
 			__func__);
 		return -EINVAL;
 	}
@@ -927,7 +927,7 @@ int msm_adsp_clean_mixer_ctl_pp_event_queue(struct snd_soc_pcm_runtime *rtd)
 	struct dsp_stream_callback_prtd *kctl_prtd = NULL;
 
 	if (!rtd) {
-		pr_err("%s: rtd is NULL\n", __func__);
+		pr_debug("%s: rtd is NULL\n", __func__);
 		ret = -EINVAL;
 		goto done;
 	}
@@ -944,7 +944,7 @@ int msm_adsp_clean_mixer_ctl_pp_event_queue(struct snd_soc_pcm_runtime *rtd)
 	kctl = snd_soc_card_get_kcontrol(rtd->card, mixer_str);
 	kfree(mixer_str);
 	if (!kctl) {
-		pr_err("%s: failed to get kctl.\n", __func__);
+		pr_debug("%s: failed to get kctl.\n", __func__);
 		ret = -EINVAL;
 		goto done;
 	}
@@ -990,14 +990,14 @@ int msm_adsp_inform_mixer_ctl(struct snd_soc_pcm_runtime *rtd,
 	struct snd_ctl_elem_info kctl_info;
 
 	if (!rtd || !payload) {
-		pr_err("%s: %s is NULL\n", __func__,
+		pr_debug("%s: %s is NULL\n", __func__,
 			(!rtd) ? "rtd" : "payload");
 		ret = -EINVAL;
 		goto done;
 	}
 
 	if (rtd->card->snd_card == NULL) {
-		pr_err("%s: snd_card is null.\n", __func__);
+		pr_debug("%s: snd_card is null.\n", __func__);
 		ret = -EINVAL;
 		goto done;
 	}
@@ -1014,7 +1014,7 @@ int msm_adsp_inform_mixer_ctl(struct snd_soc_pcm_runtime *rtd,
 	kctl = snd_soc_card_get_kcontrol(rtd->card, mixer_str);
 	kfree(mixer_str);
 	if (!kctl) {
-		pr_err("%s: failed to get kctl.\n", __func__);
+		pr_debug("%s: failed to get kctl.\n", __func__);
 		ret = -EINVAL;
 		goto done;
 	}
@@ -1024,7 +1024,7 @@ int msm_adsp_inform_mixer_ctl(struct snd_soc_pcm_runtime *rtd,
 
 	if (event_data->payload_len >
 		kctl_info.count - sizeof(struct msm_adsp_event_data)) {
-		pr_err("%s: payload length exceeds limit of %u bytes.\n",
+		pr_debug("%s: payload length exceeds limit of %u bytes.\n",
 			__func__, kctl_info.count);
 		ret = -EINVAL;
 		goto done;
@@ -1035,7 +1035,7 @@ int msm_adsp_inform_mixer_ctl(struct snd_soc_pcm_runtime *rtd,
 	if (kctl_prtd == NULL) {
 		/* queue is not initialized */
 		ret = -EINVAL;
-		pr_err("%s: event queue is not initialized.\n", __func__);
+		pr_debug("%s: event queue is not initialized.\n", __func__);
 		goto done;
 	}
 
@@ -1099,7 +1099,7 @@ int msm_adsp_stream_callback_get(struct snd_kcontrol *kcontrol,
 	kctl_prtd = (struct dsp_stream_callback_prtd *)
 			kcontrol->private_data;
 	if (kctl_prtd == NULL) {
-		pr_err("%s: ASM Stream PP event queue is not initialized.\n",
+		pr_debug("%s: ASM Stream PP event queue is not initialized.\n",
 			__func__);
 		ret = -EINVAL;
 		goto done;
@@ -1108,7 +1108,7 @@ int msm_adsp_stream_callback_get(struct snd_kcontrol *kcontrol,
 	spin_lock_irqsave(&kctl_prtd->prtd_spin_lock, spin_flags);
 	pr_debug("%s: %d events in queue.\n", __func__, kctl_prtd->event_count);
 	if (list_empty(&kctl_prtd->event_queue)) {
-		pr_err("%s: ASM Stream PP event queue is empty.\n", __func__);
+		pr_debug("%s: ASM Stream PP event queue is empty.\n", __func__);
 		ret = -EINVAL;
 		spin_unlock_irqrestore(&kctl_prtd->prtd_spin_lock, spin_flags);
 		goto done;
@@ -1154,7 +1154,7 @@ static int msm_multichannel_ec_primary_mic_ch_put(struct snd_kcontrol *kcontrol,
 		__func__, msm_multichannel_ec_primary_mic_ch);
 	copp_idx = adm_get_default_copp_idx(port_id);
 	if ((copp_idx < 0) || (copp_idx > MAX_COPPS_PER_PORT)) {
-		pr_err("%s : no active copp to query multichannel ec copp_idx: %u\n",
+		pr_debug("%s : no active copp to query multichannel ec copp_idx: %u\n",
 			__func__, copp_idx);
 		return -EINVAL;
 	}

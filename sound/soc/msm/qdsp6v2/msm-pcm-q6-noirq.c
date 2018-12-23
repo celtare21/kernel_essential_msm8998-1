@@ -222,19 +222,19 @@ static int msm_pcm_open(struct snd_pcm_substream *substream)
 	ret = snd_pcm_hw_constraint_step(runtime, 0,
 		SNDRV_PCM_HW_PARAM_PERIOD_BYTES, 32);
 	if (ret) {
-		pr_err("%s: Constraint for period bytes step ret = %d\n",
+		pr_debug("%s: Constraint for period bytes step ret = %d\n",
 				__func__, ret);
 	}
 	ret = snd_pcm_hw_constraint_step(runtime, 0,
 		SNDRV_PCM_HW_PARAM_BUFFER_BYTES, 32);
 	if (ret) {
-		pr_err("%s: Constraint for buffer bytes step ret = %d\n",
+		pr_debug("%s: Constraint for buffer bytes step ret = %d\n",
 				__func__, ret);
 	}
 	prtd->audio_client = q6asm_audio_client_alloc(
 				(app_cb)event_handler, prtd);
 	if (!prtd->audio_client) {
-		pr_err("%s: client alloc failed\n", __func__);
+		pr_debug("%s: client alloc failed\n", __func__);
 		ret = -ENOMEM;
 		goto fail_cmd;
 	}
@@ -270,7 +270,7 @@ static int msm_pcm_hw_params(struct snd_pcm_substream *substream,
 		dev_get_drvdata(soc_prtd->platform->dev);
 	if (!pdata) {
 		ret = -EINVAL;
-		pr_err("%s: platform data not populated ret: %d\n", __func__,
+		pr_debug("%s: platform data not populated ret: %d\n", __func__,
 		       ret);
 		return ret;
 	}
@@ -327,7 +327,7 @@ static int msm_pcm_hw_params(struct snd_pcm_substream *substream,
 
 	ret = q6asm_open_shared_io(prtd->audio_client, &config, dir);
 	if (ret) {
-		pr_err("%s: q6asm_open_write_shared_io failed ret: %d\n",
+		pr_debug("%s: q6asm_open_write_shared_io failed ret: %d\n",
 		       __func__, ret);
 		return ret;
 	}
@@ -358,7 +358,7 @@ static int msm_pcm_hw_params(struct snd_pcm_substream *substream,
 				       prtd->session_id, substream->stream);
 
 	if (ret) {
-		pr_err("%s: stream reg failed ret:%d\n", __func__, ret);
+		pr_debug("%s: stream reg failed ret:%d\n", __func__, ret);
 		return ret;
 	}
 
@@ -396,7 +396,7 @@ static int msm_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		q6asm_cmd(prtd->audio_client, CMD_FLUSH);
 		buf = q6asm_shared_io_buf(prtd->audio_client, dir);
 		if (buf == NULL) {
-			pr_err("%s: shared IO buffer is null\n", __func__);
+			pr_debug("%s: shared IO buffer is null\n", __func__);
 			ret = -EINVAL;
 			break;
 		}
@@ -425,13 +425,13 @@ static int msm_pcm_mmap_fd(struct snd_pcm_substream *substream,
 	int dir = -1;
 
 	if (!substream->runtime) {
-		pr_err("%s substream runtime not found\n", __func__);
+		pr_debug("%s substream runtime not found\n", __func__);
 		return -EFAULT;
 	}
 
 	prtd = substream->runtime->private_data;
 	if (!prtd || !prtd->audio_client || !prtd->mmap_flag) {
-		pr_err("%s no audio client or not an mmap session\n", __func__);
+		pr_debug("%s no audio client or not an mmap session\n", __func__);
 		return -EINVAL;
 	}
 
@@ -505,7 +505,7 @@ static snd_pcm_uframes_t msm_pcm_pointer(struct snd_pcm_substream *substream)
 	} while (ret == -EAGAIN && --retries);
 
 	if (ret || !period_size) {
-		pr_err("get_shared_pos error or zero period size\n");
+		pr_debug("get_shared_pos error or zero period size\n");
 		return 0;
 	}
 
@@ -600,7 +600,7 @@ static int msm_pcm_close(struct snd_pcm_substream *substream)
 		ret = q6asm_shared_io_free(ac, dir);
 
 		if (ret) {
-			pr_err("%s: Failed to close pull mode, ret %d\n",
+			pr_debug("%s: Failed to close pull mode, ret %d\n",
 					__func__, ret);
 		}
 		q6asm_audio_client_free(ac);
@@ -624,7 +624,7 @@ static int msm_pcm_set_volume(struct msm_audio *prtd, uint32_t volume)
 				prtd->channel_mode, volume);
 		rc = q6asm_set_volume(prtd->audio_client, volume);
 		if (rc < 0) {
-			pr_err("%s: Send Volume command failed rc=%d\n",
+			pr_debug("%s: Send Volume command failed rc=%d\n",
 					__func__, rc);
 		}
 	}
@@ -641,11 +641,11 @@ static int msm_pcm_volume_ctl_get(struct snd_kcontrol *kcontrol,
 
 	pr_debug("%s\n", __func__);
 	if (!substream) {
-		pr_err("%s substream not found\n", __func__);
+		pr_debug("%s substream not found\n", __func__);
 		return -ENODEV;
 	}
 	if (!substream->runtime) {
-		pr_err("%s substream runtime not found\n", __func__);
+		pr_debug("%s substream runtime not found\n", __func__);
 		return 0;
 	}
 	prtd = substream->runtime->private_data;
@@ -666,11 +666,11 @@ static int msm_pcm_volume_ctl_put(struct snd_kcontrol *kcontrol,
 
 	pr_debug("%s: volume : 0x%x\n", __func__, volume);
 	if (!substream) {
-		pr_err("%s substream not found\n", __func__);
+		pr_debug("%s substream not found\n", __func__);
 		return -ENODEV;
 	}
 	if (!substream->runtime) {
-		pr_err("%s substream runtime not found\n", __func__);
+		pr_debug("%s substream runtime not found\n", __func__);
 		return 0;
 	}
 	prtd = substream->runtime->private_data;
@@ -693,7 +693,7 @@ static int msm_pcm_add_volume_control(struct snd_soc_pcm_runtime *rtd,
 	ret = snd_pcm_add_volume_ctls(pcm, stream,
 			NULL, 1, rtd->dai_link->be_id, &volume_info);
 	if (ret < 0) {
-		pr_err("%s volume control failed ret %d\n", __func__, ret);
+		pr_debug("%s volume control failed ret %d\n", __func__, ret);
 		return ret;
 	}
 	kctl = volume_info->kctl;
@@ -803,7 +803,7 @@ static int msm_pcm_fe_topology_get(struct snd_kcontrol *kcontrol,
 	unsigned long fe_id = kcontrol->private_value;
 
 	if (fe_id >= MSM_FRONTEND_DAI_MAX) {
-		pr_err("%s Received out of bound fe_id %lu\n", __func__, fe_id);
+		pr_debug("%s Received out of bound fe_id %lu\n", __func__, fe_id);
 		return -EINVAL;
 	}
 
@@ -820,13 +820,13 @@ static int msm_pcm_fe_topology_put(struct snd_kcontrol *kcontrol,
 	unsigned int item;
 
 	if (fe_id >= MSM_FRONTEND_DAI_MAX) {
-		pr_err("%s Received out of bound fe_id %lu\n", __func__, fe_id);
+		pr_debug("%s Received out of bound fe_id %lu\n", __func__, fe_id);
 		return -EINVAL;
 	}
 
 	item = ucontrol->value.enumerated.item[0];
 	if (item >= ARRAY_SIZE(msm_pcm_fe_topology_text)) {
-		pr_err("%s Received out of bound topology %lu\n", __func__,
+		pr_debug("%s Received out of bound topology %lu\n", __func__,
 		       fe_id);
 		return -EINVAL;
 	}
@@ -895,7 +895,7 @@ static int msm_pcm_playback_app_type_cfg_ctl_put(struct snd_kcontrol *kcontrol,
 	ret = msm_pcm_routing_reg_stream_app_type_cfg(fe_id, session_type,
 						      be_id, &cfg_data);
 	if (ret < 0)
-		pr_err("%s: msm_pcm_routing_reg_stream_app_type_cfg failed returned %d\n",
+		pr_debug("%s: msm_pcm_routing_reg_stream_app_type_cfg failed returned %d\n",
 		       __func__, ret);
 	return ret;
 }
@@ -912,7 +912,7 @@ static int msm_pcm_playback_app_type_cfg_ctl_get(struct snd_kcontrol *kcontrol,
 	ret = msm_pcm_routing_get_stream_app_type_cfg(fe_id, session_type,
 						      &be_id, &cfg_data);
 	if (ret < 0) {
-		pr_err("%s: msm_pcm_routing_get_stream_app_type_cfg failed returned %d\n",
+		pr_debug("%s: msm_pcm_routing_get_stream_app_type_cfg failed returned %d\n",
 		       __func__, ret);
 		goto done;
 	}
@@ -947,7 +947,7 @@ static int msm_pcm_capture_app_type_cfg_ctl_put(struct snd_kcontrol *kcontrol,
 	ret = msm_pcm_routing_reg_stream_app_type_cfg(fe_id, session_type,
 						      be_id, &cfg_data);
 	if (ret < 0)
-		pr_err("%s: msm_pcm_routing_reg_stream_app_type_cfg failed returned %d\n",
+		pr_debug("%s: msm_pcm_routing_reg_stream_app_type_cfg failed returned %d\n",
 		       __func__, ret);
 
 	return ret;
@@ -965,7 +965,7 @@ static int msm_pcm_capture_app_type_cfg_ctl_get(struct snd_kcontrol *kcontrol,
 	ret = msm_pcm_routing_get_stream_app_type_cfg(fe_id, session_type,
 						      &be_id, &cfg_data);
 	if (ret < 0) {
-		pr_err("%s: msm_pcm_routing_get_stream_app_type_cfg failed returned %d\n",
+		pr_debug("%s: msm_pcm_routing_get_stream_app_type_cfg failed returned %d\n",
 		       __func__, ret);
 		goto done;
 	}
@@ -1001,7 +1001,7 @@ static int msm_pcm_add_app_type_controls(struct snd_soc_pcm_runtime *rtd)
 				NULL, 1, ctl_len, rtd->dai_link->be_id,
 				&app_type_info);
 		if (ret < 0) {
-			pr_err("%s: playback app type cntrl add failed, err: %d\n",
+			pr_debug("%s: playback app type cntrl add failed, err: %d\n",
 				__func__, ret);
 			return ret;
 		}
@@ -1020,7 +1020,7 @@ static int msm_pcm_add_app_type_controls(struct snd_soc_pcm_runtime *rtd)
 				NULL, 1, ctl_len, rtd->dai_link->be_id,
 				&app_type_info);
 		if (ret < 0) {
-			pr_err("%s: capture app type cntrl add failed, err: %d\n",
+			pr_debug("%s: capture app type cntrl add failed, err: %d\n",
 				__func__, ret);
 			return ret;
 		}
@@ -1049,26 +1049,26 @@ static int msm_pcm_hwdep_ioctl(struct snd_hwdep *hw, struct file *file,
 	case SNDRV_PCM_IOCTL_MMAP_DATA_FD:
 		_mmap_fd = (struct snd_pcm_mmap_fd __user *)arg;
 		if (get_user(dir, (int32_t __user *)&(_mmap_fd->dir))) {
-			pr_err("%s: error copying mmap_fd from user\n",
+			pr_debug("%s: error copying mmap_fd from user\n",
 			       __func__);
 			ret = -EFAULT;
 			break;
 		}
 		if (dir != OUT && dir != IN) {
-			pr_err("%s invalid stream dir\n", __func__);
+			pr_debug("%s invalid stream dir\n", __func__);
 			ret = -EINVAL;
 			break;
 		}
 		substream = pcm->streams[dir].substream;
 		if (!substream) {
-			pr_err("%s substream not found\n", __func__);
+			pr_debug("%s substream not found\n", __func__);
 			ret = -ENODEV;
 			break;
 		}
 		pr_debug("%s : %s MMAP Data fd\n", __func__,
 		       dir == 0 ? "P" : "C");
 		if (msm_pcm_mmap_fd(substream, &mmap_fd) < 0) {
-			pr_err("%s: error getting fd\n",
+			pr_debug("%s: error getting fd\n",
 			       __func__);
 			ret = -EFAULT;
 			break;
@@ -1076,7 +1076,7 @@ static int msm_pcm_hwdep_ioctl(struct snd_hwdep *hw, struct file *file,
 		if (put_user(mmap_fd.fd, &_mmap_fd->fd) ||
 		    put_user(mmap_fd.size, &_mmap_fd->size) ||
 		    put_user(mmap_fd.actual_size, &_mmap_fd->actual_size)) {
-			pr_err("%s: error copying fd\n", __func__);
+			pr_debug("%s: error copying fd\n", __func__);
 			return -EFAULT;
 		}
 		break;
@@ -1119,7 +1119,7 @@ static int msm_pcm_add_hwdep_dev(struct snd_soc_pcm_runtime *runtime)
 			   HWDEP_FE_BASE + runtime->pcm->device,
 			   &hwdep);
 	if (!hwdep || rc < 0) {
-		pr_err("%s: hwdep intf failed to create %s - hwdep\n", __func__,
+		pr_debug("%s: hwdep intf failed to create %s - hwdep\n", __func__,
 		       id);
 		return rc;
 	}
@@ -1144,34 +1144,34 @@ static int msm_asoc_pcm_new(struct snd_soc_pcm_runtime *rtd)
 
 	ret = msm_pcm_add_chmap_control(rtd);
 	if (ret) {
-		pr_err("%s failed to add chmap cntls\n", __func__);
+		pr_debug("%s failed to add chmap cntls\n", __func__);
 		goto exit;
 	}
 	ret = msm_pcm_add_volume_control(rtd, SNDRV_PCM_STREAM_PLAYBACK);
 	if (ret) {
-		pr_err("%s: Could not add pcm playback volume Control %d\n",
+		pr_debug("%s: Could not add pcm playback volume Control %d\n",
 			__func__, ret);
 	}
 	ret = msm_pcm_add_volume_control(rtd, SNDRV_PCM_STREAM_CAPTURE);
 	if (ret) {
-		pr_err("%s: Could not add pcm capture volume Control %d\n",
+		pr_debug("%s: Could not add pcm capture volume Control %d\n",
 			__func__, ret);
 	}
 	ret = msm_pcm_add_fe_topology_control(rtd);
 	if (ret) {
-		pr_err("%s: Could not add pcm topology control %d\n",
+		pr_debug("%s: Could not add pcm topology control %d\n",
 			__func__, ret);
 	}
 
 	ret = msm_pcm_add_app_type_controls(rtd);
 	if (ret) {
-		pr_err("%s: Could not add app type controls failed %d\n",
+		pr_debug("%s: Could not add app type controls failed %d\n",
 			__func__, ret);
 	}
 #ifdef CONFIG_SND_HWDEP
 	ret = msm_pcm_add_hwdep_dev(rtd);
 	if (ret)
-		pr_err("%s: Could not add hw dep node\n", __func__);
+		pr_debug("%s: Could not add hw dep node\n", __func__);
 #endif
 	pcm->nonatomic = true;
 exit:
