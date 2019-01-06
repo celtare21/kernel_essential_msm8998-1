@@ -2569,7 +2569,7 @@ static int do_wp_page(struct fault_env *fe, pte_t orig_pte)
 			 * the rmap code will not search our parent or siblings.
 			 * Protected against the rmap code by the page lock.
 			 */
-			page_move_anon_rmap(old_page, vma, address);
+			page_move_anon_rmap(old_page, vma, fe->address);
 			unlock_page(old_page);
 			return wp_page_reuse(fe, orig_pte, old_page, 0, 0);
 		}
