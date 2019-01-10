@@ -139,7 +139,7 @@ u64 pm_runtime_autosuspend_expiration(struct device *dev)
 
         last_busy = ACCESS_ONCE(dev->power.last_busy);
 
-	expires = last_busy + autosuspend_delay * NSEC_PER_MSEC;
+	expires = last_busy + (u64)autosuspend_delay * NSEC_PER_MSEC;
 	if (expires <= now)
 		expires = 0;	/* Already expired. */
 
@@ -447,7 +447,7 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 				 * We add a slack of 25% to gather wakeups
 				 * without sacrificing the granularity.
 				 */
-				u64 slack = READ_ONCE(dev->power.autosuspend_delay) *
+				u64 slack = (u64)READ_ONCE(dev->power.autosuspend_delay) *
 						    (NSEC_PER_MSEC >> 2);
 
 				dev->power.timer_expires = expires;
