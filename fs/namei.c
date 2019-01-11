@@ -1792,7 +1792,7 @@ static int walk_component(struct nameidata *nd, int flags)
 {
 	struct path path;
 	struct inode *inode;
-	unsigned seq;
+	unsigned seq = 0;
 	int err;
 	/*
 	 * "." and ".." are special - ".." especially so because it has
@@ -3108,7 +3108,7 @@ static int do_last(struct nameidata *nd,
 	bool will_truncate = (open_flag & O_TRUNC) != 0;
 	bool got_write = false;
 	int acc_mode = op->acc_mode;
-	unsigned seq;
+	unsigned seq = 0;
 	struct inode *inode;
 	struct path save_parent = { .dentry = NULL, .mnt = NULL };
 	struct path path;

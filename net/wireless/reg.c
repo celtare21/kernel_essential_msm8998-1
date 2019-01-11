@@ -968,7 +968,7 @@ regdom_intersect(const struct ieee80211_regdomain *rd1,
 	unsigned int x, y;
 	unsigned int num_rules = 0;
 	const struct ieee80211_reg_rule *rule1, *rule2;
-	struct ieee80211_reg_rule intersected_rule;
+	struct ieee80211_reg_rule intersected_rule = {};
 	struct ieee80211_regdomain *rd;
 
 	if (!rd1 || !rd2)

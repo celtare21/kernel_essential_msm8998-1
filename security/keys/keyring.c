@@ -1213,7 +1213,7 @@ void __key_link_end(struct key *keyring,
  */
 int key_link(struct key *keyring, struct key *key)
 {
-	struct assoc_array_edit *edit;
+	struct assoc_array_edit *edit = NULL;
 	int ret;
 
 	kenter("{%d,%d}", keyring->serial, atomic_read(&keyring->usage));

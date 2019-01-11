@@ -552,7 +552,7 @@ enum Tfa98xx_Error tfa98xx_compare_features(Tfa98xx_handle_t handle, int feature
 	//int hw_feature_bits; /* cached feature bits data */
 
         /* Nothing to test without clock: */
-        int status;
+        int status = 0;
 	tfa98xx_dsp_system_stable(handle, &status);
 	if (!status)
                 return Tfa98xx_Error_NoClock; // Only test when we have a clock.
@@ -899,7 +899,7 @@ void tfa98xx_key2(Tfa98xx_handle_t handle, int lock) {
 enum Tfa98xx_Error tfa98xx_set_mtp(Tfa98xx_handle_t handle, uint16_t value,
 		uint16_t mask)
 {
-	unsigned short mtp_old, mtp_new;
+	unsigned short mtp_old = 0, mtp_new;
 	int loop, status;
 	enum Tfa98xx_Error error;
 

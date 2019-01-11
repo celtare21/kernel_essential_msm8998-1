@@ -2100,7 +2100,7 @@ start_chan_fail:
 
 int ipa3_xdci_resume(u32 ul_clnt_hdl, u32 dl_clnt_hdl, bool is_dpl)
 {
-	struct ipa3_ep_context *ul_ep, *dl_ep;
+	struct ipa3_ep_context *ul_ep = NULL, *dl_ep;
 	enum gsi_status gsi_res;
 	struct ipa_ep_cfg_ctrl ep_cfg_ctrl;
 

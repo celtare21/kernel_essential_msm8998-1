@@ -475,7 +475,7 @@ static int dma_alloc_memory(phys_addr_t *region_start, size_t size)
 		pr_err("device adsprpc-mem is not initialized\n");
 		return -ENODEV;
 	}
-	attrs |= DMA_ATTR_SKIP_ZEROING;
+	attrs = DMA_ATTR_SKIP_ZEROING;
 	attrs |= DMA_ATTR_NO_KERNEL_MAPPING;
 	vaddr = dma_alloc_attrs(me->dev, size, region_start, GFP_KERNEL,
 						attrs);
@@ -556,14 +556,14 @@ static void fastrpc_mmap_free(struct fastrpc_mmap *map)
 	if (map->flags == ADSP_MMAP_HEAP_ADDR ||
 				map->flags == ADSP_MMAP_REMOTE_HEAP_ADDR) {
 
-		unsigned long attrs = 0;
+		unsigned long attrs;
 
 		if (me->dev == NULL) {
 			pr_err("failed to free remote heap allocation\n");
 			return;
 		}
 		if (map->phys) {
-			attrs |= DMA_ATTR_SKIP_ZEROING;
+			attrs = DMA_ATTR_SKIP_ZEROING;
 			attrs |= DMA_ATTR_NO_KERNEL_MAPPING;
 			dma_free_attrs(me->dev, map->size,
 					&(map->va), map->phys, attrs);
@@ -690,9 +690,9 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, unsigned attr,
 			attrs = DMA_ATTR_EXEC_MAPPING;
 			if ((map->attr & FASTRPC_ATTR_NON_COHERENT) ||
 				(sess->smmu.coherent && map->uncached))
-				attrs |= DMA_ATTR_FORCE_NON_COHERENT;
+				attrs = DMA_ATTR_FORCE_NON_COHERENT;
 			else if (map->attr & FASTRPC_ATTR_COHERENT)
-				attrs |= DMA_ATTR_FORCE_COHERENT;
+				attrs = DMA_ATTR_FORCE_COHERENT;
 
 			VERIFY(err, map->table->nents ==
 					msm_dma_map_sg_attrs(sess->smmu.dev,
