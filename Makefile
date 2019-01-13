@@ -772,9 +772,7 @@ endif
 # Find arch-specific stack protector compiler sanity-checking script.
 ifdef CONFIG_CC_STACKPROTECTOR
   stackp-path := $(srctree)/scripts/gcc-$(ARCH)_$(BITS)-has-stack-protector.sh
-  ifneq ($(wildcard $(stackp-path)),)
-    stackp-check := $(stackp-path)
-  endif
+  stackp-check := $(wildcard $(stackp-path))
 endif
 KBUILD_CFLAGS += $(stackp-flag)
 
