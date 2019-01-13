@@ -21,6 +21,10 @@
 
 unsigned int sysctl_sched_boost;
 
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+static unsigned short dynamic_stune_boost = 15;
+#endif
+
 static bool verify_boost_params(int old_val, int new_val)
 {
 	/*
@@ -51,7 +55,7 @@ int sched_boost_handler(struct ctl_table *table, int write,
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	if (verify_boost_params(old_val, *data)) {
 		if (*data > 0)
-			stune_boost("top-app");
+			do_stune_boost("top-app", dynamic_stune_boost);
 		else
 			reset_stune_boost("top-app");
 	} else {
