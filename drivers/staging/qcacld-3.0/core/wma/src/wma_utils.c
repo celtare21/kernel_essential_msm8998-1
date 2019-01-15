@@ -1533,13 +1533,6 @@ static int wma_unified_radio_tx_power_level_stats_event_handler(void *handle,
 		return -EINVAL;
 	}
 
-	if (fixed_param->total_num_tx_power_levels >
-	    max_total_num_tx_power_levels) {
-		WMA_LOGD("Invalid total_num_tx_power_levels %d",
-			 fixed_param->total_num_tx_power_levels);
-		return -EINVAL;
-	}
-
 	rs_results = (tSirWifiRadioStat *) &link_stats_results->results[0] +
 							 fixed_param->radio_id;
 	tx_power_level_values = (uint8_t *) param_tlvs->tx_time_per_power_level;
