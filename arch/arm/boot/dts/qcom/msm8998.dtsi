@@ -853,7 +853,7 @@
                         < 1881600 5859 >;
 	};
 
-	devfreq_compute2: qcom,devfreq-compute2 {
+	devfreq_compute4: qcom,devfreq-compute4 {
 		compatible = "qcom,arm-cpu-mon";
 		qcom,cpulist = <&CPU4 &CPU5 &CPU6 &CPU7>;
 		qcom,target-dev = <&mincpubw>;
