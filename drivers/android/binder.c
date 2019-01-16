@@ -3531,7 +3531,7 @@ err_invalid_target_handle:
  *
  * Cleanup buffer and free it.
  */
-static void
+void
 binder_free_buf(struct binder_proc *proc, struct binder_buffer *buffer)
 {
 	if (buffer->transaction) {
