@@ -12,7 +12,7 @@
 #include <linux/slab.h>
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-static unsigned short dynamic_stune_boost = 20;
+static unsigned short dynamic_stune_boost = 15;
 #endif
 
 /* Available bits for boost_drv state */
