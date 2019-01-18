@@ -1326,11 +1326,6 @@ void page_remove_rmap(struct page *page, bool compound)
 	 */
 }
 
-struct rmap_private {
-	enum ttu_flags flags;
-	int lazyfreed;
-};
-
 /*
  * @arg: enum ttu_flags will be passed to this argument
  */
@@ -1345,8 +1340,7 @@ static int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 	unsigned long sh_address;
 	bool pmd_sharing_possible = false;
 	unsigned long spmd_start, spmd_end;
-	struct rmap_private *rp = arg;
-	enum ttu_flags flags = rp->flags;
+	enum ttu_flags flags = (enum ttu_flags)arg;
 
 	/* munlock has nothing to gain from examining un-locked vmas */
 	if ((flags & TTU_MUNLOCK) && !(vma->vm_flags & VM_LOCKED))
@@ -1488,14 +1482,6 @@ static int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 		 * See handle_pte_fault() ...
 		 */
 		VM_BUG_ON_PAGE(!PageSwapCache(page), page);
-
-		if (!PageDirty(page) && (flags & TTU_LZFREE)) {
-			/* It's a freeable page by MADV_FREE */
-			dec_mm_counter(mm, MM_ANONPAGES);
-			rp->lazyfreed++;
-			goto discard;
-		}
-
 		if (swap_duplicate(entry) < 0) {
 			set_pte_at(mm, address, pte, pteval);
 			ret = SWAP_FAIL;
@@ -1516,7 +1502,6 @@ static int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 	} else
 		dec_mm_counter(mm, mm_counter_file(page));
 
-discard:
 	page_remove_rmap(page, PageHuge(page));
         put_page(page);
 
@@ -1576,14 +1561,9 @@ int try_to_unmap(struct page *page, enum ttu_flags flags,
 				struct vm_area_struct *vma)
 {
 	int ret;
-	struct rmap_private rp = {
-		.flags = flags,
-		.lazyfreed = 0,
-	};
-
 	struct rmap_walk_control rwc = {
 		.rmap_one = try_to_unmap_one,
-		.arg = &rp,
+		.arg = (void *)flags,
 		.done = page_not_mapped,
 		.anon_lock = page_lock_anon_vma_read,
 		.target_vma = vma,
@@ -1604,11 +1584,8 @@ int try_to_unmap(struct page *page, enum ttu_flags flags,
 
 	ret = rmap_walk(page, &rwc);
 
-	if (ret != SWAP_MLOCK && !page_mapped(page)) {
+	if (ret != SWAP_MLOCK && !page_mapped(page))
 		ret = SWAP_SUCCESS;
-		if (rp.lazyfreed && !PageDirty(page))
-			ret = SWAP_LZFREE;
-	}
 	return ret;
 }
 
@@ -1630,14 +1607,9 @@ int try_to_unmap(struct page *page, enum ttu_flags flags,
 int try_to_munlock(struct page *page)
 {
 	int ret;
-	struct rmap_private rp = {
-		.flags = TTU_MUNLOCK,
-		.lazyfreed = 0,
-	};
-
 	struct rmap_walk_control rwc = {
 		.rmap_one = try_to_unmap_one,
-		.arg = &rp,
+		.arg = (void *)TTU_MUNLOCK,
 		.done = page_not_mapped,
 		.anon_lock = page_lock_anon_vma_read,
 		.target_vma = NULL,
