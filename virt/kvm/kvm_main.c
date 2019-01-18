@@ -1282,19 +1282,20 @@ unsigned long kvm_vcpu_gfn_to_hva_prot(struct kvm_vcpu *vcpu, gfn_t gfn, bool *w
 static int get_user_page_nowait(struct task_struct *tsk, struct mm_struct *mm,
 	unsigned long start, int write, struct page **page)
 {
-	int flags = FOLL_NOWAIT | FOLL_HWPOISON;
+	int flags = FOLL_TOUCH | FOLL_NOWAIT | FOLL_HWPOISON | FOLL_GET;
 
 	if (write)
 		flags |= FOLL_WRITE;
 
-	return get_user_pages(start, 1, flags, page, NULL);
+	return __get_user_pages(tsk, mm, start, 1, flags, page, NULL, NULL);
 }
 
 static inline int check_user_page_hwpoison(unsigned long addr)
 {
-	int rc, flags = FOLL_HWPOISON | FOLL_WRITE;
+	int rc, flags = FOLL_TOUCH | FOLL_HWPOISON | FOLL_WRITE;
 
-	rc = get_user_pages(addr, 1, flags, NULL, NULL);
+	rc = __get_user_pages(current, current->mm, addr, 1,
+			      flags, NULL, NULL, NULL);
 	return rc == -EHWPOISON;
 }
 

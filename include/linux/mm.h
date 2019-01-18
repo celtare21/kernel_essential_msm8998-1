@@ -238,8 +238,6 @@ extern pgprot_t protection_map[16];
 /* Speculative fault, not holding mmap_sem */
 #define FAULT_FLAG_SPECULATIVE	0x200
 #define FAULT_FLAG_PREFAULT_OLD 0x400   /* Make faultaround ptes old */
-#define FAULT_FLAG_REMOTE	0x80	/* faulting for non current tsk/mm */
-#define FAULT_FLAG_INSTRUCTION  0x100	/* The fault was during an instruction fetch */
 
 /*
  * vm_fault is filled by the the pagefault handler and passed to the vma's
@@ -375,13 +373,6 @@ struct inode;
 #define page_private(page)		((page)->private)
 #define set_page_private(page, v)	((page)->private = (v))
 
-#if !defined(__HAVE_ARCH_PTE_DEVMAP) || !defined(CONFIG_TRANSPARENT_HUGEPAGE)
-static inline int pmd_devmap(pmd_t pmd)
-{
-	return 0;
-}
-#endif
-
 /*
  * FIXME: take this include out, include page-flags.h in
  * files which need it (119 of them)
@@ -498,19 +489,6 @@ static inline void compound_unlock_irqrestore(struct page *page,
 #endif
 }
 
-static inline atomic_t *compound_mapcount_ptr(struct page *page)
-{
-	return &page[1].compound_mapcount;
-}
-
-static inline int compound_mapcount(struct page *page)
-{
-	if (!PageCompound(page))
-		return 0;
-	page = compound_head(page);
-	return atomic_read(compound_mapcount_ptr(page)) + 1;
-}
-
 /*
  * The atomic page->_mapcount, starts from -1: so that transitions
  * both from it and to it can be tracked, using atomic_inc_and_test
@@ -523,17 +501,8 @@ static inline void page_mapcount_reset(struct page *page)
 
 static inline int page_mapcount(struct page *page)
 {
-	int ret;
 	VM_BUG_ON_PAGE(PageSlab(page), page);
-
-	ret = atomic_read(&page->_mapcount) + 1;
-	if (PageCompound(page)) {
-		page = compound_head(page);
-		ret += atomic_read(compound_mapcount_ptr(page)) + 1;
-		if (PageDoubleMap(page))
-			ret--;
-	}
-	return ret;
+	return atomic_read(&page->_mapcount) + 1;
 }
 
 static inline int page_count(struct page *page)
@@ -1070,7 +1039,7 @@ static inline pgoff_t page_file_index(struct page *page)
  */
 static inline int page_mapped(struct page *page)
 {
-	return atomic_read(&(page)->_mapcount) + compound_mapcount(page) >= 0;
+	return atomic_read(&(page)->_mapcount) >= 0;
 }
 struct address_space *page_mapping(struct page *page);
 
@@ -1350,8 +1319,7 @@ static inline bool can_reuse_spf_vma(struct vm_area_struct *vma,
 #endif /* CONFIG_SPECULATIVE_PAGE_FAULT */
 
 extern int fixup_user_fault(struct task_struct *tsk, struct mm_struct *mm,
-			    unsigned long address, unsigned int fault_flags,
-			    bool *unlocked);
+			    unsigned long address, unsigned int fault_flags);
 #else
 static inline int handle_mm_fault(struct vm_area_struct *vma,
 		unsigned long address, unsigned int flags)
@@ -1362,7 +1330,7 @@ static inline int handle_mm_fault(struct vm_area_struct *vma,
 }
 static inline int fixup_user_fault(struct task_struct *tsk,
 		struct mm_struct *mm, unsigned long address,
-		unsigned int fault_flags, bool *unlocked)
+		unsigned int fault_flags)
 {
 	/* should never happen if there's no MMU */
 	BUG();
@@ -1374,10 +1342,10 @@ extern int access_process_vm(struct task_struct *tsk, unsigned long addr, void *
 extern int access_remote_vm(struct mm_struct *mm, unsigned long addr,
 		void *buf, int len, unsigned int gup_flags);
 
-long get_user_pages_remote(struct task_struct *tsk, struct mm_struct *mm,
-                    unsigned long start, unsigned long nr_pages,
-                    unsigned int gup_flags, struct page **pages,
-                    struct vm_area_struct **vmas);
+long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
+		      unsigned long start, unsigned long nr_pages,
+		      unsigned int foll_flags, struct page **pages,
+		      struct vm_area_struct **vmas, int *nonblocking);
 long get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 		    unsigned long start, unsigned long nr_pages,
 		    unsigned int gup_flags, struct page **pages,
@@ -2339,7 +2307,6 @@ static inline struct page *follow_page(struct vm_area_struct *vma,
 #define FOLL_MIGRATION	0x400	/* wait for page to replace migration entry */
 #define FOLL_TRIED	0x800	/* a retry, previous pass started an IO */
 #define FOLL_MLOCK	0x1000	/* lock present pages */
-#define FOLL_REMOTE     0x2000  /* we are working on non-current tsk/mm */
 #define FOLL_COW	0x4000	/* internal GUP flag */
 #define FOLL_ANON	0x8000	/* don't do file mappings */
 

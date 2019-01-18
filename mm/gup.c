@@ -13,7 +13,6 @@
 #include <linux/rwsem.h>
 #include <linux/hugetlb.h>
 
-#include <asm/mmu_context.h>
 #include <asm/pgtable.h>
 #include <asm/tlbflush.h>
 
@@ -127,19 +126,6 @@ retry:
 		}
 	}
 
-	if (flags & FOLL_SPLIT && PageTransCompound(page)) {
-		int ret;
-		get_page(page);
-		pte_unmap_unlock(ptep, ptl);
-		lock_page(page);
-		ret = split_huge_page(page);
-		unlock_page(page);
-		put_page(page);
-		if (ret)
-			return ERR_PTR(ret);
-		goto retry;
-	}
-
 	if (flags & FOLL_GET)
 		get_page_foll(page);
 	if (flags & FOLL_TOUCH) {
@@ -154,10 +140,6 @@ retry:
 		mark_page_accessed(page);
 	}
 	if ((flags & FOLL_MLOCK) && (vma->vm_flags & VM_LOCKED)) {
-		/* Do not mlock pte-mapped THP */
-		if (PageTransCompound(page))
-			goto out;
-
 		/*
 		 * The preliminary mapping check is mainly to avoid the
 		 * pointless overhead of lock_page on the ZERO_PAGE
@@ -248,39 +230,27 @@ struct page *follow_page_mask(struct vm_area_struct *vma,
 	}
 	if ((flags & FOLL_NUMA) && pmd_protnone(*pmd))
 		return no_page_table(vma, flags);
-	if (likely(!pmd_trans_huge(*pmd)))
-		return follow_page_pte(vma, address, pmd, flags);
-
-	ptl = pmd_lock(mm, pmd);
-	if (unlikely(!pmd_trans_huge(*pmd))) {
-		spin_unlock(ptl);
-		return follow_page_pte(vma, address, pmd, flags);
-	}
-
-	if (flags & FOLL_SPLIT) {
-		int ret;
-		page = pmd_page(*pmd);
-		if (is_huge_zero_page(page)) {
-			spin_unlock(ptl);
-			ret = 0;
-			split_huge_pmd(vma, pmd, address);
-		} else {
-			get_page(page);
-			spin_unlock(ptl);
-			lock_page(page);
-			ret = split_huge_page(page);
-			unlock_page(page);
-			put_page(page);
+	if (pmd_trans_huge(*pmd)) {
+		if (flags & FOLL_SPLIT) {
+			split_huge_page_pmd(vma, address, pmd);
+			return follow_page_pte(vma, address, pmd, flags);
 		}
-
-		return ret ? ERR_PTR(ret) :
-			follow_page_pte(vma, address, pmd, flags);
+		ptl = pmd_lock(mm, pmd);
+		if (likely(pmd_trans_huge(*pmd))) {
+			if (unlikely(pmd_trans_splitting(*pmd))) {
+				spin_unlock(ptl);
+				wait_split_huge_page(vma->anon_vma, pmd);
+			} else {
+				page = follow_trans_huge_pmd(vma, address,
+							     pmd, flags);
+				spin_unlock(ptl);
+				*page_mask = HPAGE_PMD_NR - 1;
+				return page;
+			}
+		} else
+			spin_unlock(ptl);
 	}
-
-	page = follow_trans_huge_pmd(vma, address, pmd, flags);
-	spin_unlock(ptl);
-	*page_mask = HPAGE_PMD_NR - 1;
-	return page;
+	return follow_page_pte(vma, address, pmd, flags);
 }
 
 static int get_gate_page(struct mm_struct *mm, unsigned long address,
@@ -343,8 +313,6 @@ static int faultin_page(struct task_struct *tsk, struct vm_area_struct *vma,
 		return -ENOENT;
 	if (*flags & FOLL_WRITE)
 		fault_flags |= FAULT_FLAG_WRITE;
-	if (*flags & FOLL_REMOTE)
-		fault_flags |= FAULT_FLAG_REMOTE;
 	if (nonblocking)
 		fault_flags |= FAULT_FLAG_ALLOW_RETRY;
 	if (*flags & FOLL_NOWAIT)
@@ -395,8 +363,6 @@ static int faultin_page(struct task_struct *tsk, struct vm_area_struct *vma,
 static int check_vma_flags(struct vm_area_struct *vma, unsigned long gup_flags)
 {
 	vm_flags_t vm_flags = vma->vm_flags;
-	int write = (gup_flags & FOLL_WRITE);
-	int foreign = (gup_flags & FOLL_REMOTE);
 
 	if (vm_flags & (VM_IO | VM_PFNMAP))
 		return -EFAULT;
@@ -404,7 +370,7 @@ static int check_vma_flags(struct vm_area_struct *vma, unsigned long gup_flags)
 	if (gup_flags & FOLL_ANON && !vma_is_anonymous(vma))
 		return -EFAULT;
 
-	if (write) {
+	if (gup_flags & FOLL_WRITE) {
 		if (!(vm_flags & VM_WRITE)) {
 			if (!(gup_flags & FOLL_FORCE))
 				return -EFAULT;
@@ -417,8 +383,10 @@ static int check_vma_flags(struct vm_area_struct *vma, unsigned long gup_flags)
 			 * Anon pages in shared mappings are surprising: now
 			 * just reject it.
 			 */
-			if (!is_cow_mapping(vm_flags))
+			if (!is_cow_mapping(vm_flags)) {
+				WARN_ON_ONCE(vm_flags & VM_MAYWRITE);
 				return -EFAULT;
+			}
 		}
 	} else if (!(vm_flags & VM_READ)) {
 		if (!(gup_flags & FOLL_FORCE))
@@ -430,12 +398,6 @@ static int check_vma_flags(struct vm_area_struct *vma, unsigned long gup_flags)
 		if (!(vm_flags & VM_MAYREAD))
 			return -EFAULT;
 	}
-	/*
-	 * gups are always data accesses, not instruction
-	 * fetches, so execute=false here
-	 */
-	if (!arch_vma_access_permitted(vma, write, false, foreign))
-		return -EFAULT;
 	return 0;
 }
 
@@ -495,7 +457,7 @@ static int check_vma_flags(struct vm_area_struct *vma, unsigned long gup_flags)
  * instead of __get_user_pages. __get_user_pages should be used only if
  * you need some special @gup_flags.
  */
-static long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
+long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, unsigned long nr_pages,
 		unsigned int gup_flags, struct page **pages,
 		struct vm_area_struct **vmas, int *nonblocking)
@@ -600,28 +562,7 @@ next_page:
 	} while (nr_pages);
 	return i;
 }
-
-bool vma_permits_fault(struct vm_area_struct *vma, unsigned int fault_flags)
-{
-	bool write   = !!(fault_flags & FAULT_FLAG_WRITE);
-	bool foreign = !!(fault_flags & FAULT_FLAG_REMOTE);
-	vm_flags_t vm_flags = write ? VM_WRITE : VM_READ;
-
-	if (!(vm_flags & vma->vm_flags))
-		return false;
-
-	/*
-	 * The architecture might have a hardware protection
-	 * mechanism other than read/write that can deny access.
-	 *
-	 * gup always represents data access, not instruction
-	 * fetches, so execute=false here:
-	 */
-	if (!arch_vma_access_permitted(vma, write, false, foreign))
-		return false;
-
-	return true;
-}
+EXPORT_SYMBOL(__get_user_pages);
 
 /*
  * fixup_user_fault() - manually resolve a user page fault
@@ -630,8 +571,6 @@ bool vma_permits_fault(struct vm_area_struct *vma, unsigned int fault_flags)
  * @mm:		mm_struct of target mm
  * @address:	user address
  * @fault_flags:flags to pass down to handle_mm_fault()
- * @unlocked:	did we unlock the mmap_sem while retrying, maybe NULL if caller
- *		does not allow retry
  *
  * This is meant to be called in the specific scenario where for locking reasons
  * we try to access user memory in atomic context (within a pagefault_disable()
@@ -643,36 +582,31 @@ bool vma_permits_fault(struct vm_area_struct *vma, unsigned int fault_flags)
  * The main difference with get_user_pages() is that this function will
  * unconditionally call handle_mm_fault() which will in turn perform all the
  * necessary SW fixup of the dirty and young bits in the PTE, while
- * get_user_pages() only guarantees to update these in the struct page.
+ * handle_mm_fault() only guarantees to update these in the struct page.
  *
  * This is important for some architectures where those bits also gate the
  * access permission to the page because they are maintained in software.  On
  * such architectures, gup() will not be enough to make a subsequent access
  * succeed.
  *
- * This function will not return with an unlocked mmap_sem. So it has not the
- * same semantics wrt the @mm->mmap_sem as does filemap_fault().
+ * This has the same semantics wrt the @mm->mmap_sem as does filemap_fault().
  */
 int fixup_user_fault(struct task_struct *tsk, struct mm_struct *mm,
-		     unsigned long address, unsigned int fault_flags,
-		     bool *unlocked)
+		     unsigned long address, unsigned int fault_flags)
 {
 	struct vm_area_struct *vma;
-	int ret, major = 0;
+	vm_flags_t vm_flags;
+	int ret;
 
-	if (unlocked)
-		fault_flags |= FAULT_FLAG_ALLOW_RETRY;
-
-retry:
 	vma = find_extend_vma(mm, address);
 	if (!vma || address < vma->vm_start)
 		return -EFAULT;
 
-	if (!vma_permits_fault(vma, fault_flags))
+	vm_flags = (fault_flags & FAULT_FLAG_WRITE) ? VM_WRITE : VM_READ;
+	if (!(vm_flags & vma->vm_flags))
 		return -EFAULT;
 
 	ret = handle_mm_fault(vma, address, fault_flags);
-	major |= ret & VM_FAULT_MAJOR;
 	if (ret & VM_FAULT_ERROR) {
 		if (ret & VM_FAULT_OOM)
 			return -ENOMEM;
@@ -682,19 +616,8 @@ retry:
 			return -EFAULT;
 		BUG();
 	}
-
-	if (ret & VM_FAULT_RETRY) {
-		down_read(&mm->mmap_sem);
-		if (!(fault_flags & FAULT_FLAG_TRIED)) {
-			*unlocked = true;
-			fault_flags &= ~FAULT_FLAG_ALLOW_RETRY;
-			fault_flags |= FAULT_FLAG_TRIED;
-			goto retry;
-		}
-	}
-
 	if (tsk) {
-		if (major)
+		if (ret & VM_FAULT_MAJOR)
 			tsk->maj_flt++;
 		else
 			tsk->min_flt++;
@@ -932,25 +855,14 @@ EXPORT_SYMBOL(get_user_pages_unlocked);
  * should use get_user_pages because it cannot pass
  * FAULT_FLAG_ALLOW_RETRY to handle_mm_fault.
  */
-long get_user_pages_remote(struct task_struct *tsk, struct mm_struct *mm,
+long get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, unsigned long nr_pages,
 		unsigned int gup_flags, struct page **pages,
 		struct vm_area_struct **vmas)
 {
 	return __get_user_pages_locked(tsk, mm, start, nr_pages,
 				       pages, vmas, NULL, false,
-				       gup_flags | FOLL_TOUCH | FOLL_REMOTE);
-}
-EXPORT_SYMBOL(get_user_pages_remote);
-
-long get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
-                unsigned long start, unsigned long nr_pages,
-                unsigned int gup_flags, struct page **pages,
-                struct vm_area_struct **vmas)
-{
-        return __get_user_pages_locked(tsk, mm, start, nr_pages,
-                                       pages, vmas, NULL, false,
-                                       gup_flags | FOLL_TOUCH);
+				       gup_flags | FOLL_TOUCH);
 }
 EXPORT_SYMBOL(get_user_pages);
 
@@ -989,6 +901,7 @@ long populate_vma_page_range(struct vm_area_struct *vma,
 	gup_flags = FOLL_TOUCH | FOLL_POPULATE | FOLL_MLOCK;
 	if (vma->vm_flags & VM_LOCKONFAULT)
 		gup_flags &= ~FOLL_POPULATE;
+
 	/*
 	 * We want to touch writable mappings with a write fault in order
 	 * to break COW, except for shared mappings because these don't COW
@@ -1126,6 +1039,9 @@ struct page *get_dump_page(unsigned long addr)
  *  *) HAVE_RCU_TABLE_FREE is enabled, and tlb_remove_table is used to free
  *      pages containing page tables.
  *
+ *  *) THP splits will broadcast an IPI, this can be achieved by overriding
+ *      pmdp_splitting_flush.
+ *
  *  *) ptes can be read atomically by the architecture.
  *
  *  *) access_ok is sufficient to validate userspace address ranges.
@@ -1161,9 +1077,6 @@ static int gup_pte_range(pmd_t pmd, unsigned long addr, unsigned long end,
 		 */
 		if (!pte_present(pte) || pte_special(pte) ||
 			pte_protnone(pte) || (write && !pte_write(pte)))
-			goto pte_unmap;
-
-		if (!arch_pte_access_permitted(pte, write))
 			goto pte_unmap;
 
 		VM_BUG_ON(!pfn_valid(pte_pfn(pte)));
@@ -1349,7 +1262,7 @@ static int gup_pmd_range(pud_t pud, unsigned long addr, unsigned long end,
 		pmd_t pmd = READ_ONCE(*pmdp);
 
 		next = pmd_addr_end(addr, end);
-		if (pmd_none(pmd))
+		if (pmd_none(pmd) || pmd_trans_splitting(pmd))
 			return 0;
 
 		if (unlikely(pmd_trans_huge(pmd) || pmd_huge(pmd))) {

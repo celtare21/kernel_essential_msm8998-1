@@ -874,7 +874,7 @@ bool tomoyo_dump_page(struct linux_binprm *bprm, unsigned long pos,
 	}
 	/* Same with get_arg_page(bprm, pos, 0) in fs/exec.c */
 #ifdef CONFIG_MMU
-	if (get_user_pages_remote(current, bprm->mm, pos, 1,
+	if (get_user_pages(current, bprm->mm, pos, 1,
 			   FOLL_FORCE, &page, NULL) <= 0)
 		return false;
 #else

@@ -64,7 +64,6 @@
 #include <linux/userfaultfd_k.h>
 
 #include <asm/io.h>
-#include <asm/mmu_context.h>
 #include <asm/pgalloc.h>
 #include <asm/uaccess.h>
 #include <asm/tlb.h>
@@ -564,6 +563,7 @@ int __pte_alloc(struct mm_struct *mm, pmd_t *pmd, unsigned long address)
 {
 	spinlock_t *ptl;
 	pgtable_t new = pte_alloc_one(mm, address);
+	int wait_split_huge_page;
 	if (!new)
 		return -ENOMEM;
 
@@ -583,14 +583,18 @@ int __pte_alloc(struct mm_struct *mm, pmd_t *pmd, unsigned long address)
 	smp_wmb(); /* Could be smp_wmb__xxx(before|after)_spin_lock */
 
 	ptl = pmd_lock(mm, pmd);
+	wait_split_huge_page = 0;
 	if (likely(pmd_none(*pmd))) {	/* Has another populated it ? */
 		atomic_long_inc(&mm->nr_ptes);
 		pmd_populate(mm, pmd, new);
 		new = NULL;
-	}
+	} else if (unlikely(pmd_trans_splitting(*pmd)))
+		wait_split_huge_page = 1;
 	spin_unlock(ptl);
 	if (new)
 		pte_free(mm, new);
+	if (wait_split_huge_page)
+		wait_split_huge_page(vma->anon_vma, pmd);
 	return 0;
 }
 
@@ -606,7 +610,8 @@ int __pte_alloc_kernel(pmd_t *pmd, unsigned long address)
 	if (likely(pmd_none(*pmd))) {	/* Has another populated it ? */
 		pmd_populate_kernel(&init_mm, pmd, new);
 		new = NULL;
-	}
+	} else
+		VM_BUG_ON(pmd_trans_splitting(*pmd));
 	spin_unlock(&init_mm.page_table_lock);
 	if (new)
 		pte_free_kernel(&init_mm, new);
@@ -905,7 +910,7 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	page = vm_normal_page(vma, addr, pte);
 	if (page) {
 		get_page(page);
-		page_dup_rmap(page, false);
+		page_dup_rmap(page);
 		rss[mm_counter(page)]++;
 	}
 
@@ -990,7 +995,7 @@ static inline int copy_pmd_range(struct mm_struct *dst_mm, struct mm_struct *src
 	src_pmd = pmd_offset(src_pud, addr);
 	do {
 		next = pmd_addr_end(addr, end);
-		if (pmd_trans_huge(*src_pmd) || pmd_devmap(*src_pmd)) {
+		if (pmd_trans_huge(*src_pmd)) {
 			int err;
 			VM_BUG_ON(next-addr != HPAGE_PMD_SIZE);
 			err = copy_huge_pmd(dst_mm, src_mm,
@@ -1218,7 +1223,7 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 	pmd = pmd_offset(pud, addr);
 	do {
 		next = pmd_addr_end(addr, end);
-		if (pmd_trans_huge(*pmd) || pmd_devmap(*pmd)) {
+		if (pmd_trans_huge(*pmd)) {
 			if (next - addr != HPAGE_PMD_SIZE) {
 #ifdef CONFIG_DEBUG_VM
 				if (!rwsem_is_locked(&tlb->mm->mmap_sem)) {
@@ -1229,7 +1234,7 @@ static inline unsigned long zap_pmd_range(struct mmu_gather *tlb,
 					BUG();
 				}
 #endif
-				split_huge_pmd(vma, pmd, addr);
+				split_huge_page_pmd(vma, addr, pmd);
 			} else if (zap_huge_pmd(tlb, vma, pmd, addr))
 				goto next;
 			/* fall through */
@@ -2402,8 +2407,7 @@ static int wp_page_copy(struct fault_env *fe, pte_t orig_pte,
 		 */
 		if (page_copied && (fe->vma_flags & VM_LOCKED)) {
 			lock_page(old_page);	/* LRU manipulation */
-			if (PageMlocked(old_page))
-				munlock_vma_page(old_page);
+			munlock_vma_page(old_page);
 			unlock_page(old_page);
 		}
 		put_page(old_page);
@@ -2464,6 +2468,11 @@ static int wp_page_shared(struct fault_env *fe, pte_t orig_pte,
 
 	get_page(old_page);
 
+	/*
+	 * Only catch write-faults on shared writable pages,
+	 * read-only shared pages can get COWed by
+	 * get_user_pages(.write=1, .force=1).
+	 */
 	if (vma->vm_ops && vma->vm_ops->page_mkwrite) {
 		int tmp;
 
@@ -2564,7 +2573,7 @@ static int do_wp_page(struct fault_env *fe, pte_t orig_pte)
 			 * the rmap code will not search our parent or siblings.
 			 * Protected against the rmap code by the page lock.
 			 */
-			page_move_anon_rmap(old_page, vma, fe->address);
+			page_move_anon_rmap(old_page, vma, address);
 			unlock_page(old_page);
 			return wp_page_reuse(fe, orig_pte, old_page, 0, 0);
 		}
@@ -3469,7 +3478,7 @@ static int do_shared_fault(struct fault_env *fe, pgoff_t pgoff)
 	 * pinned by vma->vm_file's reference.  We rely on unlock_page()'s
 	 * release semantics to prevent the compiler from undoing this copying.
 	 */
-	mapping = page_rmapping(fault_page);
+	mapping = fault_page->mapping;
 	unlock_page(fault_page);
 	if ((dirtied || vma->vm_ops->page_mkwrite) && mapping) {
 		/*
@@ -3769,11 +3778,6 @@ static int __handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 	pgd_t *pgd;
 	pud_t *pud;
 
-	if (!arch_vma_access_permitted(vma, flags & FAULT_FLAG_WRITE,
-					    flags & FAULT_FLAG_INSTRUCTION,
-					    flags & FAULT_FLAG_REMOTE))
-		return VM_FAULT_SIGSEGV;
-
 	pgd = pgd_offset(mm, address);
 	pud = pud_alloc(mm, pgd, address);
 	if (!pud)
@@ -3792,7 +3796,15 @@ static int __handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 		fe.sequence = raw_read_seqcount(&vma->vm_sequence);
 #endif
 		barrier();
-		if (pmd_trans_huge(orig_pmd) || pmd_devmap(orig_pmd)) {
+		if (pmd_trans_huge(orig_pmd)) {
+
+			/*
+			 * If the pmd is splitting, return and retry the
+			 * the fault.  Alternative: wait until the split
+			 * is done, and goto retry.
+			 */
+			if (pmd_trans_splitting(orig_pmd))
+				return 0;
 
 			if (pmd_protnone(orig_pmd))
 				return do_huge_pmd_numa_page(&fe, orig_pmd);
@@ -4311,7 +4323,7 @@ static int __access_remote_vm(struct task_struct *tsk, struct mm_struct *mm,
 		void *maddr;
 		struct page *page = NULL;
 
-		ret = get_user_pages_remote(tsk, mm, addr, 1,
+		ret = get_user_pages(tsk, mm, addr, 1,
 				gup_flags, &page, &vma);
 		if (ret <= 0) {
 #ifndef CONFIG_HAVE_IOREMAP_PROT

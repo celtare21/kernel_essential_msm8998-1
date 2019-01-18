@@ -71,22 +71,6 @@ static pmd_t *alloc_new_pmd(struct mm_struct *mm, struct vm_area_struct *vma,
 	return pmd;
 }
 
-static void take_rmap_locks(struct vm_area_struct *vma)
-{
-	if (vma->vm_file)
-		i_mmap_lock_write(vma->vm_file->f_mapping);
-	if (vma->anon_vma)
-		anon_vma_lock_write(vma->anon_vma);
-}
-
-static void drop_rmap_locks(struct vm_area_struct *vma)
-{
-	if (vma->anon_vma)
-		anon_vma_unlock_write(vma->anon_vma);
-	if (vma->vm_file)
-		i_mmap_unlock_write(vma->vm_file->f_mapping);
-}
-
 static pte_t move_soft_dirty_pte(pte_t pte)
 {
 	/*
@@ -107,6 +91,8 @@ static void move_ptes(struct vm_area_struct *vma, pmd_t *old_pmd,
 		struct vm_area_struct *new_vma, pmd_t *new_pmd,
 		unsigned long new_addr, bool need_rmap_locks)
 {
+	struct address_space *mapping = NULL;
+	struct anon_vma *anon_vma = NULL;
 	struct mm_struct *mm = vma->vm_mm;
 	pte_t *old_pte, *new_pte, pte;
 	spinlock_t *old_ptl, *new_ptl;
@@ -131,8 +117,16 @@ static void move_ptes(struct vm_area_struct *vma, pmd_t *old_pmd,
 	 *   serialize access to individual ptes, but only rmap traversal
 	 *   order guarantees that we won't miss both the old and new ptes).
 	 */
-	if (need_rmap_locks)
-		take_rmap_locks(vma);
+	if (need_rmap_locks) {
+		if (vma->vm_file) {
+			mapping = vma->vm_file->f_mapping;
+			i_mmap_lock_write(mapping);
+		}
+		if (vma->anon_vma) {
+			anon_vma = vma->anon_vma;
+			anon_vma_lock_write(anon_vma);
+		}
+	}
 
 	/*
 	 * We don't have to worry about the ordering of src and dst
@@ -175,8 +169,10 @@ static void move_ptes(struct vm_area_struct *vma, pmd_t *old_pmd,
 		spin_unlock(new_ptl);
 	pte_unmap(new_pte - 1);
 	pte_unmap_unlock(old_pte - 1, old_ptl);
-	if (need_rmap_locks)
-		drop_rmap_locks(vma);
+	if (anon_vma)
+		anon_vma_unlock_write(anon_vma);
+	if (mapping)
+		i_mmap_unlock_write(mapping);
 }
 
 #define LATENCY_LIMIT	(64 * PAGE_SIZE)
@@ -212,20 +208,24 @@ unsigned long move_page_tables(struct vm_area_struct *vma,
 		if (!new_pmd)
 			break;
 		if (pmd_trans_huge(*old_pmd)) {
+			int err = 0;
 			if (extent == HPAGE_PMD_SIZE) {
-				bool moved;
+				VM_BUG_ON_VMA(vma->vm_file || !vma->anon_vma,
+					      vma);
 				/* See comment in move_ptes() */
 				if (need_rmap_locks)
-                                        take_rmap_locks(vma);
-				moved = move_huge_pmd(vma, new_vma, old_addr,
+					anon_vma_lock_write(vma->anon_vma);
+				err = move_huge_pmd(vma, new_vma, old_addr,
 						    new_addr, old_end,
 						    old_pmd, new_pmd);
 				if (need_rmap_locks)
-					drop_rmap_locks(vma);
-				if (moved)
-					continue;
+					anon_vma_unlock_write(vma->anon_vma);
 			}
-			split_huge_pmd(vma, old_pmd, old_addr);
+			if (err > 0) {
+				continue;
+			} else if (!err) {
+				split_huge_page_pmd(vma, old_addr, old_pmd);
+			}
 			VM_BUG_ON(pmd_trans_huge(*old_pmd));
 		}
 		if (pte_alloc(new_vma->vm_mm, new_pmd, new_addr))

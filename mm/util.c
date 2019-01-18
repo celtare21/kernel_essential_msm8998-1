@@ -354,9 +354,7 @@ struct anon_vma *page_anon_vma(struct page *page)
 
 struct address_space *page_mapping(struct page *page)
 {
-	struct address_space *mapping;
-
-	page = compound_head(page);
+	unsigned long mapping;
 
 	/* This happens if someone calls flush_dcache_page on slab page */
 	if (unlikely(PageSlab(page)))
@@ -369,10 +367,11 @@ struct address_space *page_mapping(struct page *page)
 		return swap_address_space(entry);
 	}
 
-	mapping = page->mapping;
-	if ((unsigned long)mapping & PAGE_MAPPING_FLAGS)
+	mapping = (unsigned long)page->mapping;
+	if ((unsigned long)mapping & PAGE_MAPPING_ANON)
 		return NULL;
-	return mapping;
+
+	return (void *)((unsigned long)mapping & ~PAGE_MAPPING_FLAGS);
 }
 EXPORT_SYMBOL(page_mapping);
 
