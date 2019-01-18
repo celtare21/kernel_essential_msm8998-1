@@ -64,6 +64,7 @@
 #include <linux/userfaultfd_k.h>
 
 #include <asm/io.h>
+#include <asm/mmu_context.h>
 #include <asm/pgalloc.h>
 #include <asm/uaccess.h>
 #include <asm/tlb.h>
@@ -2568,7 +2569,7 @@ static int do_wp_page(struct fault_env *fe, pte_t orig_pte)
 			 * the rmap code will not search our parent or siblings.
 			 * Protected against the rmap code by the page lock.
 			 */
-			page_move_anon_rmap(old_page, vma, address);
+			page_move_anon_rmap(old_page, vma, fe->address);
 			unlock_page(old_page);
 			return wp_page_reuse(fe, orig_pte, old_page, 0, 0);
 		}
@@ -3041,7 +3042,7 @@ static int __do_fault(struct fault_env *fe, pgoff_t pgoff,
  */
 static int pmd_devmap_trans_unstable(pmd_t *pmd)
 {
-	return pmd_devmap(*pmd) || pmd_trans_unstable(pmd);
+	return pmd_trans_unstable(pmd);
 }
 
 static int pte_alloc_one_map(struct fault_env *fe)
@@ -3910,9 +3911,7 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 		return VM_FAULT_RETRY;
 	}
 
-	if (!arch_vma_access_permitted(fe.vma, flags & FAULT_FLAG_WRITE,
-				       flags & FAULT_FLAG_INSTRUCTION,
-				       flags & FAULT_FLAG_REMOTE))
+	if (!arch_vma_access_permitted(fe.vma, flags & FAULT_FLAG_WRITE))
 		goto out_segv;
 
 	/* This is one is required to check that the VMA has write access set */
@@ -3967,8 +3966,7 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 	 * Regarding the order of the following checks, see comment in
 	 * pmd_devmap_trans_unstable()
 	 */
-	if (unlikely(pmd_devmap(fe.orig_pmd) ||
-		     pmd_none(fe.orig_pmd) || pmd_trans_huge(fe.orig_pmd)))
+	if (unlikely(pmd_none(fe.orig_pmd) || pmd_trans_huge(fe.orig_pmd)))
 		goto out_walk;
 
 	/*
@@ -4086,9 +4084,7 @@ int handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 	if (flags & FAULT_FLAG_USER)
 		mem_cgroup_oom_enable();
 
-	if (!arch_vma_access_permitted(vma, flags & FAULT_FLAG_WRITE,
-					    flags & FAULT_FLAG_INSTRUCTION,
-					    flags & FAULT_FLAG_REMOTE))
+	if (!arch_vma_access_permitted(vma, flags & FAULT_FLAG_WRITE))
 		return VM_FAULT_SIGSEGV;
 
 	if (unlikely(is_vm_hugetlb_page(vma)))
