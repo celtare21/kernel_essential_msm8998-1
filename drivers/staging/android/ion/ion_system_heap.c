@@ -415,8 +415,10 @@ static int ion_system_heap_allocate(struct ion_heap *heap,
 		goto err;
 
 	table = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
-	if (!table)
+	if (!table) {
+		ret = -ENOMEM;
 		goto err_free_data_pages;
+	}
 
 	ret = sg_alloc_table(table, i, GFP_KERNEL);
 	if (ret)
