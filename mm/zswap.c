@@ -434,7 +434,7 @@ cleanup:
 	return -ENOMEM;
 }
 
-static void zswap_cpu_dstmem_destroy(void)
+static __maybe_unused void zswap_cpu_dstmem_destroy(void)
 {
 	unsigned long cpu;
 
