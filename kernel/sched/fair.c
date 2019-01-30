@@ -8318,6 +8318,7 @@ static void attach_one_task(struct rq *rq, struct task_struct *p)
 {
 	raw_spin_lock(&rq->lock);
 	attach_task(rq, p);
+	update_overutilized_status(rq);
 	raw_spin_unlock(&rq->lock);
 }
 
@@ -8339,6 +8340,7 @@ static void attach_tasks(struct lb_env *env)
 		attach_task(env->dst_rq, p);
 	}
 
+	update_overutilized_status(env->dst_rq);
 	raw_spin_unlock(&env->dst_rq->lock);
 }
 
