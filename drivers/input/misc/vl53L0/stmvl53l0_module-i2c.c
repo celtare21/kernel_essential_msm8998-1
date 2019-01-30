@@ -67,8 +67,9 @@ static int stmvl53l0_parse_vdd(struct device *dev, struct i2c_data *data)
 	if (dev->of_node) {
 		data->vana = regulator_get(dev, "vdd");
 		if (IS_ERR(data->vana)) {
-			vl53l0_errmsg("vdd supply is not provided\n");
-			ret = -1;
+			vl53l0_errmsg("Cannot get vdd supply: %ld\n",
+						PTR_ERR(data->vana));
+			return PTR_ERR(data->vana);
 		}
 	}
 	vl53l0_dbgmsg("End\n");
@@ -121,16 +122,14 @@ static int stmvl53l0_probe(struct i2c_client *client,
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE)) {
 		vl53l0_dbgmsg("fail at %s, %d \n", __func__, __LINE__);
 		rc = -EIO;
-		goto END;
-		//return rc;
+		return rc;
 	}
 
 	vl53l0_data = kzalloc(sizeof(struct stmvl53l0_data), GFP_KERNEL);
 	if (!vl53l0_data) {
 		vl53l0_dbgmsg("fail at %s, %d \n", __func__, __LINE__);
 		rc = -ENOMEM;
-		goto END;
-		//return rc;
+		return rc;
 	}
 	if (vl53l0_data) {
 		vl53l0_data->client_object =
@@ -144,8 +143,8 @@ static int stmvl53l0_probe(struct i2c_client *client,
 
 	/* setup regulator */
 	rc = stmvl53l0_parse_vdd(&i2c_object->client->dev, i2c_object);
-	if(rc < 0)
-		goto END;
+	if (rc)
+		goto end;
 
 	/* setup device name */
 	vl53l0_data->dev_name = dev_name(&client->dev);
@@ -158,12 +157,12 @@ static int stmvl53l0_probe(struct i2c_client *client,
 
 	/* setup other stuff */
 	rc = stmvl53l0_setup(vl53l0_data);
-	if(rc < 0)
-		goto END;
+	if (rc)
+		goto end;
 
 	rc = stmvl53l0_pinctrl_init(client);
-	if(rc < 0)
-		goto END;
+	if (rc)
+		goto end;
 
 	if(&i2c_object->client->dev.of_node){
 		vl53l0_data->en_gpio = of_get_named_gpio(i2c_object->client->dev.of_node, "qcom,en_gpio", 0);
@@ -171,7 +170,7 @@ static int stmvl53l0_probe(struct i2c_client *client,
 			vl53l0_errmsg("%s:%d, en gpio not specified\n",
 				__func__, __LINE__);
 			rc = -1;
-			goto END;
+			goto end;
 		}else{
 			rc = gpio_request(vl53l0_data->en_gpio, "en_stmvl53l0");
 			if(rc)
@@ -184,9 +183,13 @@ static int stmvl53l0_probe(struct i2c_client *client,
 	gpio_direction_output(vl53l0_data->en_gpio, 0);
 
 	vl53l0_dbgmsg("End\n");
-	return rc;
 
-END:
+end:
+	if (rc < 0) {
+		kfree(i2c_object);
+		kfree(vl53l0_data);
+	}
+
 	return rc;
 }
 
