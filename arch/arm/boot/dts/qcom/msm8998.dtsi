@@ -843,6 +843,7 @@
 	};
 
 	devfreq_compute: qcom,devfreq-compute {
+		status = "disabled";
 		compatible = "qcom,arm-cpu-mon";
 		qcom,cpulist = <&CPU0 &CPU1 &CPU2 &CPU3>;
 		qcom,target-dev = <&mincpubw>;
