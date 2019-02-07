@@ -24,6 +24,8 @@
 
 /* Hyp Configuration Register (HCR) bits */
 #define HCR_E2H		(UL(1) << 34)
+#define HCR_API		(UL(1) << 41)
+#define HCR_APK		(UL(1) << 40)
 #define HCR_ID		(UL(1) << 33)
 #define HCR_CD		(UL(1) << 32)
 #define HCR_RW_SHIFT	31
@@ -83,6 +85,7 @@
 #define HCR_VIRT_EXCP_MASK (HCR_VA | HCR_VI | HCR_VF)
 #define HCR_INT_OVERRIDE   (HCR_FMO | HCR_IMO)
 #define HCR_HOST_VHE_FLAGS (HCR_RW | HCR_TGE | HCR_E2H)
+#define HCR_HOST_NVHE_FLAGS (HCR_RW | HCR_API | HCR_APK)
 
 /* TCR_EL2 Registers bits */
 #define TCR_EL2_RES1	((1 << 31) | (1 << 23))
