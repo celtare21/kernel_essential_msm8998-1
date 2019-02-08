@@ -99,6 +99,10 @@ struct ftrace_branch_data {
 	};
 };
 
+#ifndef __copy
+# define __copy(symbol)
+#endif
+
 /*
  * Note: DISABLE_BRANCH_PROFILING can be used by special lowlevel code
  * to disable branch tracing on a per file basis.
