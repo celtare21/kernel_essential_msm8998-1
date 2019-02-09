@@ -19,6 +19,9 @@
 #include "dsi-panel-nt35597-dsc-wqxga-cmd-mata.dtsi"
 #include "dsi-panel-otm2503b-wqxga-cmd.dtsi"
 
+/* Disable SMP2P Remote Debug for production */
+#include "../qcom/msm-rdbg-disable.dtsi"
+
 / {
 	aliases {
 		i2c6 = &i2c_6;
