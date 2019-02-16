@@ -831,12 +831,14 @@ static struct clk_init_data osm_clks_init[] = {
 		.name = "pwrcl_clk",
 		.parent_names = (const char *[]){ "cxo_a" },
 		.num_parents = 1,
+		.flags = CLK_GET_RATE_NOCACHE,
 		.ops = &clk_ops_cpu_osm,
 	},
 	[1] = {
 		.name = "perfcl_clk",
 		.parent_names = (const char *[]){ "cxo_a" },
 		.num_parents = 1,
+		.flags = CLK_GET_RATE_NOCACHE,
 		.ops = &clk_ops_cpu_osm,
 	},
 };
