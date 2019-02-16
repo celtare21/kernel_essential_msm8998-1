@@ -65,7 +65,7 @@ static struct ion_platform_data dummy_ion_pdata = {
 
 static int __init ion_dummy_init(void)
 {
-	int i;
+	int i, err;
 
 	idev = ion_device_create(NULL);
 	heaps = kcalloc(dummy_ion_pdata.nr, sizeof(struct ion_heap *),
@@ -104,12 +104,29 @@ static int __init ion_dummy_init(void)
 			continue;
 
 		heaps[i] = ion_heap_create(heap_data);
-		if (IS_ERR_OR_NULL(heaps[i]))
-			continue;
-
+		if (IS_ERR_OR_NULL(heaps[i])) {
+			err = PTR_ERR(heaps[i]);
+			goto err;
+		}
 		ion_device_add_heap(idev, heaps[i]);
 	}
 	return 0;
+err:
+	for (i = 0; i < dummy_ion_pdata.nr; ++i)
+		ion_heap_destroy(heaps[i]);
+	kfree(heaps);
+
+	if (carveout_ptr) {
+		free_pages_exact(carveout_ptr,
+				dummy_heaps[ION_HEAP_TYPE_CARVEOUT].size);
+		carveout_ptr = NULL;
+	}
+	if (chunk_ptr) {
+		free_pages_exact(chunk_ptr,
+				dummy_heaps[ION_HEAP_TYPE_CHUNK].size);
+		chunk_ptr = NULL;
+	}
+	return err;
 }
 device_initcall(ion_dummy_init);
 
@@ -119,10 +136,8 @@ static void __exit ion_dummy_exit(void)
 
 	ion_device_destroy(idev);
 
-	for (i = 0; i < dummy_ion_pdata.nr; i++) {
-		if(!IS_ERR_OR_NULL(heaps[i]))
-			ion_heap_destroy(heaps[i]);
-	}
+	for (i = 0; i < dummy_ion_pdata.nr; i++)
+		ion_heap_destroy(heaps[i]);
 	kfree(heaps);
 
 	if (carveout_ptr) {
