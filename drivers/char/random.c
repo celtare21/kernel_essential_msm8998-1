@@ -2015,7 +2015,7 @@ u64 get_random_u64(void)
 	put_cpu_var(batched_entropy_u64);
 	return ret;
 }
-EXPORT_SYMBOL(get_random_64);
+EXPORT_SYMBOL(get_random_u64);
 
 static DEFINE_PER_CPU(struct batched_entropy, batched_entropy_u32);
 u32 get_random_u32(void)
