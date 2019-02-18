@@ -499,9 +499,6 @@ void __init tick_nohz_init(void)
 	pr_info("NO_HZ: Full dynticks CPUs: %*pbl.\n",
 		cpumask_pr_args(tick_nohz_full_mask));
 
-	if (housekeeping_flags & HK_FLAG_TICK)
-		sched_tick_offload_init();
-
 	/*
 	 * We need at least one CPU to handle housekeeping work such
 	 * as timekeeping, unbound timers, workqueues, ...

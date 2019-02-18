@@ -3542,96 +3542,6 @@ u64 scheduler_tick_max_deferment(void)
 
 	return jiffies_to_nsecs(next - now);
 }
-
-struct tick_work {
-	int			cpu;
-	struct delayed_work	work;
-};
-
-static struct tick_work __percpu *tick_work_cpu;
-
-static void sched_tick_remote(struct work_struct *work)
-{
-	struct delayed_work *dwork = to_delayed_work(work);
-	struct tick_work *twork = container_of(dwork, struct tick_work, work);
-	int cpu = twork->cpu;
-	struct rq *rq = cpu_rq(cpu);
-	struct rq_flags rf;
-
-	/*
-	 * Handle the tick only if it appears the remote CPU is running in full
-	 * dynticks mode. The check is racy by nature, but missing a tick or
-	 * having one too much is no big deal because the scheduler tick updates
-	 * statistics and checks timeslices in a time-independent way, regardless
-	 * of when exactly it is running.
-	 */
-	if (!idle_cpu(cpu) && tick_nohz_tick_stopped_cpu(cpu)) {
-		struct task_struct *curr;
-		u64 delta;
-
-		rq_lock_irq(rq, &rf);
-		update_rq_clock(rq);
-		curr = rq->curr;
-		delta = rq_clock_task(rq) - curr->se.exec_start;
-
-		/*
-		 * Make sure the next tick runs within a reasonable
-		 * amount of time.
-		 */
-		WARN_ON_ONCE(delta > (u64)NSEC_PER_SEC * 3);
-		curr->sched_class->task_tick(rq, curr, 0);
-		rq_unlock_irq(rq, &rf);
-	}
-
-	/*
-	 * Run the remote tick once per second (1Hz). This arbitrary
-	 * frequency is large enough to avoid overload but short enough
-	 * to keep scheduler internal stats reasonably up to date.
-	 */
-	queue_delayed_work(system_unbound_wq, dwork, HZ);
-}
-
-static void sched_tick_start(int cpu)
-{
-	struct tick_work *twork;
-
-	if (housekeeping_cpu(cpu, HK_FLAG_TICK))
-		return;
-
-	WARN_ON_ONCE(!tick_work_cpu);
-
-	twork = per_cpu_ptr(tick_work_cpu, cpu);
-	twork->cpu = cpu;
-	INIT_DELAYED_WORK(&twork->work, sched_tick_remote);
-	queue_delayed_work(system_unbound_wq, &twork->work, HZ);
-}
-
-#ifdef CONFIG_HOTPLUG_CPU
-static void sched_tick_stop(int cpu)
-{
-	struct tick_work *twork;
-
-	if (housekeeping_cpu(cpu, HK_FLAG_TICK))
-		return;
-
-	WARN_ON_ONCE(!tick_work_cpu);
-
-	twork = per_cpu_ptr(tick_work_cpu, cpu);
-	cancel_delayed_work_sync(&twork->work);
-}
-#endif /* CONFIG_HOTPLUG_CPU */
-
-int __init sched_tick_offload_init(void)
-{
-	tick_work_cpu = alloc_percpu(struct tick_work);
-	BUG_ON(!tick_work_cpu);
-
-	return 0;
-}
-
-#else /* !CONFIG_NO_HZ_FULL */
-static inline void sched_tick_start(int cpu) { }
-static inline void sched_tick_stop(int cpu) { }
 #endif
 
 #if defined(CONFIG_PREEMPT) && (defined(CONFIG_DEBUG_PREEMPT) || \
@@ -6565,7 +6475,6 @@ migration_call(struct notifier_block *nfb, unsigned long action, void *hcpu)
 #ifdef CONFIG_HOTPLUG_CPU
 	case CPU_DYING:
 		sched_ttwu_pending();
-		sched_tick_stop(cpu);
 		/* Update our root-domain */
 		raw_spin_lock_irqsave(&rq->lock, flags);
 		walt_migrate_sync_cpu(cpu);
@@ -6614,7 +6523,6 @@ static int sched_cpu_active(struct notifier_block *nfb,
 	switch (action & ~CPU_TASKS_FROZEN) {
 	case CPU_STARTING:
 		set_cpu_rq_start_time();
-		sched_tick_start(cpu);
 		return NOTIFY_OK;
 
 	case CPU_ONLINE:
