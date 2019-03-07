@@ -7229,6 +7229,8 @@ static int ufshcd_reset_and_restore(struct ufs_hba *hba)
 	unsigned long flags;
 	int retries = MAX_HOST_RESET_RETRIES;
 
+	ufshcd_enable_irq(hba);
+
 	do {
 		err = ufshcd_vops_full_reset(hba);
 		if (err)
