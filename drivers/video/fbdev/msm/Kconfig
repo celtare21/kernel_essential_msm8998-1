@@ -18,7 +18,8 @@ config FB_MSM_MDP
 
 config FB_MSM_MDSS
 	bool "MDSS HW"
-	select SYNC_FILE
+	select SYNC
+	select SW_SYNC
 	select FB_MSM_MDSS_COMMON
 	---help---
 	The Mobile Display Sub System (MDSS) driver supports devices which
