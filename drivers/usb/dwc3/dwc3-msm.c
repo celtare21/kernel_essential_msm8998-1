@@ -2388,7 +2388,7 @@ static void dwc3_ext_event_notify(struct dwc3_msm *mdwc)
 	}
 
 	pm_stay_awake(mdwc->dev);
-	queue_delayed_work(mdwc->sm_usb_wq, &mdwc->sm_work, 0);
+	queue_delayed_work(system_freezable_wq, &mdwc->sm_work, 0);
 }
 
 static void dwc3_resume_work(struct work_struct *w)
@@ -4153,7 +4153,9 @@ static int dwc3_msm_pm_resume(struct device *dev)
 	if (mdwc->no_wakeup_src_in_hostmode && !test_bit(ID, &mdwc->inputs))
 		dwc3_msm_resume(mdwc);
 
-	queue_work(mdwc->dwc3_wq, &mdwc->resume_work);
+	/* kick in otg state machine */
+	if (mdwc->vbus_active || !mdwc->id_state)
+		queue_work(mdwc->dwc3_wq, &mdwc->resume_work);
 
 	return 0;
 }
