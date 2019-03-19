@@ -13,8 +13,8 @@
  */
 
 &mdss_mdp {
-	dsi_nt35597_dsc_cmd_mata: qcom,mdss_dsi_nt35597_dsc_wqxga_cmd_mata {
-		qcom,mdss-dsi-panel-name = "NT35597 cmd mode dsc dsi panel Mata";
+	dsi_otm2503b_dsc_cmd: qcom,mdss_dsi_otm2503b_dsc_wqxga_cmd {
+		qcom,mdss-dsi-panel-name = "OTM2503 cmd mode dsc dsi panel";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-framerate = <60>;
 		qcom,mdss-dsi-virtual-channel-id = <0>;
@@ -41,11 +41,11 @@
 		qcom,mdss-dsi-lane-2-state;
 		qcom,mdss-dsi-lane-3-state;
 		qcom,mdss-dsi-panel-timings = [00 13 05 04 08 0e 04 05 04 03 04 00];
-		qcom,mdss-dsi-t-clk-post = <0x06>;
+		qcom,mdss-dsi-t-clk-post = <0x6>;
 		qcom,mdss-dsi-t-clk-pre = <0x1f>;
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
-		qcom,mdss-dsi-reset-sequence = <1 1>, <0 1>, <1 20>;
+		qcom,mdss-dsi-reset-sequence = <1 04>, <0 02>, <1 20>;
 		qcom,mdss-dsi-te-pin-select = <1>;
 		qcom,mdss-dsi-wr-mem-start = <0x2c>;
 		qcom,mdss-dsi-wr-mem-continue = <0x3c>;
@@ -55,63 +55,42 @@
 		qcom,ulps-enabled;
 		qcom,suspend-ulps-enabled;
 		qcom,panel-allow-phy-poweroff;
-		qcom,mdss-pan-physical-width-dimension = <66>;
-		qcom,mdss-pan-physical-height-dimension = <129>;
+                qcom,mdss-pan-physical-width-dimension = <66>;
+                qcom,mdss-pan-physical-height-dimension = <129>;
 
 		qcom,adjust-timer-wakeup-ms = <1>;
-
-		qcom,mdss-dsi-on-command = [15 01 00 00 00 00 02 ff 10
-			15 01 00 00 00 00 02 fb 01
-			15 01 00 00 00 00 02 e5 01
-			15 01 00 00 00 00 02 ba 03
+		qcom,mdss-dsi-on-command = [
+			29 01 00 00 00 00 02 00 00
+			29 01 00 00 00 00 04 ff 25 03 01
+			29 01 00 00 00 00 02 00 80
+			29 01 00 00 00 00 03 ff 25 03
+			29 01 00 00 00 00 02 00 00
+			29 01 00 00 00 00 02 1c 01
+			29 01 00 00 00 00 02 00 b1
+			29 01 00 00 00 00 02 b0 01
+			29 01 00 00 00 00 02 00 8e
+			29 01 00 00 00 00 03 c0 19 05
+			29 01 00 00 00 00 02 00 9e
+			29 01 00 00 00 00 03 c0 19 05
+			29 01 00 00 00 00 02 00 ae
+			29 01 00 00 00 00 03 c0 19 05
+			29 01 00 00 00 00 02 00 be
+			29 01 00 00 00 00 02 b4 05
 			15 01 00 00 00 00 02 35 00
-			15 01 00 00 00 00 02 bb 10
-			15 01 00 00 00 00 02 b0 03
-			15 01 00 00 00 00 02 c0 03
-			15 01 00 00 00 00 02 ff e0
-			15 01 00 00 00 00 02 fb 01
-			15 01 00 00 00 00 02 6b 3d
-			15 01 00 00 00 00 02 6c 3d
-			15 01 00 00 00 00 02 6d 3d
-			15 01 00 00 00 00 02 6e 3d
-			15 01 00 00 00 00 02 6f 3d
-			15 01 00 00 00 00 02 35 02
-			15 01 00 00 00 00 02 36 72
-			15 01 00 00 00 00 02 37 10
-			15 01 00 00 00 00 02 08 c0
-			15 01 00 00 00 00 02 ff 10
-			05 01 00 00 70 00 01 11
-			15 01 00 00 00 00 02 ff 24
-			15 01 00 00 00 00 02 fb 01
-			15 01 00 00 00 00 02 c4 20
-			15 01 00 00 00 00 02 c5 36
-			15 01 00 00 00 00 02 c6 00
-			15 01 00 00 00 00 02 c7 02
-			15 01 00 00 00 00 02 c9 ff
-			15 01 00 00 00 00 02 ca a9
-			15 01 00 00 00 00 02 ff 10
-			05 01 00 00 30 00 01 29
-			07 01 00 00 00 00 02 01 00];
+			05 01 00 00 78 00 01 11
+			05 01 00 00 78 00 01 29];
 
-		qcom,mdss-dsi-post-panel-on-command = [05 01 00 00 30 00 01 29];
+		qcom,mdss-dsi-post-panel-on-command = [05 01 00 00 a0 00 01 29];
 
-		qcom,mdss-dsi-off-command = [05 01 00 00 11 00 02 28 00
-				 05 01 00 00 43 00 02 10 00];
-
-		cm,mdss-livedisplay-cabc-cmd = [
-			15 01 00 00 00 00 02 55 00
-		];
-
-		cm,mdss-livedisplay-cabc-ui-value = <0x01>;
-		cm,mdss-livedisplay-cabc-image-value = <0x02>;
-		cm,mdss-livedisplay-cabc-video-value = <0x03>;
+		qcom,mdss-dsi-off-command = [05 01 00 00 0a 00 02 28 00
+				 05 01 00 00 50 00 02 10 00];
 
 		qcom,compression-mode = "dsc";
-		qcom,config-select = <&dsi_nt35597_dsc_cmd_mata_config2>;
+		qcom,config-select = <&dsi_otm2503b_dsc_cmd_config2>;
 
-		dsi_nt35597_dsc_cmd_mata_config0: config0 {
+		dsi_otm2503b_dsc_cmd_config0: config0 {
 			qcom,mdss-dsc-encoders = <1>;
-			qcom,mdss-dsc-slice-height = <32>;
+			qcom,mdss-dsc-slice-height = <16>;
 			qcom,mdss-dsc-slice-width = <720>;
 			qcom,mdss-dsc-slice-per-pkt = <2>;
 
@@ -120,7 +99,7 @@
 			qcom,mdss-dsc-block-prediction-enable;
 		};
 
-		dsi_nt35597_dsc_cmd_mata_config1: config1 {
+		dsi_otm2503b_dsc_cmd_config1: config1 {
 			qcom,lm-split = <720 720>;
 			qcom,mdss-dsc-encoders = <1>; /* 3D Mux */
 			qcom,mdss-dsc-slice-height = <16>;
@@ -132,10 +111,10 @@
 			qcom,mdss-dsc-block-prediction-enable;
 		};
 
-		dsi_nt35597_dsc_cmd_mata_config2: config2 {
+		dsi_otm2503b_dsc_cmd_config2: config2 {
 			qcom,lm-split = <720 720>;
 			qcom,mdss-dsc-encoders = <2>; /* DSC Merge */
-			qcom,mdss-dsc-slice-height = <32>;
+			qcom,mdss-dsc-slice-height = <16>;
 			qcom,mdss-dsc-slice-width = <720>;
 			qcom,mdss-dsc-slice-per-pkt = <2>;
 
@@ -146,11 +125,11 @@
 	};
 };
 
-&dsi_nt35597_dsc_cmd_mata {
+&dsi_otm2503b_dsc_cmd {
 	qcom,mdss-dsi-panel-timings = [00 13 05 04 08 0e 04 05 04 03 04 00];
 	qcom,mdss-dsi-t-clk-post = <0x06>;
 	qcom,mdss-dsi-t-clk-pre = <0x1f>;
 	qcom,mdss-dsi-bl-min-level = <1>;
 	qcom,mdss-dsi-bl-max-level = <4095>;
-	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_jdi>;
 };

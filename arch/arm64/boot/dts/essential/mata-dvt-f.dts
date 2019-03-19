@@ -30,7 +30,10 @@
 	/delete-node/ qcom,battery-data;
 	mtp_batterydata: qcom,battery-data {
 		qcom,batt-id-range-pct = <15>;
+		#include "battery-3040mah-evt1-1.dtsi"
+		#include "battery-3040mah-evt2.dtsi"
 		#include "battery-3040mah-evt3.dtsi"
+		#include "battery-3040mah-dvt.dtsi"
 	};
 };
 
@@ -42,6 +45,10 @@
 };
 
 &dsi_nt35597_dsc_cmd_mata {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+};
+
+&dsi_otm2503b_dsc_cmd {
 	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
 };
 
