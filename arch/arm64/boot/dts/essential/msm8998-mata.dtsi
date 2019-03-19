@@ -650,9 +650,8 @@
 
 &pmi8998_haptics {
 	status = "okay";
-	qcom,wave-play-rate-us = <4255>;
+        qcom,wave-play-rate-us = <5000>;
 	qcom,wave-shape = "sine";
-	qcom,vmax-mv = <2750>;
 	qcom,int-pwm-freq-khz = <253>;
 	qcom,brake-pattern = [02 01 00 00];
 	qcom,wave-samples = [3e 3e 3e 3e 3e 3e 3e 3e];
