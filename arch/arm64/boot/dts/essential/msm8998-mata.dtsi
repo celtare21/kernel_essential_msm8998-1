@@ -76,6 +76,136 @@
 	};
 };
 
+&soc {
+	qcom,msm-thermal-simple {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "qcom,msm-thermal-simple";
+		qcom,thermal-vadc = <&pm8998_vadc>;
+		qcom,adc-channel = <0x4c>;
+		qcom,poll-ms = <3000>;
+		qcom,start-delay = <60>;
+
+		zone@0 {
+			reg = <0>;
+			qcom,silver-khz = <1824000>;
+			qcom,gold-khz = <2208000>;
+			qcom,trip-deg = <35>;
+		};
+
+		zone@1 {
+			reg = <1>;
+			qcom,silver-khz = <1824000>;
+			qcom,gold-khz = <2112000>;
+			qcom,trip-deg = <37>;
+		};
+
+		zone@2 {
+			reg = <2>;
+			qcom,silver-khz = <1747200>;
+			qcom,gold-khz = <2035200>;
+			qcom,trip-deg = <39>;
+		};
+
+		zone@3 {
+			reg = <3>;
+			qcom,silver-khz = <1670400>;
+			qcom,gold-khz = <1958400>;
+			qcom,trip-deg = <41>;
+		};
+
+		zone@4 {
+			reg = <4>;
+			qcom,silver-khz = <1670400>;
+			qcom,gold-khz = <1728000>;
+			qcom,trip-deg = <43>;
+		};
+
+		zone@5 {
+			reg = <5>;
+			qcom,silver-khz = <1555200>;
+			qcom,gold-khz = <1651200>;
+			qcom,trip-deg = <45>;
+		};
+
+		zone@6 {
+			reg = <6>;
+			qcom,silver-khz = <1555200>;
+			qcom,gold-khz = <1574400>;
+			qcom,trip-deg = <47>;
+		};
+
+		zone@7 {
+			reg = <7>;
+			qcom,silver-khz = <1478400>;
+			qcom,gold-khz = <1497600>;
+			qcom,trip-deg = <49>;
+		};
+
+		zone@8 {
+			reg = <8>;
+			qcom,silver-khz = <1478400>;
+			qcom,gold-khz = <1420800>;
+			qcom,trip-deg = <51>;
+		};
+
+		zone@9 {
+			reg = <9>;
+			qcom,silver-khz = <1324800>;
+			qcom,gold-khz = <1344000>;
+			qcom,trip-deg = <53>;
+		};
+
+		zone@10 {
+			reg = <10>;
+			qcom,silver-khz = <1324800>;
+			qcom,gold-khz = <1267200>;
+			qcom,trip-deg = <55>;
+		};
+
+		zone@11 {
+			reg = <11>;
+			qcom,silver-khz = <1248000>;
+			qcom,gold-khz = <1190400>;
+			qcom,trip-deg = <57>;
+		};
+
+		zone@12 {
+			reg = <12>;
+			qcom,silver-khz = <1248000>;
+			qcom,gold-khz = <1056000>;
+			qcom,trip-deg = <59>;
+		};
+
+		zone@13 {
+			reg = <13>;
+			qcom,silver-khz = <1036800>;
+			qcom,gold-khz = <979200>;
+			qcom,trip-deg = <61>;
+		};
+
+		zone@14 {
+			reg = <14>;
+			qcom,silver-khz = <960000>;
+			qcom,gold-khz = <729600>;
+			qcom,trip-deg = <63>;
+		};
+
+		zone@15 {
+			reg = <15>;
+			qcom,silver-khz = <883200>;
+			qcom,gold-khz = <652800>;
+			qcom,trip-deg = <65>;
+		};
+
+		zone@16 {
+			reg = <16>;
+			qcom,silver-khz = <883200>;
+			qcom,gold-khz = <576000>;
+			qcom,trip-deg = <67>;
+		};
+	};
+};
 
 &smb138x_tadc {
 	batt_temp@0 {
