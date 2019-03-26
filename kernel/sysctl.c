@@ -280,6 +280,7 @@ static int max_extfrag_threshold = 1000;
 #endif
 
 static struct ctl_table kern_table[] = {
+#if 0
 	{
 		.procname	= "sched_boost",
 		.data		= &sysctl_sched_boost,
@@ -289,6 +290,7 @@ static struct ctl_table kern_table[] = {
 		.extra1         = &zero,
 		.extra2		= &three,
 	},
+#endif
 #if defined(CONFIG_PREEMPT_TRACER) || defined(CONFIG_IRQSOFF_TRACER)
 	{
 		.procname       = "preemptoff_tracing_threshold_ns",
