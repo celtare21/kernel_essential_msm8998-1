@@ -882,7 +882,12 @@ void __noreturn do_exit(long code)
 	exit_tasks_rcu_start();
 	exit_notify(tsk, group_dead);
 	proc_exit_connector(tsk);
-	mpol_put_task_policy(tsk);
+#ifdef CONFIG_NUMA
+	task_lock(tsk);
+	mpol_put(tsk->mempolicy);
+	tsk->mempolicy = NULL;
+	task_unlock(tsk);
+#endif
 #ifdef CONFIG_FUTEX
 	if (unlikely(current->pi_state_cache))
 		kfree(current->pi_state_cache);
