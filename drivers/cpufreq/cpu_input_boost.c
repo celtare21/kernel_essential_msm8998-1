@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 Sultan Alsawaf <sultan@kerneltoast.com>.
+ * Copyright (C) 2018-2019 Sultan Alsawaf <sultan@kerneltoast.com>.
  */
 
 #define pr_fmt(fmt) "cpu_input_boost: " fmt
@@ -10,10 +10,6 @@
 #include <linux/fb.h>
 #include <linux/input.h>
 #include <linux/slab.h>
-
-#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-static unsigned short dynamic_stune_boost = 15;
-#endif
 
 /* Available bits for boost_drv state */
 #define SCREEN_AWAKE		BIT(0)
@@ -141,9 +137,6 @@ static void input_boost_worker(struct work_struct *work)
 		update_online_cpu_policy();
 	}
 
-#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	do_stune_boost("top-app", dynamic_stune_boost);
-#endif
 	queue_delayed_work(b->wq, &b->input_unboost,
 			   msecs_to_jiffies(CONFIG_INPUT_BOOST_DURATION_MS));
 }
@@ -154,9 +147,6 @@ static void input_unboost_worker(struct work_struct *work)
 					   typeof(*b), input_unboost);
 
 	clear_boost_bit(b, INPUT_BOOST);
-#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	reset_stune_boost("top-app");
-#endif
 	update_online_cpu_policy();
 }
 
@@ -169,9 +159,6 @@ static void max_boost_worker(struct work_struct *work)
 		update_online_cpu_policy();
 	}
 
-#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	do_stune_boost("top-app", dynamic_stune_boost);
-#endif
 	queue_delayed_work(b->wq, &b->max_unboost,
 		msecs_to_jiffies(atomic_read(&b->max_boost_dur)));
 }
@@ -182,9 +169,6 @@ static void max_unboost_worker(struct work_struct *work)
 					   typeof(*b), max_unboost);
 
 	clear_boost_bit(b, WAKE_BOOST | MAX_BOOST);
-#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	reset_stune_boost("top-app");
-#endif
 	update_online_cpu_policy();
 }
 
@@ -221,7 +205,7 @@ static int cpu_notifier_cb(struct notifier_block *nb,
 }
 
 static int fb_notifier_cb(struct notifier_block *nb,
-			  unsigned long action, void *data)
+			       unsigned long action, void *data)
 {
 	struct boost_drv *b = container_of(nb, typeof(*b), fb_notif);
 	struct fb_event *evdata = data;
@@ -286,9 +270,6 @@ free_handle:
 
 static void cpu_input_boost_input_disconnect(struct input_handle *handle)
 {
-#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	reset_stune_boost("top-app");
-#endif
 	input_close_device(handle);
 	input_unregister_handle(handle);
 	kfree(handle);
