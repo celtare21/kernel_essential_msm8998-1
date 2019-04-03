@@ -410,9 +410,6 @@ struct qpnp_hap {
 
 static struct qpnp_hap *ghap;
 
-static int disable_haptics_refcnt;
-static DEFINE_SPINLOCK(disable_lock);
-
 /* helper to read a pmic register */
 static int qpnp_hap_read_mult_reg(struct qpnp_hap *hap, u16 addr, u8 *val,
 				int len)
@@ -2250,30 +2247,6 @@ static int qpnp_hap_auto_mode_config(struct qpnp_hap *hap, int time_ms)
 	return 0;
 }
 
-void qpnp_disable_haptics(bool disable)
-{
-	unsigned long flags;
-
- 	spin_lock_irqsave(&disable_lock, flags);
-	if (disable)
-		disable_haptics_refcnt++;
-	else if (disable_haptics_refcnt > 0)
-		disable_haptics_refcnt--;
-	spin_unlock_irqrestore(&disable_lock, flags);
-}
-
- bool is_haptics_disabled(void)
-{
-	unsigned long flags;
-	bool disable;
-
- 	spin_lock_irqsave(&disable_lock, flags);
-	disable = disable_haptics_refcnt;
-	spin_unlock_irqrestore(&disable_lock, flags);
-
- 	return disable;
-}
-
 static void qpnp_timed_enable_worker(struct work_struct *work)
 {
 	struct qpnp_hap *hap = container_of(work, struct qpnp_hap,
@@ -2287,11 +2260,7 @@ static void qpnp_timed_enable_worker(struct work_struct *work)
 	if (time_ms < 0)
 		return;
 
-	if (is_haptics_disabled())
-		return;
-
 	flush_work(&hap->work);
-
 	mutex_lock(&hap->lock);
 
 	if (time_ms == 0) {
