@@ -437,8 +437,7 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align,
 				bitmap_maxno, start, bitmap_count, mask,
 				offset);
 		if (bitmap_no >= bitmap_maxno) {
-			if ((retry_after_sleep < 2) &&
-						(ret == -EBUSY)) {
+			if (retry_after_sleep < 2) {
 				start = 0;
 				/*
 				* Page may be momentarily pinned by some other
