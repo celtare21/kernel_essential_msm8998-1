@@ -137,7 +137,6 @@ config ARM64
 	select OF_RESERVED_MEM
 	select POWER_RESET
 	select POWER_SUPPLY
-	select RTC_LIB
 	select SPARSE_IRQ
 	select SYSCTL_EXCEPTION_TRACE
 	select HAVE_CONTEXT_TRACKING
@@ -1292,6 +1291,10 @@ config KUSER_HELPERS
 config SYSVIPC_COMPAT
 	def_bool y
 	depends on COMPAT && SYSVIPC
+
+config KEYS_COMPAT
+        def_bool y
+        depends on COMPAT && KEYS
 
 config COMPAT_VDSO
 	bool "32-bit vDSO"
