@@ -38,6 +38,9 @@
 #define HBTP_INPUT_NAME			"hbtp_input"
 #define DISP_COORDS_SIZE		2
 
+#undef  HBTP_MAX_FINGER
+#define HBTP_MAX_FINGER 10
+
 #define HBTP_PINCTRL_VALID_STATE_CNT		(2)
 #define HBTP_HOLD_DURATION_US			(10)
 #define HBTP_PINCTRL_DDIC_SEQ_NUM		(4)
@@ -332,45 +335,13 @@ static int hbtp_input_report_events(struct hbtp_data *hbtp_data,
 			input_mt_report_slot_state(hbtp_data->input_dev,
 					MT_TOOL_FINGER, tch->active);
 
-			if (tch->active) {
-				input_report_abs(hbtp_data->input_dev,
-						ABS_MT_TOOL_TYPE,
-						tch->tool);
-				input_report_abs(hbtp_data->input_dev,
-						ABS_MT_TOUCH_MAJOR,
-						tch->major);
-				input_report_abs(hbtp_data->input_dev,
-						ABS_MT_TOUCH_MINOR,
-						tch->minor);
-				input_report_abs(hbtp_data->input_dev,
-						ABS_MT_ORIENTATION,
-						tch->orientation);
+			if (likely(tch->active)) {
 				input_report_abs(hbtp_data->input_dev,
 						ABS_MT_PRESSURE,
-						tch->pressure);
-				/*
-				 * Scale up/down the X-coordinate as per
-				 * DT property
-				 */
-				if (hbtp_data->use_scaling &&
-						hbtp_data->def_maxx > 0 &&
-						hbtp_data->des_maxx > 0)
-					tch->x = (tch->x * hbtp_data->des_maxx)
-							/ hbtp_data->def_maxx;
-
+						200);
 				input_report_abs(hbtp_data->input_dev,
 						ABS_MT_POSITION_X,
 						tch->x);
-				/*
-				 * Scale up/down the Y-coordinate as per
-				 * DT property
-				 */
-				if (hbtp_data->use_scaling &&
-						hbtp_data->def_maxy > 0 &&
-						hbtp_data->des_maxy > 0)
-					tch->y = (tch->y * hbtp_data->des_maxy)
-							/ hbtp_data->def_maxy;
-
 				input_report_abs(hbtp_data->input_dev,
 						ABS_MT_POSITION_Y,
 						tch->y);
