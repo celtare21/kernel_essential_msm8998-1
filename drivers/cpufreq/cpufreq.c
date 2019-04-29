@@ -2395,7 +2395,7 @@ static int cpufreq_set_policy(struct cpufreq_policy *policy,
 	if (cpumask_test_cpu(new_policy->cpu, cpu_lp_mask))
 		cpufreq_verify_within_limits(new_policy, 518400, new_policy->max);
 	else
-		cpufreq_verify_within_limits(new_policy, 806400, new_policy->max);
+		cpufreq_verify_within_limits(new_policy, 806400, 2457600);
 
 	/* notification of the new policy */
 	blocking_notifier_call_chain(&cpufreq_policy_notifier_list,
