@@ -74,7 +74,6 @@
 #include <linux/ptrace.h>
 #include <linux/tracehook.h>
 #include <linux/printk.h>
-#include <linux/cache.h>
 #include <linux/cgroup.h>
 #include <linux/cpuset.h>
 #include <linux/audit.h>
@@ -219,10 +218,9 @@ static ssize_t proc_pid_cmdline_read(struct file *file, char __user *buf,
 	if (!tsk)
 		return -ESRCH;
 	mm = get_task_mm(tsk);
-	if (!mm) {
-		rv = 0;
-		goto out_put_task;
-	}
+	put_task_struct(tsk);
+	if (!mm)
+		return 0;
 	/* Check if process spawned far enough to have cmdline. */
 	if (!mm->env_end) {
 		rv = 0;
@@ -395,23 +393,8 @@ out_free_page:
 	free_page((unsigned long)page);
 out_mmput:
 	mmput(mm);
-out_put_task:
-	/*
-	 * Some userland tools use empty cmdline to distinguish kthreads.
-	 * Avoid empty cmdline for user tasks by returning tsk->comm with
-	 * \0 termination when empty.
-	 */
-	if (*pos == 0 && rv == 0 && !(tsk->flags & PF_KTHREAD)) {
-		char tcomm[TASK_COMM_LEN];
-
-		get_task_comm(tcomm, tsk);
-		rv = min(strlen(tcomm) + 1, count);
-		if (copy_to_user(buf, tsk->comm, rv))
-			rv = -EFAULT;
-	}
 	if (rv > 0)
 		*pos += rv;
-	put_task_struct(tsk);
 	return rv;
 }
 
@@ -448,17 +431,14 @@ static int proc_pid_wchan(struct seq_file *m, struct pid_namespace *ns,
 	unsigned long wchan;
 	char symname[KSYM_NAME_LEN];
 
-	if (!ptrace_may_access(task, PTRACE_MODE_READ_FSCREDS))
-		goto print0;
-
 	wchan = get_wchan(task);
-	if (wchan && !lookup_symbol_name(wchan, symname)) {
-		seq_puts(m, symname);
-		return 0;
-	}
 
-print0:
-	seq_putc(m, '0');
+	if (wchan && ptrace_may_access(task, PTRACE_MODE_READ_FSCREDS)
+			&& !lookup_symbol_name(wchan, symname))
+		seq_printf(m, "%s", symname);
+	else
+		seq_putc(m, '0');
+
 	return 0;
 }
 #endif /* CONFIG_KALLSYMS */
@@ -1535,8 +1515,9 @@ static int comm_show(struct seq_file *m, void *v)
 	if (!p)
 		return -ESRCH;
 
-	proc_task_name(m, p, false);
-	seq_putc(m, '\n');
+	task_lock(p);
+	seq_printf(m, "%s\n", p->comm);
+	task_unlock(p);
 
 	put_task_struct(p);
 
@@ -1847,8 +1828,6 @@ static int dname_to_vma_addr(struct dentry *dentry,
 	unsigned long long sval, eval;
 	unsigned int len;
 
-	if (str[0] == '0' && str[1] != '-')
-		return -EINVAL;
 	len = _parse_integer(str, 16, &sval);
 	if (len & KSTRTOX_OVERFLOW)
 		return -EINVAL;
@@ -1860,8 +1839,6 @@ static int dname_to_vma_addr(struct dentry *dentry,
 		return -EINVAL;
 	str++;
 
-	if (str[0] == '0' && str[1])
-		return -EINVAL;
 	len = _parse_integer(str, 16, &eval);
 	if (len & KSTRTOX_OVERFLOW)
 		return -EINVAL;
@@ -2157,7 +2134,6 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
 		}
 	}
 	up_read(&mm->mmap_sem);
-	mmput(mm);
 
 	for (i = 0; i < nr_files; i++) {
 		p = flex_array_get(fa, i);
@@ -2171,6 +2147,7 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
 	}
 	if (fa)
 		flex_array_free(fa);
+	mmput(mm);
 
 out_put_task:
 	put_task_struct(task);

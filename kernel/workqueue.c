@@ -66,7 +66,7 @@ enum {
 	 * be executing on any CPU.  The pool behaves as an unbound one.
 	 *
 	 * Note that DISASSOCIATED should be flipped only while holding
-	 * wq_pool_attach_mutex to avoid changing binding state while
+	 * attach_mutex to avoid changing binding state while
 	 * worker_attach_to_pool() is in progress.
 	 */
 	POOL_MANAGER_ACTIVE	= 1 << 0,	/* being managed */
@@ -123,7 +123,7 @@ enum {
  *    cpu or grabbing pool->lock is enough for read access.  If
  *    POOL_DISASSOCIATED is set, it's identical to L.
  *
- * A: wq_pool_attach_mutex protected.
+ * A: pool->attach_mutex protected.
  *
  * PL: wq_pool_mutex protected.
  *
@@ -168,6 +168,7 @@ struct worker_pool {
 
 	/* see manage_workers() for details on the two manager mutexes */
 	struct worker		*manager;	/* L: purely informational */
+	struct mutex		attach_mutex;	/* attach/detach exclusion */
 	struct list_head	workers;	/* A: attached workers */
 	struct completion	*detach_completion; /* all workers detached */
 
@@ -296,7 +297,6 @@ static bool wq_numa_enabled;		/* unbound NUMA affinity enabled */
 static struct workqueue_attrs *wq_update_unbound_numa_attrs_buf;
 
 static DEFINE_MUTEX(wq_pool_mutex);	/* protects pools and workqueues list */
-static DEFINE_MUTEX(wq_pool_attach_mutex); /* protects worker attach/detach */
 static DEFINE_SPINLOCK(wq_mayday_lock);	/* protects wq->maydays list */
 static DECLARE_WAIT_QUEUE_HEAD(wq_manager_wait); /* wait for manager to go away */
 
@@ -387,14 +387,14 @@ static void workqueue_sysfs_unregister(struct workqueue_struct *wq);
  * @worker: iteration cursor
  * @pool: worker_pool to iterate workers of
  *
- * This must be called with wq_pool_attach_mutex.
+ * This must be called with @pool->attach_mutex.
  *
  * The if/else clause exists only for the lockdep assertion and can be
  * ignored.
  */
 #define for_each_pool_worker(worker, pool)				\
 	list_for_each_entry((worker), &(pool)->workers, node)		\
-		if (({ lockdep_assert_held(&wq_pool_attach_mutex); false; })) { } \
+		if (({ lockdep_assert_held(&pool->attach_mutex); false; })) { } \
 		else
 
 /**
@@ -1678,7 +1678,7 @@ static struct worker *alloc_worker(int node)
 static void worker_attach_to_pool(struct worker *worker,
 				   struct worker_pool *pool)
 {
-	mutex_lock(&wq_pool_attach_mutex);
+	mutex_lock(&pool->attach_mutex);
 
 	/*
 	 * set_cpus_allowed_ptr() will fail if the cpumask doesn't have any
@@ -1687,40 +1687,37 @@ static void worker_attach_to_pool(struct worker *worker,
 	set_cpus_allowed_ptr(worker->task, pool->attrs->cpumask);
 
 	/*
-	 * The wq_pool_attach_mutex ensures %POOL_DISASSOCIATED remains
-	 * stable across this function.  See the comments above the flag
-	 * definition for details.
+	 * The pool->attach_mutex ensures %POOL_DISASSOCIATED remains
+	 * stable across this function.  See the comments above the
+	 * flag definition for details.
 	 */
 	if (pool->flags & POOL_DISASSOCIATED)
 		worker->flags |= WORKER_UNBOUND;
 
 	list_add_tail(&worker->node, &pool->workers);
-	worker->pool = pool;
 
-	mutex_unlock(&wq_pool_attach_mutex);
+	mutex_unlock(&pool->attach_mutex);
 }
 
 /**
  * worker_detach_from_pool() - detach a worker from its pool
  * @worker: worker which is attached to its pool
+ * @pool: the pool @worker is attached to
  *
  * Undo the attaching which had been done in worker_attach_to_pool().  The
  * caller worker shouldn't access to the pool after detached except it has
  * other reference to the pool.
  */
-static void worker_detach_from_pool(struct worker *worker)
+static void worker_detach_from_pool(struct worker *worker,
+				    struct worker_pool *pool)
 {
-	struct worker_pool *pool = worker->pool;
 	struct completion *detach_completion = NULL;
 
-	mutex_lock(&wq_pool_attach_mutex);
-
+	mutex_lock(&pool->attach_mutex);
 	list_del(&worker->node);
-	worker->pool = NULL;
-
 	if (list_empty(&pool->workers))
 		detach_completion = pool->detach_completion;
-	mutex_unlock(&wq_pool_attach_mutex);
+	mutex_unlock(&pool->attach_mutex);
 
 	/* clear leftover flags without pool->lock after it is detached */
 	worker->flags &= ~(WORKER_UNBOUND | WORKER_REBOUND);
@@ -1756,6 +1753,7 @@ static struct worker *create_worker(struct worker_pool *pool)
 	if (!worker)
 		goto fail;
 
+	worker->pool = pool;
 	worker->id = id;
 
 	if (pool->cpu >= 0)
@@ -2042,12 +2040,6 @@ __acquires(&pool->lock)
 	worker->current_pwq = pwq;
 	work_color = get_work_color(work);
 
-	/*
-	 * Record wq name for cmdline and debug reporting, may get
-	 * overridden through set_worker_desc().
-	 */
-	strscpy(worker->desc, pwq->wq->name, WORKER_DESC_LEN);
-
 	list_del_init(&work->entry);
 
 	/*
@@ -2121,6 +2113,7 @@ __acquires(&pool->lock)
 	worker->current_work = NULL;
 	worker->current_func = NULL;
 	worker->current_pwq = NULL;
+	worker->desc_valid = false;
 	pwq_dec_nr_in_flight(pwq, work_color);
 }
 
@@ -2175,7 +2168,7 @@ woke_up:
 
 		set_task_comm(worker->task, "kworker/dying");
 		ida_simple_remove(&pool->worker_ida, worker->id);
-		worker_detach_from_pool(worker);
+		worker_detach_from_pool(worker, pool);
 		kfree(worker);
 		return 0;
 	}
@@ -2306,6 +2299,7 @@ repeat:
 		worker_attach_to_pool(rescuer, pool);
 
 		spin_lock_irq(&pool->lock);
+		rescuer->pool = pool;
 
 		/*
 		 * Slurp in all works issued via this workqueue and
@@ -2355,9 +2349,10 @@ repeat:
 		if (need_more_worker(pool))
 			wake_up_worker(pool);
 
+		rescuer->pool = NULL;
 		spin_unlock_irq(&pool->lock);
 
-		worker_detach_from_pool(rescuer);
+		worker_detach_from_pool(rescuer, pool);
 
 		spin_lock_irq(&wq_mayday_lock);
 	}
@@ -3141,6 +3136,7 @@ static int init_worker_pool(struct worker_pool *pool)
 	setup_timer(&pool->mayday_timer, pool_mayday_timeout,
 		    (unsigned long)pool);
 
+	mutex_init(&pool->attach_mutex);
 	INIT_LIST_HEAD(&pool->workers);
 
 	ida_init(&pool->worker_ida);
@@ -3223,10 +3219,10 @@ static void put_unbound_pool(struct worker_pool *pool)
 	WARN_ON(pool->nr_workers || pool->nr_idle);
 	spin_unlock_irq(&pool->lock);
 
-	mutex_lock(&wq_pool_attach_mutex);
+	mutex_lock(&pool->attach_mutex);
 	if (!list_empty(&pool->workers))
 		pool->detach_completion = &detach_completion;
-	mutex_unlock(&wq_pool_attach_mutex);
+	mutex_unlock(&pool->attach_mutex);
 
 	if (pool->detach_completion)
 		wait_for_completion(pool->detach_completion);
@@ -4197,6 +4193,7 @@ void set_worker_desc(const char *fmt, ...)
 		va_start(args, fmt);
 		vsnprintf(worker->desc, sizeof(worker->desc), fmt, args);
 		va_end(args);
+		worker->desc_valid = true;
 	}
 }
 
@@ -4220,6 +4217,7 @@ void print_worker_info(const char *log_lvl, struct task_struct *task)
 	char desc[WORKER_DESC_LEN] = { };
 	struct pool_workqueue *pwq = NULL;
 	struct workqueue_struct *wq = NULL;
+	bool desc_valid = false;
 	struct worker *worker;
 
 	if (!(task->flags & PF_WQ_WORKER))
@@ -4232,18 +4230,22 @@ void print_worker_info(const char *log_lvl, struct task_struct *task)
 	worker = kthread_probe_data(task);
 
 	/*
-	 * Carefully copy the associated workqueue's workfn, name and desc.
-	 * Keep the original last '\0' in case the original is garbage.
+	 * Carefully copy the associated workqueue's workfn and name.  Keep
+	 * the original last '\0' in case the original contains garbage.
 	 */
 	probe_kernel_read(&fn, &worker->current_func, sizeof(fn));
 	probe_kernel_read(&pwq, &worker->current_pwq, sizeof(pwq));
 	probe_kernel_read(&wq, &pwq->wq, sizeof(wq));
 	probe_kernel_read(name, wq->name, sizeof(name) - 1);
-	probe_kernel_read(desc, worker->desc, sizeof(desc) - 1);
+
+	/* copy worker description */
+	probe_kernel_read(&desc_valid, &worker->desc_valid, sizeof(desc_valid));
+	if (desc_valid)
+		probe_kernel_read(desc, worker->desc, sizeof(desc) - 1);
 
 	if (fn || name[0] || desc[0]) {
 		printk("%sWorkqueue: %s %pf", log_lvl, name, fn);
-		if (strcmp(name, desc))
+		if (desc[0])
 			pr_cont(" (%s)", desc);
 		pr_cont("\n");
 	}
@@ -4411,45 +4413,6 @@ void show_workqueue_state(void)
 	rcu_read_unlock_sched();
 }
 
-/* used to show worker information through /proc/PID/{comm,stat,status} */
-void wq_worker_comm(char *buf, size_t size, struct task_struct *task)
-{
-	struct worker *worker;
-	struct worker_pool *pool;
-	int off;
-
-	/* always show the actual comm */
-	off = strscpy(buf, task->comm, size);
-	if (off < 0)
-		return;
-
-	/* stabilize worker pool association */
-	mutex_lock(&wq_pool_attach_mutex);
-
-	worker = kthread_data(task);
-	pool = worker->pool;
-
-	if (pool) {
-		spin_lock_irq(&pool->lock);
-		/*
-		 * ->desc tracks information (wq name or set_worker_desc())
-		 * for the latest execution.  If current, prepend '+',
-		 * otherwise '-'.
-		 */
-		if (worker->desc[0] != '\0') {
-			if (worker->current_work)
-				scnprintf(buf + off, size - off, "+%s",
-					  worker->desc);
-			else
-				scnprintf(buf + off, size - off, "-%s",
-					  worker->desc);
-		}
-		spin_unlock_irq(&pool->lock);
-	}
-
-	mutex_unlock(&wq_pool_attach_mutex);
-}
-
 /*
  * CPU hotplug.
  *
@@ -4472,7 +4435,7 @@ static void wq_unbind_fn(struct work_struct *work)
 	struct worker *worker;
 
 	for_each_cpu_worker_pool(pool, cpu) {
-		mutex_lock(&wq_pool_attach_mutex);
+		mutex_lock(&pool->attach_mutex);
 		spin_lock_irq(&pool->lock);
 
 		/*
@@ -4488,7 +4451,7 @@ static void wq_unbind_fn(struct work_struct *work)
 		pool->flags |= POOL_DISASSOCIATED;
 
 		spin_unlock_irq(&pool->lock);
-		mutex_unlock(&wq_pool_attach_mutex);
+		mutex_unlock(&pool->attach_mutex);
 
 		/*
 		 * Call schedule() so that we cross rq->lock and thus can
@@ -4529,7 +4492,7 @@ static void rebind_workers(struct worker_pool *pool)
 {
 	struct worker *worker;
 
-	lockdep_assert_held(&wq_pool_attach_mutex);
+	lockdep_assert_held(&pool->attach_mutex);
 
 	/*
 	 * Restore CPU affinity of all workers.  As all idle workers should
@@ -4609,7 +4572,7 @@ static void restore_unbound_workers_cpumask(struct worker_pool *pool, int cpu)
 	static cpumask_t cpumask;
 	struct worker *worker;
 
-	lockdep_assert_held(&wq_pool_attach_mutex);
+	lockdep_assert_held(&pool->attach_mutex);
 
 	/* is @cpu allowed for @pool? */
 	if (!cpumask_test_cpu(cpu, pool->attrs->cpumask))
@@ -4654,14 +4617,14 @@ static int workqueue_cpu_up_callback(struct notifier_block *nfb,
 		mutex_lock(&wq_pool_mutex);
 
 		for_each_pool(pool, pi) {
-			mutex_lock(&wq_pool_attach_mutex);
+			mutex_lock(&pool->attach_mutex);
 
 			if (pool->cpu == cpu)
 				rebind_workers(pool);
 			else if (pool->cpu < 0)
 				restore_unbound_workers_cpumask(pool, cpu);
 
-	                mutex_unlock(&wq_pool_attach_mutex);
+			mutex_unlock(&pool->attach_mutex);
 		}
 
 		/* update NUMA affinity of unbound workqueues */
