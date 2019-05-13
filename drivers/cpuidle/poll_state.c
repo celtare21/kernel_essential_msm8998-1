@@ -36,7 +36,7 @@ static int __cpuidle poll_idle(struct cpuidle_device *dev,
 	return index;
 }
 
-void cpuidle_poll_state_init(struct cpuidle_driver *drv)
+void poll_idle_init(struct cpuidle_driver *drv)
 {
 	struct cpuidle_state *state = &drv->states[0];
 
@@ -49,4 +49,3 @@ void cpuidle_poll_state_init(struct cpuidle_driver *drv)
 	state->disabled = false;
 	state->flags = CPUIDLE_FLAG_POLLING;
 }
-EXPORT_SYMBOL_GPL(cpuidle_poll_state_init);
