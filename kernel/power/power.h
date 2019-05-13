@@ -175,15 +175,11 @@ extern void swsusp_show_speed(ktime_t, ktime_t, unsigned int, char *);
 
 #ifdef CONFIG_SUSPEND
 /* kernel/power/suspend.c */
-extern const char * const pm_labels[];
+extern const char *pm_labels[];
 extern const char *pm_states[];
-extern const char *mem_sleep_states[];
-extern suspend_state_t mem_sleep_current;
 
 extern int suspend_devices_and_enter(suspend_state_t state);
 #else /* !CONFIG_SUSPEND */
-#define mem_sleep_current	PM_SUSPEND_ON
-
 static inline int suspend_devices_and_enter(suspend_state_t state)
 {
 	return -ENOSYS;
@@ -231,11 +227,7 @@ enum {
 #define TEST_FIRST	TEST_NONE
 #define TEST_MAX	(__TEST_AFTER_LAST - 1)
 
-#ifdef CONFIG_PM_DEBUG
 extern int pm_test_level;
-#else
-#define pm_test_level	(TEST_NONE)
-#endif
 
 #ifdef CONFIG_SUSPEND_FREEZER
 static inline int suspend_freeze_processes(void)

@@ -190,8 +190,6 @@ struct platform_suspend_ops {
 struct platform_freeze_ops {
 	int (*begin)(void);
 	int (*prepare)(void);
-	void (*wake)(void);
-	void (*sync)(void);
 	void (*restore)(void);
 	void (*end)(void);
 };
@@ -248,7 +246,6 @@ static inline bool idle_should_freeze(void)
 	return unlikely(suspend_freeze_state == FREEZE_STATE_ENTER);
 }
 
-extern void __init pm_states_init(void);
 extern void freeze_set_ops(const struct platform_freeze_ops *ops);
 extern void freeze_wake(void);
 
@@ -283,7 +280,6 @@ static inline bool pm_resume_via_firmware(void) { return false; }
 static inline void suspend_set_ops(const struct platform_suspend_ops *ops) {}
 static inline int pm_suspend(suspend_state_t state) { return -ENOSYS; }
 static inline bool idle_should_freeze(void) { return false; }
-static inline void __init pm_states_init(void) {}
 static inline void freeze_set_ops(const struct platform_freeze_ops *ops) {}
 static inline void freeze_wake(void) {}
 #endif /* !CONFIG_SUSPEND */
@@ -411,7 +407,7 @@ static inline bool hibernation_available(void) { return false; }
 #define PM_RESTORE_PREPARE	0x0005 /* Going to restore a saved image */
 #define PM_POST_RESTORE		0x0006 /* Restore failed */
 
-extern struct mutex system_transition_mutex;
+extern struct mutex pm_mutex;
 
 #ifdef CONFIG_PM_SLEEP
 void save_processor_state(void);
@@ -430,12 +426,10 @@ extern int unregister_pm_notifier(struct notifier_block *nb);
 /* drivers/base/power/wakeup.c */
 extern bool events_check_enabled;
 extern unsigned int pm_wakeup_irq;
-extern suspend_state_t pm_suspend_target_state;
 
 extern bool pm_wakeup_pending(void);
 extern void pm_system_wakeup(void);
-extern void pm_system_cancel_wakeup(void);
-extern void pm_wakeup_clear(bool reset);
+extern void pm_wakeup_clear(void);
 extern void pm_system_irq_wakeup(unsigned int irq_number);
 extern bool pm_get_wakeup_count(unsigned int *count, bool block);
 extern bool pm_save_wakeup_count(unsigned int count);
@@ -462,7 +456,7 @@ static inline int unregister_pm_notifier(struct notifier_block *nb)
 
 static inline bool pm_wakeup_pending(void) { return false; }
 static inline void pm_system_wakeup(void) {}
-static inline void pm_wakeup_clear(bool reset) {}
+static inline void pm_wakeup_clear(void) {}
 static inline void pm_system_irq_wakeup(unsigned int irq_number) {}
 
 static inline void lock_system_sleep(void) {}

@@ -797,7 +797,7 @@ static struct irq_chip msm_gpio_irq_chip = {
 	.irq_set_wake   = msm_gpio_irq_set_wake,
 };
 
-static bool msm_gpio_irq_handler(struct irq_desc *desc)
+static void msm_gpio_irq_handler(struct irq_desc *desc)
 {
 	struct gpio_chip *gc = irq_desc_get_handler_data(desc);
 	const struct msm_pingroup *g;
@@ -807,7 +807,6 @@ static bool msm_gpio_irq_handler(struct irq_desc *desc)
 	int handled = 0;
 	u32 val;
 	int i;
-	bool ret;
 
 	chained_irq_enter(chip, desc);
 
@@ -825,13 +824,11 @@ static bool msm_gpio_irq_handler(struct irq_desc *desc)
 		}
 	}
 
-	ret = (handled != 0);
 	/* No interrupts were flagged */
 	if (handled == 0)
-		ret = handle_bad_irq(desc);
+		handle_bad_irq(desc);
 
 	chained_irq_exit(chip, desc);
-	return ret;
 }
 
 /*
