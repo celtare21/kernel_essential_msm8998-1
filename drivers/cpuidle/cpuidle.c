@@ -34,6 +34,7 @@ LIST_HEAD(cpuidle_detected_devices);
 static int enabled_devices;
 static int off __read_mostly;
 static int initialized __read_mostly;
+static atomic_t idle_cpus = ATOMIC_INIT(0);
 
 int cpuidle_disabled(void)
 {
@@ -199,7 +200,9 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 	time_start = ktime_get();
 
 	stop_critical_timings();
+	atomic_or(BIT(dev->cpu), &idle_cpus);
 	entered_state = target_state->enter(dev, drv, index);
+	atomic_andnot(BIT(dev->cpu), &idle_cpus);
 	start_critical_timings();
 
 	time_end = ktime_get();
@@ -644,12 +647,14 @@ static int cpuidle_latency_notify(struct notifier_block *b,
 		unsigned long l, void *v)
 {
 	static unsigned long prev_latency = ULONG_MAX;
-	struct cpumask cpus;
 
 	if (l < prev_latency) {
-		cpumask_andnot(&cpus, cpu_online_mask, cpu_isolated_mask);
+		const unsigned long cpus = atomic_read(&idle_cpus);
+		struct cpumask *idle_mask = to_cpumask(&cpus);
+
+		cpumask_andnot(idle_mask, idle_mask, cpu_isolated_mask);
 		preempt_disable();
-		smp_call_function_many(&cpus, smp_callback, NULL, false);
+		smp_call_function_many(idle_mask, smp_callback, NULL, false);
 		preempt_enable();
 	}
 
@@ -680,6 +685,7 @@ static int __init cpuidle_init(void)
 {
 	int ret;
 
+	BUILD_BUG_ON(NR_CPUS > sizeof(idle_cpus.counter) * BITS_PER_BYTE);
 	if (cpuidle_disabled())
 		return -ENODEV;
 
