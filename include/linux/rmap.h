@@ -152,30 +152,16 @@ static inline void anon_vma_merge(struct vm_area_struct *vma,
 
 struct anon_vma *page_get_anon_vma(struct page *page);
 
-/* bitflags for do_page_add_anon_rmap() */
-#define RMAP_EXCLUSIVE 0x01
-#define RMAP_COMPOUND 0x02
-
 /*
  * rmap interfaces called when adding or removing pte of page
  */
 void page_move_anon_rmap(struct page *, struct vm_area_struct *, unsigned long);
-void page_add_anon_rmap(struct page *, struct vm_area_struct *,
-		unsigned long, bool);
+void page_add_anon_rmap(struct page *, struct vm_area_struct *, unsigned long);
 void do_page_add_anon_rmap(struct page *, struct vm_area_struct *,
 			   unsigned long, int);
-void __page_add_new_anon_rmap(struct page *page, struct vm_area_struct *vma,
-			      unsigned long address, bool compound);
-static inline void page_add_new_anon_rmap(struct page *page,
-					  struct vm_area_struct *vma,
-					  unsigned long address, bool compound)
-{
-	VM_BUG_ON_VMA(address < vma->vm_start || address >= vma->vm_end, vma);
-	__page_add_new_anon_rmap(page, vma, address, compound);
-}
-
+void page_add_new_anon_rmap(struct page *, struct vm_area_struct *, unsigned long);
 void page_add_file_rmap(struct page *);
-void page_remove_rmap(struct page *, bool);
+void page_remove_rmap(struct page *);
 
 void hugepage_add_anon_rmap(struct page *, struct vm_area_struct *,
 			    unsigned long);

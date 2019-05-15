@@ -539,7 +539,7 @@ static void do_fault(struct work_struct *work)
 		goto out;
 	}
 
-	ret = handle_mm_fault(vma, address, write);
+	ret = handle_mm_fault(mm, vma, address, write);
 	if (ret & VM_FAULT_ERROR) {
 		/* failed to service fault */
 		up_read(&mm->mmap_sem);

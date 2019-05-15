@@ -235,13 +235,13 @@ static int remove_migration_pte(struct page *new, struct vm_area_struct *vma,
 		goto unlock;
 
 	get_page(new);
-	pte = pte_mkold(mk_pte(new, READ_ONCE(vma->vm_page_prot)));
+	pte = pte_mkold(mk_pte(new, vma->vm_page_prot));
 	if (pte_swp_soft_dirty(*ptep))
 		pte = pte_mksoft_dirty(pte);
 
 	/* Recheck VMA as permissions can change since migration started  */
 	if (is_write_migration_entry(entry))
-		pte = maybe_mkwrite(pte, vma->vm_flags);
+		pte = maybe_mkwrite(pte, vma);
 
 #ifdef CONFIG_HUGETLB_PAGE
 	if (PageHuge(new)) {
@@ -258,7 +258,7 @@ static int remove_migration_pte(struct page *new, struct vm_area_struct *vma,
 		else
 			page_dup_rmap(new);
 	} else if (PageAnon(new))
-		page_add_anon_rmap(new, vma, addr, false);
+		page_add_anon_rmap(new, vma, addr);
 	else
 		page_add_file_rmap(new);
 
@@ -420,7 +420,7 @@ int migrate_page_move_mapping(struct address_space *mapping,
 		newpage->index = page->index;
 		newpage->mapping = page->mapping;
 		if (PageSwapBacked(page))
-			__SetPageSwapBacked(newpage);
+			SetPageSwapBacked(newpage);
 
 		return MIGRATEPAGE_SUCCESS;
 	}
@@ -467,7 +467,7 @@ int migrate_page_move_mapping(struct address_space *mapping,
 	newpage->index = page->index;
 	newpage->mapping = page->mapping;
 	if (PageSwapBacked(page))
-		__SetPageSwapBacked(newpage);
+		SetPageSwapBacked(newpage);
 
 	get_page(newpage);	/* add cache reference */
 	if (PageSwapCache(page)) {
@@ -1852,7 +1852,7 @@ bool pmd_trans_migrating(pmd_t pmd)
  * node. Caller is expected to have an elevated reference count on
  * the page that will be dropped by this function before returning.
  */
-int migrate_misplaced_page(struct page *page, struct fault_env *fe,
+int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
 			   int node)
 {
 	pg_data_t *pgdat = NODE_DATA(node);
@@ -1865,7 +1865,7 @@ int migrate_misplaced_page(struct page *page, struct fault_env *fe,
 	 * with execute permissions as they are probably shared libraries.
 	 */
 	if (page_mapcount(page) != 1 && page_is_file_cache(page) &&
-	    (fe->vma_flags & VM_EXEC))
+	    (vma->vm_flags & VM_EXEC))
 		goto out;
 
 	/*
@@ -1947,8 +1947,8 @@ int migrate_misplaced_transhuge_page(struct mm_struct *mm,
 		flush_tlb_range(vma, mmun_start, mmun_end);
 
 	/* Prepare a page as a migration target */
-	__SetPageLocked(new_page);
-	__SetPageSwapBacked(new_page);
+	__set_page_locked(new_page);
+	SetPageSwapBacked(new_page);
 
 	/* anon mapping, we can simply copy page->mapping to the new page: */
 	new_page->mapping = page->mapping;
@@ -1983,7 +1983,8 @@ fail_putback:
 	}
 
 	orig_entry = *pmd;
-	entry = mk_huge_pmd(new_page, vma->vm_page_prot);
+	entry = mk_pmd(new_page, vma->vm_page_prot);
+	entry = pmd_mkhuge(entry);
 	entry = maybe_pmd_mkwrite(pmd_mkdirty(entry), vma);
 
 	/*
@@ -1994,7 +1995,7 @@ fail_putback:
 	 * guarantee the copy is visible before the pagetable update.
 	 */
 	flush_cache_range(vma, mmun_start, mmun_end);
-	page_add_anon_rmap(new_page, vma, mmun_start, true);
+	page_add_anon_rmap(new_page, vma, mmun_start);
 	pmdp_huge_clear_flush_notify(vma, mmun_start, pmd);
 	set_pmd_at(mm, mmun_start, pmd, entry);
 	flush_tlb_range(vma, mmun_start, mmun_end);
@@ -2005,14 +2006,14 @@ fail_putback:
 		flush_tlb_range(vma, mmun_start, mmun_end);
 		mmu_notifier_invalidate_range(mm, mmun_start, mmun_end);
 		update_mmu_cache_pmd(vma, address, &entry);
-		page_remove_rmap(new_page, true);
+		page_remove_rmap(new_page);
 		goto fail_putback;
 	}
 
 	mlock_migrate_page(new_page, page);
 	set_page_memcg(new_page, page_memcg(page));
 	set_page_memcg(page, NULL);
-        page_remove_rmap(page, true);
+	page_remove_rmap(page);
 	set_page_owner_migrate_reason(new_page, MR_NUMA_MISPLACED);
 
 	spin_unlock(ptl);

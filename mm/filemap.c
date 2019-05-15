@@ -46,8 +46,6 @@
 
 #include <asm/mman.h>
 
-int want_old_faultaround_pte = 1;
-
 /*
  * Shared mappings implemented 30.11.1994. It's not fully working yet,
  * though.
@@ -617,7 +615,7 @@ static int __add_to_page_cache_locked(struct page *page,
 
 	if (!huge) {
 		error = mem_cgroup_try_charge(page, current->mm,
-					      gfp_mask, &memcg, false);
+					      gfp_mask, &memcg);
 		if (error)
 			return error;
 	}
@@ -625,7 +623,7 @@ static int __add_to_page_cache_locked(struct page *page,
 	error = radix_tree_maybe_preload(gfp_mask & GFP_RECLAIM_MASK);
 	if (error) {
 		if (!huge)
-			mem_cgroup_cancel_charge(page, memcg, false);
+			mem_cgroup_cancel_charge(page, memcg);
 		return error;
 	}
 
@@ -644,7 +642,7 @@ static int __add_to_page_cache_locked(struct page *page,
 		__inc_zone_page_state(page, NR_FILE_PAGES);
 	spin_unlock_irq(&mapping->tree_lock);
 	if (!huge)
-		mem_cgroup_commit_charge(page, memcg, false, false);
+		mem_cgroup_commit_charge(page, memcg, false);
 	trace_mm_filemap_add_to_page_cache(page);
 	return 0;
 err_insert:
@@ -652,7 +650,7 @@ err_insert:
 	/* Leave page->index set: truncation relies upon it */
 	spin_unlock_irq(&mapping->tree_lock);
 	if (!huge)
-                mem_cgroup_cancel_charge(page, memcg, false);
+		mem_cgroup_cancel_charge(page, memcg);
 	put_page(page);
 	return error;
 }
@@ -681,11 +679,11 @@ int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
 	void *shadow = NULL;
 	int ret;
 
-	__SetPageLocked(page);
+	__set_page_locked(page);
 	ret = __add_to_page_cache_locked(page, mapping, offset,
 					 gfp_mask, &shadow);
 	if (unlikely(ret))
-		__ClearPageLocked(page);
+		__clear_page_locked(page);
 	else {
 		/*
 		 * The page might have been evicted from cache only
@@ -806,7 +804,6 @@ EXPORT_SYMBOL_GPL(add_page_wait_queue);
  */
 void unlock_page(struct page *page)
 {
-	page = compound_head(page);
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 	clear_bit_unlock(PG_locked, &page->flags);
 	smp_mb__after_atomic();
@@ -874,20 +871,18 @@ EXPORT_SYMBOL_GPL(page_endio);
  */
 void __lock_page(struct page *page)
 {
-	struct page *page_head = compound_head(page);
-	DEFINE_WAIT_BIT(wait, &page_head->flags, PG_locked);
+	DEFINE_WAIT_BIT(wait, &page->flags, PG_locked);
 
-	__wait_on_bit_lock(page_waitqueue(page_head), &wait, bit_wait_io,
+	__wait_on_bit_lock(page_waitqueue(page), &wait, bit_wait_io,
 							TASK_UNINTERRUPTIBLE);
 }
 EXPORT_SYMBOL(__lock_page);
 
 int __lock_page_killable(struct page *page)
 {
-	struct page *page_head = compound_head(page);
-	DEFINE_WAIT_BIT(wait, &page_head->flags, PG_locked);
+	DEFINE_WAIT_BIT(wait, &page->flags, PG_locked);
 
-	return __wait_on_bit_lock(page_waitqueue(page_head), &wait,
+	return __wait_on_bit_lock(page_waitqueue(page), &wait,
 					bit_wait_io, TASK_KILLABLE);
 }
 EXPORT_SYMBOL_GPL(__lock_page_killable);
@@ -2134,21 +2129,21 @@ out_retry:
 }
 EXPORT_SYMBOL(filemap_fault);
 
-void filemap_map_pages(struct fault_env *fe,
-		pgoff_t start_pgoff, pgoff_t end_pgoff)
+void filemap_map_pages(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 	struct radix_tree_iter iter;
 	void **slot;
-	struct file *file = fe->vma->vm_file;
+	struct file *file = vma->vm_file;
 	struct address_space *mapping = file->f_mapping;
-	pgoff_t last_pgoff = start_pgoff;
 	loff_t size;
 	struct page *page;
+	unsigned long address = (unsigned long) vmf->virtual_address;
+	unsigned long addr;
+	pte_t *pte;
 
 	rcu_read_lock();
-	radix_tree_for_each_slot(slot, &mapping->page_tree, &iter,
-			start_pgoff) {
-		if (iter.index > end_pgoff)
+	radix_tree_for_each_slot(slot, &mapping->page_tree, &iter, vmf->pgoff) {
+		if (iter.index > vmf->max_pgoff)
 			break;
 repeat:
 		page = radix_tree_deref_slot(slot);
@@ -2184,23 +2179,14 @@ repeat:
 		if (page->index >= size >> PAGE_SHIFT)
 			goto unlock;
 
+		pte = vmf->pte + page->index - vmf->pgoff;
+		if (!pte_none(*pte))
+			goto unlock;
+
 		if (file->f_ra.mmap_miss > 0)
 			file->f_ra.mmap_miss--;
-
-		fe->address += (iter.index - last_pgoff) << PAGE_SHIFT;
-		if (fe->pte)
-			fe->pte += iter.index - last_pgoff;
-		last_pgoff = iter.index;
-
-		if (want_old_faultaround_pte) {
-			if (fe->address == fe->fault_address)
-				fe->flags &= ~FAULT_FLAG_PREFAULT_OLD;
-			else
-				fe->flags |= FAULT_FLAG_PREFAULT_OLD;
-		}
-
-		if (alloc_set_pte(fe, NULL, page))
-			goto unlock;
+		addr = address + (page->index - vmf->pgoff) * PAGE_SIZE;
+		do_set_pte(vma, addr, page, pte, false, false);
 		unlock_page(page);
 		goto next;
 unlock:
@@ -2208,10 +2194,7 @@ unlock:
 skip:
 		put_page(page);
 next:
-		/* Huge page is mapped? No need to proceed. */
-		if (pmd_trans_huge(*fe->pmd))
-			break;
-		if (iter.index == end_pgoff)
+		if (iter.index == vmf->max_pgoff)
 			break;
 	}
 	rcu_read_unlock();

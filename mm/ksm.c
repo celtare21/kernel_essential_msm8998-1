@@ -390,7 +390,8 @@ static int break_ksm(struct vm_area_struct *vma, unsigned long addr)
 		if (IS_ERR_OR_NULL(page))
 			break;
 		if (PageKsm(page))
-			ret = handle_mm_fault(vma, addr, FAULT_FLAG_WRITE);
+			ret = handle_mm_fault(vma->vm_mm, vma, addr,
+							FAULT_FLAG_WRITE);
 		else
 			ret = VM_FAULT_WRITE;
 		put_page(page);
@@ -976,13 +977,13 @@ static int replace_page(struct vm_area_struct *vma, struct page *page,
 	}
 
 	get_page(kpage);
-	page_add_anon_rmap(kpage, vma, addr, false);
+	page_add_anon_rmap(kpage, vma, addr);
 
 	flush_cache_page(vma, addr, pte_pfn(*ptep));
 	ptep_clear_flush_notify(vma, addr, ptep);
 	set_pte_at_notify(mm, addr, ptep, mk_pte(kpage, vma->vm_page_prot));
 
-	page_remove_rmap(page, false);
+	page_remove_rmap(page);
 	if (!page_mapped(page))
 		try_to_free_swap(page);
 	put_page(page);
@@ -1988,7 +1989,7 @@ struct page *ksm_might_need_to_copy(struct page *page,
 
 		SetPageDirty(new_page);
 		__SetPageUptodate(new_page);
-		__SetPageLocked(new_page);
+		__set_page_locked(new_page);
 	}
 
 	return new_page;

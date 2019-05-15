@@ -3428,13 +3428,13 @@ readpages_get_pages(struct address_space *mapping, struct list_head *page_list,
 	 * should have access to this page, we're safe to simply set
 	 * PG_locked without checking it first.
 	 */
-	__SetPageLocked(page);
+	__set_page_locked(page);
 	rc = add_to_page_cache_locked(page, mapping,
 				      page->index, gfp);
 
 	/* give up if we can't stick it in the cache */
 	if (rc) {
-		__ClearPageLocked(page);
+		__clear_page_locked(page);
 		return rc;
 	}
 
@@ -3455,9 +3455,9 @@ readpages_get_pages(struct address_space *mapping, struct list_head *page_list,
 		if (*bytes + PAGE_SIZE > rsize)
 			break;
 
-		__SetPageLocked(page);
+		__set_page_locked(page);
 		if (add_to_page_cache_locked(page, mapping, page->index, gfp)) {
-			__ClearPageLocked(page);
+			__clear_page_locked(page);
 			break;
 		}
 		list_move_tail(&page->lru, tmplist);

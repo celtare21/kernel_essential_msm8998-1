@@ -1270,7 +1270,7 @@ unsigned long do_mmap(struct file *file,
 	region->vm_flags = vm_flags;
 	region->vm_pgoff = pgoff;
 
-	INIT_VMA(vma);
+	INIT_LIST_HEAD(&vma->anon_vma_chain);
 	vma->vm_flags = vm_flags;
 	vma->vm_pgoff = pgoff;
 
@@ -1929,8 +1929,7 @@ int filemap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 }
 EXPORT_SYMBOL(filemap_fault);
 
-void filemap_map_pages(struct fault_env *fe,
-		pgoff_t start_pgoff, pgoff_t end_pgoff)
+void filemap_map_pages(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 	BUG();
 }

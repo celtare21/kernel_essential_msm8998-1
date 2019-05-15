@@ -128,10 +128,8 @@ success:
 	/*
 	 * vm_flags is protected by the mmap_sem held in write mode.
 	 */
+	vma->vm_flags = new_flags;
 
-	vm_write_begin(vma);
-	WRITE_ONCE(vma->vm_flags, new_flags);
-	vm_write_end(vma);
 out:
 	if (error == -ENOMEM)
 		error = -EAGAIN;

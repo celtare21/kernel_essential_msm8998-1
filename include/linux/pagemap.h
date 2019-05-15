@@ -416,8 +416,8 @@ static inline pgoff_t linear_page_index(struct vm_area_struct *vma,
 	pgoff_t pgoff;
 	if (unlikely(is_vm_hugetlb_page(vma)))
 		return linear_hugepage_index(vma, address);
-	pgoff = (address - READ_ONCE(vma->vm_start)) >> PAGE_SHIFT;
-	pgoff += READ_ONCE(vma->vm_pgoff);
+	pgoff = (address - vma->vm_start) >> PAGE_SHIFT;
+	pgoff += vma->vm_pgoff;
 	return pgoff >> 0;
 }
 
@@ -427,9 +427,18 @@ extern int __lock_page_or_retry(struct page *page, struct mm_struct *mm,
 				unsigned int flags);
 extern void unlock_page(struct page *page);
 
+static inline void __set_page_locked(struct page *page)
+{
+	__set_bit(PG_locked, &page->flags);
+}
+
+static inline void __clear_page_locked(struct page *page)
+{
+	__clear_bit(PG_locked, &page->flags);
+}
+
 static inline int trylock_page(struct page *page)
 {
-	page = compound_head(page);
 	return (likely(!test_and_set_bit_lock(PG_locked, &page->flags)));
 }
 
@@ -482,9 +491,9 @@ extern int wait_on_page_bit_killable_timeout(struct page *page,
 
 static inline int wait_on_page_locked_killable(struct page *page)
 {
-	if (!PageLocked(page))
-		return 0;
-	return wait_on_page_bit_killable(compound_head(page), PG_locked);
+	if (PageLocked(page))
+		return wait_on_page_bit_killable(page, PG_locked);
+	return 0;
 }
 
 extern wait_queue_head_t *page_waitqueue(struct page *page);
@@ -503,7 +512,7 @@ static inline void wake_up_page(struct page *page, int bit)
 static inline void wait_on_page_locked(struct page *page)
 {
 	if (PageLocked(page))
-		wait_on_page_bit(compound_head(page), PG_locked);
+		wait_on_page_bit(page, PG_locked);
 }
 
 /* 
@@ -648,17 +657,17 @@ int replace_page_cache_page(struct page *old, struct page *new, gfp_t gfp_mask);
 
 /*
  * Like add_to_page_cache_locked, but used to add newly allocated pages:
- * the page is new, so we can just run __SetPageLocked() against it.
+ * the page is new, so we can just run __set_page_locked() against it.
  */
 static inline int add_to_page_cache(struct page *page,
 		struct address_space *mapping, pgoff_t offset, gfp_t gfp_mask)
 {
 	int error;
 
-	__SetPageLocked(page);
+	__set_page_locked(page);
 	error = add_to_page_cache_locked(page, mapping, offset, gfp_mask);
 	if (unlikely(error))
-		__ClearPageLocked(page);
+		__clear_page_locked(page);
 	return error;
 }
 

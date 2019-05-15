@@ -355,8 +355,8 @@ struct page *__read_swap_cache_async(swp_entry_t entry, gfp_t gfp_mask,
 		}
 
 		/* May fail (-ENOMEM) if radix-tree node allocation failed. */
-		__SetPageLocked(new_page);
-		__SetPageSwapBacked(new_page);
+		__set_page_locked(new_page);
+		SetPageSwapBacked(new_page);
 		err = __add_to_swap_cache(new_page, entry);
 		if (likely(!err)) {
 			radix_tree_preload_end();
@@ -368,7 +368,8 @@ struct page *__read_swap_cache_async(swp_entry_t entry, gfp_t gfp_mask,
 			return new_page;
 		}
 		radix_tree_preload_end();
-		__ClearPageLocked(new_page);
+		ClearPageSwapBacked(new_page);
+		__clear_page_locked(new_page);
 		/*
 		 * add_to_swap_cache() doesn't return -EEXIST, so we can safely
 		 * clear SWAP_HAS_CACHE flag.
@@ -462,10 +463,6 @@ static unsigned long swapin_nr_pages(unsigned long offset)
  * the readahead.
  *
  * Caller must hold down_read on the vma->vm_mm if vma is not NULL.
- * This is needed to ensure the VMA will not be freed in our back. In the case
- * of the speculative page fault handler, this cannot happen, even if we don't
- * hold the mmap_sem. Callees are assumed to take care of reading VMA's fields
- * using READ_ONCE() to read consistent values.
  */
 struct page *swapin_readahead(swp_entry_t entry, gfp_t gfp_mask,
 			struct vm_area_struct *vma, unsigned long addr)
