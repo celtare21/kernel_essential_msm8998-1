@@ -42,7 +42,6 @@ config ARM64
 	select ARCH_SUPPORTS_LTO_CLANG
 	select ARCH_USE_QUEUED_SPINLOCKS
 	select ARCH_SUPPORTS_ATOMIC_RMW
-	select ARCH_SUPPORTS_NUMA_BALANCING
 	select ARCH_WANT_OPTIONAL_GPIOLIB
 	select ARCH_WANT_COMPAT_IPC_PARSE_VERSION
 	select ARCH_WANT_FRAME_POINTERS
@@ -115,7 +114,6 @@ config ARM64
 	select HAVE_HW_BREAKPOINT if PERF_EVENTS
 	select HAVE_IRQ_TIME_ACCOUNTING
 	select HAVE_MEMBLOCK
-	select HAVE_MEMBLOCK_NODE_MAP if NUMA
 	select HAVE_PATA_PLATFORM
 	select HAVE_PERF_EVENTS
 	select HAVE_PERF_REGS
@@ -143,8 +141,6 @@ config ARM64
 	select HAVE_ARM_SMCCC
 	select THREAD_INFO_IN_TASK
 	select HAVE_ARM_SMCCC
-	select OF_NUMA if NUMA && OF
-	select ARCH_SUPPORTS_SPECULATIVE_PAGE_FAULT
 	help
 	  ARM 64-bit (AArch64) Linux support.
 
@@ -769,38 +765,6 @@ config QCOM_TLB_EL2_HANDLER
 	help
 	  This option enables TLB conflict to be handled
 	  by EL2.
-
-# Common NUMA Features
-config NUMA
-	bool "Numa Memory Allocation and Scheduler Support"
-	depends on SMP
-	help
-	  Enable NUMA (Non Uniform Memory Access) support.
-
-	  The kernel will try to allocate memory used by a CPU on the
-	  local memory of the CPU and add some more
-	  NUMA awareness to the kernel.
-
-config NODES_SHIFT
-	int "Maximum NUMA Nodes (as a power of 2)"
-	range 1 10
-	default "2"
-	depends on NEED_MULTIPLE_NODES
-	help
-	  Specify the maximum number of NUMA Nodes available on the target
-	  system.  Increases memory reserved to accommodate various tables.
-
-config USE_PERCPU_NUMA_NODE_ID
-	def_bool y
-	depends on NUMA
-
-config HAVE_SETUP_PER_CPU_AREA
-	def_bool y
-	depends on NUMA
-
-config NEED_PER_CPU_EMBED_FIRST_CHUNK
-	def_bool y
-	depends on NUMA
 
 source kernel/Kconfig.preempt
 source kernel/Kconfig.hz

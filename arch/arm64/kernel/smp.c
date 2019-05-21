@@ -45,7 +45,6 @@
 #include <asm/cputype.h>
 #include <asm/cpu_ops.h>
 #include <asm/mmu_context.h>
-#include <asm/numa.h>
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
 #include <asm/processor.h>
@@ -136,6 +135,11 @@ int __cpu_up(unsigned int cpu, struct task_struct *idle)
 	return ret;
 }
 
+static void smp_store_cpu_info(unsigned int cpuid)
+{
+	store_cpu_topology(cpuid);
+}
+
 /*
  * This is the secondary CPU boot entry.  We're using this CPUs
  * idle thread stack, but a set of temporary page tables.
@@ -184,7 +188,7 @@ asmlinkage notrace void secondary_start_kernel(void)
 	/*
 	 * Enable GIC and timers.
 	 */
-	store_cpu_topology(cpu);
+	smp_store_cpu_info(cpu);
 
 	notify_cpu_starting(cpu);
 
@@ -479,8 +483,6 @@ acpi_map_gic_cpu_interface(struct acpi_madt_generic_interrupt *processor)
 	 */
 	acpi_set_mailbox_entry(cpu_count, processor);
 
-	early_map_cpu_to_node(cpu_count, acpi_numa_get_nid(cpu_count, hwid));
-
 	cpu_count++;
 }
 
@@ -541,7 +543,6 @@ static void __init of_parse_and_init_cpus(void)
 			}
 
 			bootcpu_valid = true;
-			early_map_cpu_to_node(0, of_node_to_nid(dn));
 
 			/*
 			 * cpu_logical_map has already been
@@ -557,8 +558,6 @@ static void __init of_parse_and_init_cpus(void)
 
 		pr_debug("cpu logical map 0x%llx\n", hwid);
 		cpu_logical_map(cpu_count) = hwid;
-
-		early_map_cpu_to_node(cpu_count, of_node_to_nid(dn));
 next:
 		cpu_count++;
 	}
@@ -612,13 +611,10 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 {
 	int err;
 	unsigned int cpu, ncores = num_possible_cpus();
-	unsigned int this_cpu;
 
 	init_cpu_topology();
 
-	this_cpu = smp_processor_id();
-	store_cpu_topology(this_cpu);
-	numa_store_cpu_info(this_cpu);
+	smp_store_cpu_info(smp_processor_id());
 
 	/*
 	 * are we trying to boot more cores than exist?
@@ -655,7 +651,6 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 			continue;
 
 		set_cpu_present(cpu, true);
-                numa_store_cpu_info(cpu);
 		max_cpus--;
 	}
 }

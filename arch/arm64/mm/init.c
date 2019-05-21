@@ -42,7 +42,6 @@
 #include <asm/kasan.h>
 #include <asm/kernel-pgtable.h>
 #include <asm/memory.h>
-#include <asm/numa.h>
 #include <asm/sections.h>
 #include <asm/setup.h>
 #include <asm/sizes.h>
@@ -89,21 +88,6 @@ static phys_addr_t __init max_zone_dma_phys(void)
 	return min(offset + (1ULL << 32), memblock_end_of_DRAM());
 }
 
-#ifdef CONFIG_NUMA
-
-static void __init zone_sizes_init(unsigned long min, unsigned long max)
-{
-	unsigned long max_zone_pfns[MAX_NR_ZONES]  = {0};
-
-	if (IS_ENABLED(CONFIG_ZONE_DMA))
-		max_zone_pfns[ZONE_DMA] = PFN_DOWN(max_zone_dma_phys());
-	max_zone_pfns[ZONE_NORMAL] = max;
-
-	free_area_init_nodes(max_zone_pfns);
-}
-
-#else
-
 static void __init zone_sizes_init(unsigned long min, unsigned long max)
 {
 	struct memblock_region *reg;
@@ -144,8 +128,6 @@ static void __init zone_sizes_init(unsigned long min, unsigned long max)
 	free_area_init_node(0, zone_size, min, zhole_size);
 }
 
-#endif /* CONFIG_NUMA */
-
 #ifdef CONFIG_HAVE_ARCH_PFN_VALID
 int pfn_valid(unsigned long pfn)
 {
@@ -166,15 +148,10 @@ static void __init arm64_memory_present(void)
 static void __init arm64_memory_present(void)
 {
 	struct memblock_region *reg;
-	int nid = 0;
 
-	for_each_memblock(memory, reg) {
-#ifdef CONFIG_NUMA
-		nid = reg->nid;
-#endif
-		memory_present(nid, memblock_region_memory_base_pfn(reg),
-				memblock_region_memory_end_pfn(reg));
-	}
+	for_each_memblock(memory, reg)
+		memory_present(0, memblock_region_memory_base_pfn(reg),
+			       memblock_region_memory_end_pfn(reg));
 }
 #endif
 
@@ -314,6 +291,7 @@ void __init arm64_memblock_init(void)
 	dma_contiguous_reserve(arm64_dma_phys_limit);
 
 	memblock_allow_resize();
+	memblock_dump_all();
 }
 
 void __init bootmem_init(void)
@@ -325,9 +303,6 @@ void __init bootmem_init(void)
 
 	early_memtest(min << PAGE_SHIFT, max << PAGE_SHIFT);
 
-	max_pfn = max_low_pfn = max;
-
-	arm64_numa_init();
 	/*
 	 * Sparsemem tries to allocate bootmem in memory_present(), so must be
 	 * done after the fixed reservations.
@@ -337,7 +312,7 @@ void __init bootmem_init(void)
 	sparse_init();
 	zone_sizes_init(min, max);
 
-	memblock_dump_all();
+	max_pfn = max_low_pfn = max;
 }
 
 #ifndef CONFIG_SPARSEMEM_VMEMMAP
