@@ -500,19 +500,6 @@ struct static_cbndx_entry {
 	u8 type;
 };
 
-struct arm_iommus_node {
-	struct device_node	*master;
-	struct list_head	list;
-	struct list_head	iommuspec_list;
-};
-
-struct arm_iommus_spec {
-	struct of_phandle_args	iommu_spec;
-	struct list_head	list;
-};
-
-static LIST_HEAD(iommus_nodes);
-
 static int arm_smmu_enable_clocks_atomic(struct arm_smmu_device *smmu);
 static void arm_smmu_disable_clocks_atomic(struct arm_smmu_device *smmu);
 static void arm_smmu_prepare_pgtable(void *addr, void *cookie);
@@ -699,40 +686,39 @@ static int register_smmu_master(struct arm_smmu_device *smmu,
 	return insert_smmu_master(smmu, master);
 }
 
-static int arm_smmu_parse_iommus_properties(struct arm_smmu_device *smmu)
+static int arm_smmu_parse_iommus_properties(struct arm_smmu_device *smmu,
+					int *num_masters)
 {
-	struct arm_iommus_node *node, *nex;
+	struct of_phandle_args iommuspec;
+	struct device_node *master;
 
-	list_for_each_entry_safe(node, nex, &iommus_nodes, list) {
-		struct iommus_entry *entry, *next;
-		struct arm_iommus_spec *iommuspec_node, *n;
+	*num_masters = 0;
+
+	for_each_node_with_property(master, "iommus") {
+		int arg_ind = 0;
+		struct iommus_entry *entry, *n;
 		LIST_HEAD(iommus);
-		int node_found = 0;
 
-		list_for_each_entry_safe(iommuspec_node, n,
-				&node->iommuspec_list, list) {
-			if (iommuspec_node->iommu_spec.np != smmu->dev->of_node)
+		while (!of_parse_phandle_with_args(
+				master, "iommus", "#iommu-cells",
+				arg_ind, &iommuspec)) {
+			if (iommuspec.np != smmu->dev->of_node) {
+				arg_ind++;
 				continue;
-
-			/*
-			 * Since each master node will have iommu spec(s) of the
-			 * same device, we can delete this master node after
-			 * the devices are registered.
-			 */
-			node_found = 1;
+			}
 
 			list_for_each_entry(entry, &iommus, list)
-				if (entry->node == node->master)
+				if (entry->node == master)
 					break;
 			if (&entry->list == &iommus) {
 				entry = devm_kzalloc(smmu->dev, sizeof(*entry),
 						GFP_KERNEL);
 				if (!entry)
 					return -ENOMEM;
-				entry->node = node->master;
+				entry->node = master;
 				list_add(&entry->list, &iommus);
 			}
-			switch (iommuspec_node->iommu_spec.args_count) {
+			switch (iommuspec.args_count) {
 			case 0:
 				/*
 				 * For pci-e devices the SIDs are provided
@@ -742,28 +728,24 @@ static int arm_smmu_parse_iommus_properties(struct arm_smmu_device *smmu)
 			case 1:
 				entry->num_sids++;
 				entry->streamids[entry->num_sids - 1]
-					= iommuspec_node->iommu_spec.args[0];
+					= iommuspec.args[0];
 				break;
 			default:
 				BUG();
 			}
-			list_del(&iommuspec_node->list);
-			kfree(iommuspec_node);
+			arg_ind++;
 		}
 
-		list_for_each_entry_safe(entry, next, &iommus, list) {
+		list_for_each_entry_safe(entry, n, &iommus, list) {
 			int rc = register_smmu_master(smmu, entry);
-
-			if (rc)
+			if (rc) {
 				dev_err(smmu->dev, "Couldn't register %s\n",
-						entry->node->name);
+					entry->node->name);
+			} else {
+				(*num_masters)++;
+			}
 			list_del(&entry->list);
 			devm_kfree(smmu->dev, entry);
-		}
-
-		if (node_found) {
-			list_del(&node->list);
-			kfree(node);
 		}
 	}
 
@@ -4043,7 +4025,7 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 	struct arm_smmu_device *smmu;
 	struct device *dev = &pdev->dev;
 	struct rb_node *node;
-	int num_irqs, i, err;
+	int num_irqs, i, err, num_masters;
 
 	smmu = devm_kzalloc(dev, sizeof(*smmu), GFP_KERNEL);
 	if (!smmu) {
@@ -4106,32 +4088,32 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 	}
 
 	i = 0;
+	smmu->masters = RB_ROOT;
+	err = arm_smmu_parse_iommus_properties(smmu, &num_masters);
+	if (err)
+		goto out_put_masters;
+
+	dev_dbg(dev, "registered %d master devices\n", num_masters);
 
 	err = arm_smmu_parse_impl_def_registers(smmu);
 	if (err)
-		goto out;
+		goto out_put_masters;
 
 	err = arm_smmu_init_regulators(smmu);
 	if (err)
-		goto out;
+		goto out_put_masters;
 
 	err = arm_smmu_init_clocks(smmu);
 	if (err)
-		goto out;
+		goto out_put_masters;
 
 	err = arm_smmu_init_bus_scaling(pdev, smmu);
 	if (err)
-		goto out;
+		goto out_put_masters;
 
 	parse_driver_options(smmu);
 
 	err = arm_smmu_enable_clocks(smmu);
-	if (err)
-		goto out;
-
-	/* No probe deferral occurred! Proceed with iommu property parsing. */
-	smmu->masters = RB_ROOT;
-	err = arm_smmu_parse_iommus_properties(smmu);
 	if (err)
 		goto out_put_masters;
 
@@ -4192,7 +4174,7 @@ out_put_masters:
 			= container_of(node, struct arm_smmu_master, node);
 		of_node_put(master->of_node);
 	}
-out:
+
 	return err;
 }
 
@@ -4243,58 +4225,6 @@ static int arm_smmu_device_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static void arm_smmu_free_master_nodes(void)
-{
-	struct arm_iommus_node *node, *nex;
-	struct arm_iommus_spec *entry, *n;
-
-	list_for_each_entry_safe(node, nex, &iommus_nodes, list) {
-		list_for_each_entry_safe(entry, n,
-				&node->iommuspec_list, list) {
-			list_del(&entry->list);
-			kfree(entry);
-		}
-		list_del(&node->list);
-		kfree(node);
-	}
-}
-
-static int arm_smmu_get_master_nodes(void)
-{
-	struct arm_iommus_node *node;
-	struct device_node *master;
-	struct of_phandle_args iommuspec;
-	struct arm_iommus_spec *entry;
-
-	for_each_node_with_property(master, "iommus") {
-		int arg_ind = 0;
-
-		node = kzalloc(sizeof(*node), GFP_KERNEL);
-		if (!node)
-			goto release_memory;
-		node->master = master;
-		list_add(&node->list, &iommus_nodes);
-
-		INIT_LIST_HEAD(&node->iommuspec_list);
-
-		while (!of_parse_phandle_with_args(master, "iommus",
-				"#iommu-cells", arg_ind, &iommuspec)) {
-			entry = kzalloc(sizeof(*entry), GFP_KERNEL);
-			if (!entry)
-				goto release_memory;
-			entry->iommu_spec = iommuspec;
-			list_add(&entry->list, &node->iommuspec_list);
-			arg_ind++;
-		}
-	}
-
-	return 0;
-
-release_memory:
-	arm_smmu_free_master_nodes();
-	return -ENOMEM;
-}
-
 static struct platform_driver arm_smmu_driver = {
 	.driver	= {
 		.name		= "arm-smmu",
@@ -4320,15 +4250,10 @@ static int __init arm_smmu_init(void)
 
 	of_node_put(np);
 
-	ret = arm_smmu_get_master_nodes();
+	ret = platform_driver_register(&arm_smmu_driver);
 	if (ret)
 		return ret;
 
-	ret = platform_driver_register(&arm_smmu_driver);
-	if (ret) {
-		arm_smmu_free_master_nodes();
-		return ret;
-	}
 	/* Oh, for a proper bus abstraction */
 	if (!iommu_present(&platform_bus_type))
 		bus_set_iommu(&platform_bus_type, &arm_smmu_ops);
