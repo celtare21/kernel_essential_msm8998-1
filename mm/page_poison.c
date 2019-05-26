@@ -6,8 +6,7 @@
 #include <linux/poison.h>
 #include <linux/ratelimit.h>
 
-static bool want_page_poisoning __read_mostly
-		= IS_ENABLED(CONFIG_PAGE_POISONING_ENABLE_DEFAULT);
+static bool want_page_poisoning __read_mostly;
 
 static int early_page_poison_param(char *buf)
 {
