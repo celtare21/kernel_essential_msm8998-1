@@ -21,7 +21,6 @@
 #include <linux/types.h>
 #include <linux/cdev.h>
 #include <linux/pm_runtime.h>
-#include <linux/kthread.h>
 
 #include "sde_rotator_base.h"
 #include "sde_rotator_util.h"
@@ -185,8 +184,7 @@ struct sde_rot_hw_resource {
 };
 
 struct sde_rot_queue {
-	struct kthread_worker rot_kw;
-	struct task_struct *rot_thread;
+	struct workqueue_struct *rot_work_queue;
 	struct sde_rot_timeline *timeline;
 	struct sde_rot_hw_resource *hw;
 };
@@ -197,8 +195,8 @@ struct sde_rot_entry_container {
 	u32 count;
 	atomic_t pending_count;
 	atomic_t failed_count;
-	struct kthread_worker *retire_kw;
-	struct kthread_work *retire_work;
+	struct workqueue_struct *retireq;
+	struct work_struct *retire_work;
 	struct sde_rot_entry *entries;
 };
 
@@ -207,8 +205,8 @@ struct sde_rot_file_private;
 
 struct sde_rot_entry {
 	struct sde_rotation_item item;
-	struct kthread_work commit_work;
-	struct kthread_work done_work;
+	struct work_struct commit_work;
+	struct work_struct done_work;
 	struct sde_rot_queue *commitq;
 	struct sde_rot_queue *fenceq;
 	struct sde_rot_queue *doneq;
