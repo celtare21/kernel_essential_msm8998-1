@@ -151,11 +151,10 @@ static inline struct tvec_base *get_target_base(struct tvec_base *base,
 
 static inline void __run_deferrable_timers(void)
 {
-	if ((atomic_cmpxchg(&deferrable_pending, 1, 0) &&
-		tick_do_timer_cpu == TICK_DO_TIMER_NONE) ||
-		tick_do_timer_cpu == smp_processor_id()) {
-		if (time_after_eq(jiffies,
-			tvec_base_deferrable.timer_jiffies))
+	if (time_after_eq(jiffies, tvec_base_deferrable.timer_jiffies)) {
+		if ((atomic_cmpxchg(&deferrable_pending, 1, 0) &&
+			tick_do_timer_cpu == TICK_DO_TIMER_NONE) ||
+			tick_do_timer_cpu == smp_processor_id())
 			__run_timers(&tvec_base_deferrable);
 	}
 }
