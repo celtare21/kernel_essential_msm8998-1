@@ -1252,33 +1252,6 @@ static int sde_hw_rotator_swts_create(struct sde_hw_rotator *rot)
 		goto err_detach;
 	}
 
-	ion_free(rot->iclient, handle);
-
-	sde_smmu_ctrl(0);
-
-	return rc;
-err_detach:
-	dma_buf_detach(data->srcp_dma_buf, data->srcp_attachment);
-err_put:
-	dma_buf_put(data->srcp_dma_buf);
-	data->srcp_dma_buf = NULL;
-imap_err:
-	ion_free(rot->iclient, handle);
-
-	return rc;
-}
-
-/*
- * sde_hw_rotator_swts_map - map software timestamp buffer
- * @rot: Pointer to rotator hw
- *
- */
-static int sde_hw_rotator_swts_map(struct sde_hw_rotator *rot)
-{
-	int rc = 0;
-	struct sde_mdp_img_data *data = &rot->swts_buf;
-
-	sde_smmu_ctrl(1);
 	rc = sde_smmu_map_dma_buf(data->srcp_dma_buf, data->srcp_table,
 			SDE_IOMMU_DOMAIN_ROT_UNSECURE, &data->addr,
 			&data->len, DMA_BIDIRECTIONAL);
@@ -1298,41 +1271,28 @@ static int sde_hw_rotator_swts_map(struct sde_hw_rotator *rot)
 
 	data->mapped = true;
 	SDEROT_DBG("swts buffer mapped: %pad/%lx va:%p\n", &data->addr,
-		data->len, rot->swts_buffer);
-	sde_smmu_ctrl(0);
-	return rc;
+			data->len, rot->swts_buffer);
 
+	ion_free(rot->iclient, handle);
+
+	sde_smmu_ctrl(0);
+
+	return rc;
 kmap_err:
 	sde_smmu_unmap_dma_buf(data->srcp_table, SDE_IOMMU_DOMAIN_ROT_UNSECURE,
 			DMA_FROM_DEVICE, data->srcp_dma_buf);
 err_unmap:
 	dma_buf_unmap_attachment(data->srcp_attachment, data->srcp_table,
 			DMA_FROM_DEVICE);
+err_detach:
+	dma_buf_detach(data->srcp_dma_buf, data->srcp_attachment);
+err_put:
+	dma_buf_put(data->srcp_dma_buf);
+	data->srcp_dma_buf = NULL;
+imap_err:
+	ion_free(rot->iclient, handle);
 
 	return rc;
-}
-
-/*
- * sde_hw_rotator_swtc_unmap - unmap software timestamp buffer
- * @rot: Pointer to rotator hw
- */
-static void sde_hw_rotator_swtc_unmap(struct sde_hw_rotator *rot)
-{
-	struct sde_mdp_img_data *data;
-
-	data = &rot->swts_buf;
-
-	dma_buf_end_cpu_access(data->srcp_dma_buf, 0, data->len,
-			DMA_FROM_DEVICE);
-	dma_buf_kunmap(data->srcp_dma_buf, 0, rot->swts_buffer);
-	rot->swts_buffer = NULL;
-
-	sde_smmu_unmap_dma_buf(data->srcp_table, SDE_IOMMU_DOMAIN_ROT_UNSECURE,
-			DMA_FROM_DEVICE, data->srcp_dma_buf);
-	data->addr = 0x0;
-	data->len = 0;
-
-	data->mapped = false;
 }
 
 /*
@@ -1345,9 +1305,12 @@ static void sde_hw_rotator_swtc_destroy(struct sde_hw_rotator *rot)
 
 	data = &rot->swts_buf;
 
-	if (data->mapped)
-		sde_hw_rotator_swtc_unmap(rot);
+	dma_buf_end_cpu_access(data->srcp_dma_buf, 0, data->len,
+			DMA_FROM_DEVICE);
+	dma_buf_kunmap(data->srcp_dma_buf, 0, rot->swts_buffer);
 
+	sde_smmu_unmap_dma_buf(data->srcp_table, SDE_IOMMU_DOMAIN_ROT_UNSECURE,
+			DMA_FROM_DEVICE, data->srcp_dma_buf);
 	dma_buf_unmap_attachment(data->srcp_attachment, data->srcp_table,
 			DMA_FROM_DEVICE);
 	dma_buf_detach(data->srcp_dma_buf, data->srcp_attachment);
@@ -1480,7 +1443,6 @@ static struct sde_rot_hw_resource *sde_hw_rotator_alloc_ext(
 		struct sde_rot_mgr *mgr, u32 pipe_id, u32 wb_id)
 {
 	struct sde_hw_rotator_resource_info *resinfo;
-	int ret = 0;
 
 	if (!mgr || !mgr->hw_data) {
 		SDEROT_ERR("null parameters\n");
@@ -1508,21 +1470,8 @@ static struct sde_rot_hw_resource *sde_hw_rotator_alloc_ext(
 	else {
 		resinfo->hw.max_active = SDE_HW_ROT_REGDMA_TOTAL_CTX - 1;
 
-		if (resinfo->rot->iclient == NULL) {
-			ret = sde_hw_rotator_swts_create(resinfo->rot);
-			if (ret) {
-				SDEROT_ERR("swts buffer create failed\n");
-				goto swts_fail;
-			}
-		}
-
-		if (resinfo->rot->swts_buf.mapped == false) {
-			ret = sde_hw_rotator_swts_map(resinfo->rot);
-			if (ret) {
-				SDEROT_ERR("swts buffer map failed\n");
-				goto swts_fail;
-			}
-		}
+		if (resinfo->rot->iclient == NULL)
+			sde_hw_rotator_swts_create(resinfo->rot);
 	}
 
 	if (resinfo->rot->irq_num >= 0)
@@ -1532,10 +1481,6 @@ static struct sde_rot_hw_resource *sde_hw_rotator_alloc_ext(
 			resinfo, wb_id);
 
 	return &resinfo->hw;
-
-swts_fail:
-	devm_kfree(&mgr->pdev->dev, resinfo);
-	return NULL;
 }
 
 /*
@@ -1547,7 +1492,6 @@ static void sde_hw_rotator_free_ext(struct sde_rot_mgr *mgr,
 		struct sde_rot_hw_resource *hw)
 {
 	struct sde_hw_rotator_resource_info *resinfo;
-	struct sde_rot_data_type *mdata = sde_rot_get_mdata();
 
 	if (!mgr || !mgr->hw_data)
 		return;
@@ -1561,18 +1505,6 @@ static void sde_hw_rotator_free_ext(struct sde_rot_mgr *mgr,
 
 	if (resinfo->rot->irq_num >= 0)
 		sde_hw_rotator_disable_irq(resinfo->rot);
-
-	/*
-	 * For SDM660 and SDM630, the IOMMU is shared between MDP and rotator.
-	 * If IOMMU is detached from MDP driver, the timestamp buffer will be
-	 * invalidated. It is safer to unmap the timestamp buffer when the
-	 * rotator session ends, so that it will be mapped again when a fresh
-	 * session starts.
-	 */
-	if (((mdata->mdss_version == MDSS_MDP_HW_REV_320) ||
-		(mdata->mdss_version == MDSS_MDP_HW_REV_330)) &&
-			resinfo->rot->swts_buf.mapped)
-		sde_hw_rotator_swtc_unmap(resinfo->rot);
 
 	devm_kfree(&mgr->pdev->dev, resinfo);
 }
