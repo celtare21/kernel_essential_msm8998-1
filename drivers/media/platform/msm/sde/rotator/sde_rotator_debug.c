@@ -1028,9 +1028,6 @@ static ssize_t sde_rotator_debug_base_offset_write(struct file *file,
 	if (sscanf(buf, "%5x %x", &off, &cnt) < 2)
 		return -EINVAL;
 
-	if (off % sizeof(u32))
-		return -EINVAL;
-
 	if (off > dbg->max_offset)
 		return -EINVAL;
 
@@ -1099,9 +1096,6 @@ static ssize_t sde_rotator_debug_base_reg_write(struct file *file,
 	if (cnt < 2)
 		return -EFAULT;
 
-	if (off % sizeof(u32))
-		return -EFAULT;
-
 	if (off >= dbg->max_offset)
 		return -EFAULT;
 
@@ -1147,11 +1141,6 @@ static ssize_t sde_rotator_debug_base_reg_read(struct file *file,
 		if (!dbg->buf) {
 			SDEROT_ERR("not enough memory to hold reg dump\n");
 			rc = -ENOMEM;
-			goto debug_read_error;
-		}
-
-		if (dbg->off % sizeof(u32)) {
-			rc = -EFAULT;
 			goto debug_read_error;
 		}
 
