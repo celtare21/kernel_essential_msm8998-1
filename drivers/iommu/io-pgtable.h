@@ -124,8 +124,6 @@ struct io_pgtable_ops {
 				    unsigned long iova);
 	bool (*is_iova_coherent)(struct io_pgtable_ops *ops,
 				unsigned long iova);
-	uint64_t (*iova_to_pte)(struct io_pgtable_ops *ops,
-		    unsigned long iova);
 
 };
 
