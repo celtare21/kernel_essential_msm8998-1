@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -167,7 +167,6 @@ struct iommu_debug_device {
 	size_t len;
 	struct list_head list;
 	struct mutex clk_lock;
-	struct mutex dev_lock;
 	unsigned int clk_count;
 };
 
@@ -480,13 +479,9 @@ static int iommu_debug_profiling_fast_show(struct seq_file *s, void *ignored)
 	enum iommu_attr attrs[] = {
 		DOMAIN_ATTR_FAST,
 		DOMAIN_ATTR_ATOMIC,
-		DOMAIN_ATTR_GEOMETRY,
 	};
 	int one = 1;
-	struct iommu_domain_geometry geometry = {0, 0, 0};
-	void *attr_values[] = { &one, &one, &geometry};
-
-	geometry.aperture_end = (dma_addr_t)(SZ_1G * 4ULL - 1);
+	void *attr_values[] = { &one, &one, &one };
 
 	iommu_debug_device_profiling(s, ddev->dev, attrs, attr_values,
 				     ARRAY_SIZE(attrs), sizes);
@@ -1238,7 +1233,6 @@ static ssize_t __iommu_debug_attach_write(struct file *file,
 	ssize_t retval;
 	int val;
 
-	mutex_lock(&ddev->dev_lock);
 	if (kstrtoint_from_user(ubuf, count, 0, &val)) {
 		pr_err("Invalid format. Expected a hex or decimal integer");
 		retval = -EFAULT;
@@ -1275,7 +1269,6 @@ static ssize_t __iommu_debug_attach_write(struct file *file,
 
 	retval = count;
 out:
-	mutex_unlock(&ddev->dev_lock);
 	return retval;
 }
 
@@ -1293,21 +1286,19 @@ static ssize_t iommu_debug_attach_read(struct file *file, char __user *ubuf,
 {
 	struct iommu_debug_device *ddev = file->private_data;
 	char c[2];
-	size_t buflen = sizeof(c);
 
 	if (*offset)
 		return 0;
 
 	c[0] = ddev->domain ? '1' : '0';
 	c[1] = '\n';
-	buflen = min(count, buflen);
-	if (copy_to_user(ubuf, &c, buflen)) {
+	if (copy_to_user(ubuf, &c, 2)) {
 		pr_err("copy_to_user failed\n");
 		return -EFAULT;
 	}
 	*offset = 1;		/* non-zero means we're done */
 
-	return buflen;
+	return 2;
 }
 
 static const struct file_operations iommu_debug_attach_fops = {
@@ -1373,16 +1364,12 @@ static ssize_t iommu_debug_atos_read(struct file *file, char __user *ubuf,
 	memset(buf, 0, 100);
 
 	phys = iommu_iova_to_phys_hard(ddev->domain, ddev->iova);
-	if (!phys) {
+	if (!phys)
 		strlcpy(buf, "FAIL\n", 100);
-		phys = iommu_iova_to_phys(ddev->domain, ddev->iova);
-		dev_err(ddev->dev, "ATOS for %pa failed. Software walk returned: %pa\n",
-			&ddev->iova, &phys);
-	} else {
+	else
 		snprintf(buf, 100, "%pa\n", &phys);
-	}
 
-	buflen = min(count, strlen(buf));
+	buflen = strlen(buf);
 	if (copy_to_user(ubuf, buf, buflen)) {
 		pr_err("Couldn't copy_to_user\n");
 		retval = -EFAULT;
@@ -1457,7 +1444,6 @@ static ssize_t iommu_debug_map_write(struct file *file, const char __user *ubuf,
 	if (kstrtoint(comma3 + 1, 0, &prot))
 		goto invalid_format;
 
-	mutex_lock(&ddev->dev_lock);
 	ret = iommu_map(ddev->domain, iova, phys, size, prot);
 	if (ret) {
 		pr_err("iommu_map failed with %d\n", ret);
@@ -1469,7 +1455,6 @@ static ssize_t iommu_debug_map_write(struct file *file, const char __user *ubuf,
 	pr_err("Mapped %pa to %pa (len=0x%zx, prot=0x%x)\n",
 	       &iova, &phys, size, prot);
 out:
-	mutex_unlock(&ddev->dev_lock);
 	return retval;
 
 invalid_format:
@@ -1525,15 +1510,12 @@ static ssize_t iommu_debug_unmap_write(struct file *file,
 	if (kstrtosize_t(comma1 + 1, 0, &size))
 		goto invalid_format;
 
-	mutex_lock(&ddev->dev_lock);
 	unmapped = iommu_unmap(ddev->domain, iova, size);
 	if (unmapped != size) {
 		pr_err("iommu_unmap failed. Expected to unmap: 0x%zx, unmapped: 0x%zx",
 		       size, unmapped);
-		mutex_unlock(&ddev->dev_lock);
 		return -EIO;
 	}
-	mutex_unlock(&ddev->dev_lock);
 
 	retval = count;
 	pr_err("Unmapped %pa (len=0x%zx)\n", &iova, size);
@@ -1628,7 +1610,6 @@ static int snarf_iommu_devices(struct device *dev, const char *name)
 	if (!ddev)
 		return -ENODEV;
 	mutex_init(&ddev->clk_lock);
-	mutex_init(&ddev->dev_lock);
 	ddev->dev = dev;
 	dir = debugfs_create_dir(name, debugfs_tests_dir);
 	if (!dir) {

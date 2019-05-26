@@ -1219,7 +1219,6 @@ static void arm_smmu_secure_pool_destroy(struct arm_smmu_domain *smmu_domain)
 	list_for_each_entry_safe(it, i, &smmu_domain->secure_pool_list, list) {
 		arm_smmu_unprepare_pgtable(smmu_domain, it->addr, it->size);
 		/* pages will be freed later (after being unassigned) */
-		list_del(&it->list);
 		kfree(it);
 	}
 }
@@ -1704,8 +1703,7 @@ static void arm_smmu_pgtbl_unlock(struct arm_smmu_domain *smmu_domain,
 
 static int arm_smmu_restore_sec_cfg(struct arm_smmu_device *smmu)
 {
-	int ret;
-	u64 scm_ret = 0;
+	int ret, scm_ret;
 
 	if (!arm_smmu_is_static_cb(smmu))
 		return 0;
@@ -2192,8 +2190,8 @@ static int arm_smmu_attach_dynamic(struct iommu_domain *domain,
 				smmu->num_context_banks + 2,
 				MAX_ASID + 1, GFP_KERNEL);
 	if (ret < 0) {
-		dev_err_ratelimited(smmu->dev,
-			"dynamic ASID allocation failed: %d\n", ret);
+		dev_err(smmu->dev, "dynamic ASID allocation failed: %d\n",
+			ret);
 		goto out;
 	}
 
@@ -2202,17 +2200,8 @@ static int arm_smmu_attach_dynamic(struct iommu_domain *domain,
 	smmu_domain->pgtbl_ops = pgtbl_ops;
 	ret = 0;
 out:
-	if (ret) {
+	if (ret)
 		free_io_pgtable_ops(pgtbl_ops);
-		/* unassign any freed page table memory */
-		if (arm_smmu_is_master_side_secure(smmu_domain)) {
-			arm_smmu_secure_domain_lock(smmu_domain);
-			arm_smmu_secure_pool_destroy(smmu_domain);
-			arm_smmu_unassign_table(smmu_domain);
-			arm_smmu_secure_domain_unlock(smmu_domain);
-		}
-		smmu_domain->pgtbl_ops = NULL;
-	}
 	mutex_unlock(&smmu->attach_lock);
 
 	return ret;
@@ -3829,7 +3818,7 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 #ifndef CONFIG_64BIT
 		smmu->va_size = min(32UL, smmu->va_size);
 #endif
-		smmu->va_size = min(39UL, smmu->va_size);
+		smmu->va_size = min(36UL, smmu->va_size);
 		size = 0;
 		if (id & ID2_PTFS_4K)
 			size |= SZ_4K | SZ_2M | SZ_1G;
