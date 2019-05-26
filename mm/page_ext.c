@@ -111,9 +111,6 @@ struct page_ext *lookup_page_ext(struct page *page)
 	 * page can reach here before the page_ext arrays are
 	 * allocated when feeding a range of pages to the allocator
 	 * for the first time during bootup or memory hotplug.
-	 *
-	 * This check is also necessary for ensuring page poisoning
-	 * works as expected when enabled
 	 */
 	if (unlikely(!base))
 		return NULL;
@@ -186,9 +183,6 @@ struct page_ext *lookup_page_ext(struct page *page)
 	 * page can reach here before the page_ext arrays are
 	 * allocated when feeding a range of pages to the allocator
 	 * for the first time during bootup or memory hotplug.
-	 *
-	 * This check is also necessary for ensuring page poisoning
-	 * works as expected when enabled
 	 */
 	if (!section || !section->page_ext)
 		return NULL;
