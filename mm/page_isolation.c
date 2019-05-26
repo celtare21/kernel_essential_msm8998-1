@@ -126,7 +126,11 @@ static void unset_migratetype_isolate(struct page *page, unsigned migratetype)
 out:
 	spin_unlock_irqrestore(&zone->lock, flags);
 	if (isolated_page) {
-		post_alloc_hook(page, order, __GFP_MOVABLE);
+		kasan_alloc_pages(page, order);
+		arch_alloc_page(page, order);
+		kernel_map_pages(page, (1 << order), 1);
+		set_page_refcounted(page);
+		set_page_owner(page, order, __GFP_MOVABLE);
 		__free_pages(isolated_page, order);
 	}
 }
