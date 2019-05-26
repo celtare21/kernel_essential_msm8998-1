@@ -96,7 +96,7 @@ static int mata_dongle_probe(struct hid_device *hid, const struct hid_device_id 
 	data->headset_dev.name = "mata_headset";
 	if (switch_dev_register(&data->headset_dev) < 0) {
 		pr_err("%s: register in switch failed\n",__func__);
-		goto err_free;
+		return 0;
 	}
 	hid_set_drvdata(hid, data);
 
