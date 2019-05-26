@@ -30,7 +30,6 @@
 #include <linux/genhd.h>
 #include <linux/ktime.h>
 #include <trace/events/power.h>
-#include <soc/qcom/boot_stats.h>
 
 #include "power.h"
 
@@ -470,7 +469,6 @@ static int resume_target_kernel(bool platform_mode)
 	touch_softlockup_watchdog();
 
 	syscore_resume();
-	place_marker("PM: Image Restoration failed!");
 
  Enable_irqs:
 	local_irq_enable();
@@ -707,7 +705,6 @@ int hibernate(void)
 		pm_restore_gfp_mask();
 	} else {
 		pr_debug("PM: Image restored successfully.\n");
-		place_marker("PM: Image restored!");
 	}
 
  Free_bitmaps:
