@@ -633,7 +633,9 @@ static inline void tk_update_ktime_data(struct timekeeper *tk)
 	tk->ktime_sec = seconds;
 
 	/* Update the monotonic raw base */
-	tk->tkr_raw.base = ns_to_ktime(tk->raw_sec * NSEC_PER_SEC);
+	seconds = tk->raw_sec;
+	nsec = (u32)(tk->tkr_raw.xtime_nsec >> tk->tkr_raw.shift);
+	tk->tkr_raw.base = ns_to_ktime(seconds * NSEC_PER_SEC + nsec);
 }
 
 /* must hold timekeeper_lock */
