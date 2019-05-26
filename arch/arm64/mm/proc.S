@@ -132,7 +132,6 @@ ENDPROC(cpu_do_suspend)
  *
  * x0: Address of context pointer
  */
-	.pushsection ".idmap.text", "ax"
 ENTRY(cpu_do_resume)
 	ldp	x2, x3, [x0]
 	ldp	x4, x5, [x0, #16]
@@ -164,7 +163,6 @@ ENTRY(cpu_do_resume)
 	isb
 	ret
 ENDPROC(cpu_do_resume)
-	.popsection
 #endif
 
 /*
@@ -222,7 +220,6 @@ ENDPROC(idmap_cpu_replace_ttbr1)
  *	Initialise the processor for turning the MMU on.  Return in x0 the
  *	value of the SCTLR_EL1 register.
  */
-	.pushsection ".idmap.text", "ax"
 ENTRY(__cpu_setup)
 	tlbi	vmalle1				// Invalidate local TLB
 	dsb	nsh
@@ -324,4 +321,3 @@ crval:
 #endif
 	.word	0xfcffffff			// clear
 	.word	0x34d5d91d | CR_IBIT | CR_CBIT	// set
-	.popsection
