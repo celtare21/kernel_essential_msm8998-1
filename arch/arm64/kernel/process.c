@@ -52,7 +52,6 @@
 #include <asm/alternative.h>
 #include <asm/compat.h>
 #include <asm/cacheflush.h>
-#include <asm/exec.h>
 #include <asm/fpsimd.h>
 #include <asm/mmu_context.h>
 #include <asm/processor.h>
@@ -274,6 +273,13 @@ void show_regs(struct pt_regs * regs)
 	__show_regs(regs);
 }
 
+/*
+ * Free current thread data structures etc..
+ */
+void exit_thread(void)
+{
+}
+
 static void tls_thread_flush(void)
 {
 	asm ("msr tpidr_el0, xzr");
@@ -387,7 +393,7 @@ static void tls_thread_switch(struct task_struct *next)
 }
 
 /* Restore the UAO state depending on next's addr_limit */
-void uao_thread_switch(struct task_struct *next)
+static void uao_thread_switch(struct task_struct *next)
 {
 	if (IS_ENABLED(CONFIG_ARM64_UAO)) {
 		if (task_thread_info(next)->addr_limit == KERNEL_DS)

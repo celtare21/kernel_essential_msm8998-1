@@ -43,7 +43,6 @@
 #include <soc/qcom/event_timer.h>
 #include <soc/qcom/lpm-stats.h>
 #include <soc/qcom/jtag.h>
-#include <soc/qcom/minidump.h>
 #include <asm/cputype.h>
 #include <asm/arch_timer.h>
 #include <asm/cacheflush.h>
@@ -73,8 +72,6 @@ enum debug_event {
 	CLUSTER_ENTER,
 	CLUSTER_EXIT,
 	PRE_PC_CB,
-	CPU_HP_STARTING,
-	CPU_HP_DYING,
 };
 
 struct lpm_debug {
@@ -344,16 +341,10 @@ static int lpm_cpu_callback(struct notifier_block *cpu_nb,
 
 	switch (action & ~CPU_TASKS_FROZEN) {
 	case CPU_DYING:
-		update_debug_pc_event(CPU_HP_DYING, cpu,
-				cluster->num_children_in_sync.bits[0],
-				cluster->child_cpus.bits[0], false);
 		cluster_prepare(cluster, get_cpu_mask((unsigned int) cpu),
 					NR_LPM_LEVELS, false, 0);
 		break;
 	case CPU_STARTING:
-		update_debug_pc_event(CPU_HP_STARTING, cpu,
-				cluster->num_children_in_sync.bits[0],
-				cluster->child_cpus.bits[0], false);
 		cluster_unprepare(cluster, get_cpu_mask((unsigned int) cpu),
 					NR_LPM_LEVELS, false, 0);
 		break;
@@ -362,24 +353,6 @@ static int lpm_cpu_callback(struct notifier_block *cpu_nb,
 	}
 	return NOTIFY_OK;
 }
-
-#ifdef CONFIG_ARM_PSCI
-
-static int __init set_cpuidle_ops(void)
-{
-	int ret = 0, cpu;
-
-	for_each_possible_cpu(cpu) {
-		ret = arm_cpuidle_init(cpu);
-		if (ret)
-			goto exit;
-	}
-
-exit:
-	return ret;
-}
-
-#endif
 
 static enum hrtimer_restart lpm_hrtimer_cb(struct hrtimer *h)
 {
@@ -694,21 +667,22 @@ static int cpu_power_select(struct cpuidle_device *dev,
 	int best_level = -1;
 	uint32_t latency_us = pm_qos_request_for_cpu(PM_QOS_CPU_DMA_LATENCY,
 							dev->cpu);
-	s64 sleep_us = ktime_to_us(tick_nohz_get_sleep_length());
+	uint32_t sleep_us =
+		(uint32_t)(ktime_to_us(tick_nohz_get_sleep_length()));
 	uint32_t modified_time_us = 0;
 	uint32_t next_event_us = 0;
 	int i, idx_restrict;
 	uint32_t lvl_latency_us = 0;
 	uint64_t predicted = 0;
 	uint32_t htime = 0, idx_restrict_time = 0;
-	uint32_t next_wakeup_us = (uint32_t)sleep_us;
+	uint32_t next_wakeup_us = sleep_us;
 	uint32_t *min_residency = get_per_cpu_min_residency(dev->cpu);
 	uint32_t *max_residency = get_per_cpu_max_residency(dev->cpu);
 
 	if (!cpu)
 		return -EINVAL;
 
-	if ((sleep_disabled && !cpu_isolated(dev->cpu)) || sleep_us  < 0)
+	if (sleep_disabled)
 		return 0;
 
 	idx_restrict = cpu->nlevels + 1;
@@ -722,6 +696,7 @@ static int cpu_power_select(struct cpuidle_device *dev,
 		bool allow;
 
 		allow = lpm_cpu_mode_allow(dev->cpu, i, true);
+		allow &= !(dev->states_usage[i].disable);
 
 		if (!allow)
 			continue;
@@ -749,8 +724,8 @@ static int cpu_power_select(struct cpuidle_device *dev,
 			if (next_wakeup_us > max_residency[i]) {
 				predicted = lpm_cpuidle_predict(dev, cpu,
 					&idx_restrict, &idx_restrict_time);
-				if (predicted && (predicted < min_residency[i]))
-					predicted = min_residency[i];
+				if (predicted < min_residency[i])
+					predicted = 0;
 			} else
 				invalidate_predict_history(dev);
 		}
@@ -1118,14 +1093,10 @@ static int cluster_configure(struct lpm_cluster *cluster, int idx,
 		bool from_idle, int predicted)
 {
 	struct lpm_cluster_level *level = &cluster->levels[idx];
-	struct cpumask online_cpus;
 	int ret, i;
 
-	cpumask_and(&online_cpus, &cluster->num_children_in_sync,
-					cpu_online_mask);
-
 	if (!cpumask_equal(&cluster->num_children_in_sync, &cluster->child_cpus)
-			|| is_IPI_pending(&online_cpus)) {
+			|| is_IPI_pending(&cluster->num_children_in_sync)) {
 		return -EPERM;
 	}
 
@@ -1185,8 +1156,6 @@ static int cluster_configure(struct lpm_cluster *cluster, int idx,
 
 	/* Notify cluster enter event after successfully config completion */
 	cluster_notify(cluster, level, true);
-
-	sched_set_cluster_dstate(&cluster->child_cpus, idx, 0, 0);
 
 	cluster->last_level = idx;
 
@@ -1354,7 +1323,6 @@ static void cluster_unprepare(struct lpm_cluster *cluster,
 		BUG_ON(ret);
 
 	}
-	sched_set_cluster_dstate(&cluster->child_cpus, 0, 0, 0);
 
 	cluster_notify(cluster, &cluster->levels[last_level], false);
 
@@ -1592,10 +1560,6 @@ static int lpm_cpuidle_enter(struct cpuidle_device *dev,
 		return -EINVAL;
 
 	pwr_params = &cluster->cpu->levels[idx].pwr;
-	sched_set_cpu_cstate(smp_processor_id(), idx + 1,
-		pwr_params->energy_overhead, pwr_params->latency_us);
-
-	pwr_params = &cluster->cpu->levels[idx].pwr;
 
 	cpu_prepare(cluster, idx, true);
 	cluster_prepare(cluster, cpumask, idx, true, ktime_to_ns(ktime_get()));
@@ -1615,7 +1579,6 @@ exit:
 
 	cluster_unprepare(cluster, cpumask, idx, true, end_time);
 	cpu_unprepare(cluster, idx, true);
-	sched_set_cpu_cstate(smp_processor_id(), 0, 0, 0);
 	end_time = ktime_to_ns(ktime_get()) - start_time;
 	do_div(end_time, 1000);
 	dev->last_residency = end_time;
@@ -1706,8 +1669,7 @@ static int cluster_cpuidle_register(struct lpm_cluster *cl)
 		struct cpuidle_state *st = &cl->drv->states[i];
 		struct lpm_cpu_level *cpu_level = &cl->cpu->levels[i];
 		snprintf(st->name, CPUIDLE_NAME_LEN, "C%u\n", i);
-		snprintf(st->desc, CPUIDLE_DESC_LEN, "%s",
-			cpu_level->name);
+		snprintf(st->desc, CPUIDLE_DESC_LEN, cpu_level->name);
 		st->flags = 0;
 		st->exit_latency = cpu_level->pwr.latency_us;
 		st->power_usage = cpu_level->pwr.ss_power;
@@ -1877,7 +1839,6 @@ static int lpm_probe(struct platform_device *pdev)
 	int ret;
 	int size;
 	struct kobject *module_kobj = NULL;
-	struct md_region md_entry;
 
 	get_online_cpus();
 	lpm_root_node = lpm_of_parse_cluster(pdev);
@@ -1938,14 +1899,6 @@ static int lpm_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
-	/* Add lpm_debug to Minidump*/
-	strlcpy(md_entry.name, "KLPMDEBUG", sizeof(md_entry.name));
-	md_entry.virt_addr = (uintptr_t)lpm_debug;
-	md_entry.phys_addr = lpm_debug_phys;
-	md_entry.size = size;
-	if (msm_minidump_add_region(&md_entry))
-		pr_info("Failed to add lpm_debug in Minidump\n");
-
 	return 0;
 failed:
 	free_cluster_node(lpm_root_node);
@@ -1975,14 +1928,6 @@ static int __init lpm_levels_module_init(void)
 		pr_info("Error registering %s\n", lpm_driver.driver.name);
 		goto fail;
 	}
-
-#ifdef CONFIG_ARM_PSCI
-	rc = set_cpuidle_ops();
-	if (rc) {
-		pr_err("%s(): Failed to set cpuidle ops\n", __func__);
-		goto fail;
-	}
-#endif
 
 fail:
 	return rc;

@@ -82,9 +82,10 @@ int arch_dup_task_struct(struct task_struct *dst, struct task_struct *src)
 /*
  * Free current thread data structures etc..
  */
-void exit_thread(struct task_struct *tsk)
+void exit_thread(void)
 {
-	struct thread_struct *t = &tsk->thread;
+	struct task_struct *me = current;
+	struct thread_struct *t = &me->thread;
 	unsigned long *bp = t->io_bitmap_ptr;
 	struct fpu *fpu = &t->fpu;
 
