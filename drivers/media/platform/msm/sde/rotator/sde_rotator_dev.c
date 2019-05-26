@@ -1783,7 +1783,6 @@ static long sde_rotator_private_ioctl(struct file *file, void *fh,
 	struct msm_sde_rotator_fence *fence = arg;
 	struct msm_sde_rotator_comp_ratio *comp_ratio = arg;
 	struct sde_rotator_vbinfo *vbinfo;
-	int ret;
 
 	switch (cmd) {
 	case VIDIOC_S_SDE_ROTATOR_FENCE:
@@ -1842,39 +1841,19 @@ static long sde_rotator_private_ioctl(struct file *file, void *fh,
 
 		vbinfo = &ctx->vbinfo_cap[fence->index];
 
-		if (!vbinfo)
-			return -EINVAL;
-
-		if (vbinfo->fence) {
-			ret = sde_rotator_get_sync_fence_fd(vbinfo->fence);
-			if (ret < 0) {
+		if (vbinfo->fence == NULL) {
+			vbinfo->fd = -1;
+		} else {
+			vbinfo->fd =
+				sde_rotator_get_sync_fence_fd(vbinfo->fence);
+			if (vbinfo->fd < 0) {
 				SDEDEV_ERR(rot_dev->dev,
 					"fail get fence fd s:%d\n",
 					ctx->session_id);
-				return ret;
+				return vbinfo->fd;
 			}
-
-			/*
-			 * Loose any reference to sync fence once we pass
-			 * it to user. Driver does not clean up user
-			 * unclosed fence descriptors.
-			 */
 			vbinfo->fence = NULL;
-
-			/*
-			 * Cache fence descriptor in case user calls this
-			 * ioctl multiple times. Cached value would be stale
-			 * if user duplicated and closed old descriptor.
-			 */
-			vbinfo->fd = ret;
-		} else if (!sde_rotator_get_fd_sync_fence(vbinfo->fd)) {
-			/*
-			 * User has closed cached fence descriptor.
-			 * Invalidate descriptor cache.
-			 */
-			vbinfo->fd = -1;
 		}
-
 		fence->fd = vbinfo->fd;
 
 		SDEDEV_DBG(rot_dev->dev,
