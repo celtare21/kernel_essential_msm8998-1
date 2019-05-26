@@ -554,18 +554,9 @@ static inline arm_lpae_iopte *arm_lpae_get_table(
 {
 	struct io_pgtable_cfg *cfg = &data->iop.cfg;
 
-	/*
-	 * iovas for TTBR1 will have all the bits set between the input address
-	 * region and the sign extension bit
-	 */
-	if (unlikely(cfg->quirks & IO_PGTABLE_QUIRK_ARM_TTBR1)) {
-		unsigned long mask = GENMASK(cfg->sep, cfg->ias);
-
-		if ((iova & mask) == mask)
-			return data->pgd[1];
-	}
-
-	return data->pgd[0];
+	return ((cfg->quirks & IO_PGTABLE_QUIRK_ARM_TTBR1) &&
+		(iova & (1UL << (cfg->ias - 1)))) ?
+		data->pgd[1] : data->pgd[0];
 }
 
 static int arm_lpae_map(struct io_pgtable_ops *ops, unsigned long iova,
@@ -1102,26 +1093,26 @@ static u64 arm64_lpae_setup_ttbr1(struct io_pgtable_cfg *cfg,
 	/* Set T1SZ */
 	reg |= (64ULL - cfg->ias) << ARM_LPAE_TCR_T1SZ_SHIFT;
 
-	switch (cfg->sep) {
-	case 31:
+	/* Set the SEP bit based on the size */
+	switch (cfg->ias) {
+	case 32:
 		reg |= (ARM_LPAE_TCR_SEP_31 << ARM_LPAE_TCR_SEP_SHIFT);
 		break;
-	case 35:
+	case 36:
 		reg |= (ARM_LPAE_TCR_SEP_35 << ARM_LPAE_TCR_SEP_SHIFT);
 		break;
-	case 39:
+	case 40:
 		reg |= (ARM_LPAE_TCR_SEP_39 << ARM_LPAE_TCR_SEP_SHIFT);
 		break;
-	case 41:
+	case 42:
 		reg |= (ARM_LPAE_TCR_SEP_41 << ARM_LPAE_TCR_SEP_SHIFT);
 		break;
-	case 43:
+	case 44:
 		reg |= (ARM_LPAE_TCR_SEP_43 << ARM_LPAE_TCR_SEP_SHIFT);
 		break;
-	case 47:
+	case 48:
 		reg |= (ARM_LPAE_TCR_SEP_47 << ARM_LPAE_TCR_SEP_SHIFT);
 		break;
-	case 48:
 	default:
 		reg |= (ARM_LPAE_TCR_SEP_UPSTREAM << ARM_LPAE_TCR_SEP_SHIFT);
 		break;

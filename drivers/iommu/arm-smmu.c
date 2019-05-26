@@ -367,8 +367,6 @@ struct arm_smmu_device {
 	u32				num_mapping_groups;
 	DECLARE_BITMAP(smr_map, ARM_SMMU_MAX_SMRS);
 
-	u32				ubs;
-
 	unsigned long			va_size;
 	unsigned long			ipa_size;
 	unsigned long			pa_size;
@@ -1742,7 +1740,6 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 {
 	int irq, start, ret = 0;
 	unsigned long ias, oas;
-	int sep = 0;
 	struct io_pgtable_ops *pgtbl_ops;
 	enum io_pgtable_fmt fmt;
 	struct arm_smmu_domain *smmu_domain = to_smmu_domain(domain);
@@ -1784,27 +1781,9 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 		start = smmu->num_s2_context_banks;
 		ias = smmu->va_size;
 		oas = smmu->ipa_size;
-		if (IS_ENABLED(CONFIG_64BIT)) {
+		if (IS_ENABLED(CONFIG_64BIT))
 			fmt = ARM_64_LPAE_S1;
-
-			if (quirks & IO_PGTABLE_QUIRK_ARM_TTBR1) {
-
-				/*
-				 * When the UBS id is 5 we know that the bus
-				 * size is 49 bits and that bit 48 is the fixed
-				 * sign extension bit.  For any other bus size
-				 * we need to specify the sign extension bit
-				 * and adjust the input size accordingly
-				 */
-
-				if (smmu->ubs == 5) {
-					sep = 48;
-				} else {
-					sep = ias - 1;
-					ias--;
-				}
-			}
-		} else
+		else
 			fmt = ARM_32_LPAE_S1;
 		break;
 	case ARM_SMMU_DOMAIN_NESTED:
@@ -1866,7 +1845,6 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 			.pgsize_bitmap	= arm_smmu_ops.pgsize_bitmap,
 			.ias		= ias,
 			.oas		= oas,
-			.sep		= sep,
 			.tlb		= &arm_smmu_gather_ops,
 			.iommu_dev	= smmu->dev,
 			.iova_base	= domain->geometry.aperture_start,
@@ -3921,9 +3899,8 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 		smmu->va_size = smmu->ipa_size;
 		size = SZ_4K | SZ_2M | SZ_1G;
 	} else {
-		smmu->ubs = (id >> ID2_UBS_SHIFT) & ID2_UBS_MASK;
-
-		smmu->va_size = arm_smmu_id_size_to_bits(smmu->ubs);
+		size = (id >> ID2_UBS_SHIFT) & ID2_UBS_MASK;
+		smmu->va_size = arm_smmu_id_size_to_bits(size);
 #ifndef CONFIG_64BIT
 		smmu->va_size = min(32UL, smmu->va_size);
 #endif
