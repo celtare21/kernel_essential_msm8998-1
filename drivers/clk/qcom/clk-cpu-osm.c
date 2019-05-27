@@ -384,7 +384,6 @@ struct clk_osm {
 	u32 acd_extint1_cfg;
 	u32 acd_autoxfer_ctl;
 	u32 acd_debugfs_addr;
-	u32 acd_debugfs_addr_size;
 	bool acd_init;
 	bool secure_init;
 	bool red_fsm_en;
@@ -1378,7 +1377,6 @@ static int clk_osm_resources_init(struct platform_device *pdev)
 			return -ENOMEM;
 		}
 		pwrcl_clk.pbases[ACD_BASE] = pbase;
-		pwrcl_clk.acd_debugfs_addr_size = resource_size(res);
 		pwrcl_clk.vbases[ACD_BASE] = vbase;
 		pwrcl_clk.acd_init = true;
 	} else {
@@ -1396,7 +1394,6 @@ static int clk_osm_resources_init(struct platform_device *pdev)
 			return -ENOMEM;
 		}
 		perfcl_clk.pbases[ACD_BASE] = pbase;
-		perfcl_clk.acd_debugfs_addr_size = resource_size(res);
 		perfcl_clk.vbases[ACD_BASE] = vbase;
 		perfcl_clk.acd_init = true;
 	} else {
@@ -2841,11 +2838,6 @@ static int debugfs_get_debug_reg(void *data, u64 *val)
 {
 	struct clk_osm *c = data;
 
-	if (!c->pbases[ACD_BASE]) {
-		pr_err("ACD base start not defined\n");
-		return -EINVAL;
-	}
-
 	if (c->acd_debugfs_addr >= ACD_MASTER_ONLY_REG_ADDR)
 		*val = readl_relaxed((char *)c->vbases[ACD_BASE] +
 				     c->acd_debugfs_addr);
@@ -2857,11 +2849,6 @@ static int debugfs_get_debug_reg(void *data, u64 *val)
 static int debugfs_set_debug_reg(void *data, u64 val)
 {
 	struct clk_osm *c = data;
-
-	if (!c->pbases[ACD_BASE]) {
-		pr_err("ACD base start not defined\n");
-		return -EINVAL;
-	}
 
 	if (c->acd_debugfs_addr >= ACD_MASTER_ONLY_REG_ADDR)
 		clk_osm_acd_master_write_reg(c, val, c->acd_debugfs_addr);
@@ -2880,27 +2867,13 @@ static int debugfs_get_debug_reg_addr(void *data, u64 *val)
 {
 	struct clk_osm *c = data;
 
-	if (!c->pbases[ACD_BASE]) {
-		pr_err("ACD base start not defined\n");
-		return -EINVAL;
-	}
-
 	*val = c->acd_debugfs_addr;
-
 	return 0;
 }
 
 static int debugfs_set_debug_reg_addr(void *data, u64 val)
 {
 	struct clk_osm *c = data;
-
-	if (!c->pbases[ACD_BASE]) {
-		pr_err("ACD base start not defined\n");
-		return -EINVAL;
-	}
-
-	if (val >= c->acd_debugfs_addr_size)
-		return -EINVAL;
 
 	c->acd_debugfs_addr = val;
 	return 0;
