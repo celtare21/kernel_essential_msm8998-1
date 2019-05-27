@@ -618,21 +618,18 @@ static inline bool is_better_rate(unsigned long req, unsigned long best,
 	return (req <= new && new < best) || (best < req && best < new);
 }
 
-static int clk_osm_determine_rate(struct clk_hw *hw,
-					struct clk_rate_request *req)
+static long clk_osm_round_rate(struct clk_hw *hw, unsigned long rate,
+				unsigned long *parent_rate)
 {
 	int i;
 	unsigned long rrate = 0;
-	unsigned long rate = req->rate;
 
 	/*
 	 * If the rate passed in is 0, return the first frequency in the
 	 * FMAX table.
 	 */
-	if (!rate) {
-		req->rate = hw->init->rate_max[0];
-		return 0;
-	}
+	if (!rate)
+		return hw->init->rate_max[0];
 
 	for (i = 0; i < hw->init->num_rate_max; i++) {
 		if (is_better_rate(rate, rrate, hw->init->rate_max[i])) {
@@ -642,12 +639,10 @@ static int clk_osm_determine_rate(struct clk_hw *hw,
 		}
 	}
 
-	req->rate = rrate;
-
 	pr_debug("%s: rate %lu, rrate %ld, Rate max %ld\n", __func__, rate,
 						rrate, hw->init->rate_max[i]);
 
-	return 0;
+	return rrate;
 }
 
 static int clk_osm_search_table(struct osm_entry *table, int entries, long rate)
@@ -678,19 +673,18 @@ static int clk_osm_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk_osm *cpuclk = to_clk_osm(hw);
 	int index = 0;
-	struct clk_rate_request req;
+	unsigned long r_rate;
 
-	req.rate = rate;
-	clk_osm_determine_rate(hw, &req);
+	r_rate = clk_osm_round_rate(hw, rate, NULL);
 
-	if (rate != req.rate) {
+	if (rate != r_rate) {
 		pr_err("invalid rate requested rate=%ld\n", rate);
 		return -EINVAL;
 	}
 
 	/* Convert rate to table index */
 	index = clk_osm_search_table(cpuclk->osm_table,
-				     cpuclk->num_entries, req.rate);
+				     cpuclk->num_entries, r_rate);
 	if (index < 0) {
 		pr_err("cannot set cluster %u to %lu\n",
 		       cpuclk->cluster_num, rate);
@@ -774,7 +768,7 @@ static unsigned long clk_osm_recalc_rate(struct clk_hw *hw,
 static struct clk_ops clk_ops_cpu_osm = {
 	.enable = clk_osm_enable,
 	.set_rate = clk_osm_set_rate,
-	.determine_rate = clk_osm_determine_rate,
+	.round_rate = clk_osm_round_rate,
 	.list_rate = clk_osm_list_rate,
 	.recalc_rate = clk_osm_recalc_rate,
 	.debug_init = clk_debug_measure_add,
