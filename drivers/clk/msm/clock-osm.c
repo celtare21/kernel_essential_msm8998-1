@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -359,6 +359,7 @@ struct clk_osm {
 	void *vbases[NUM_BASES];
 	unsigned long pbases[NUM_BASES];
 	void __iomem *debug_regs[DEBUG_REG_NUM];
+	spinlock_t lock;
 
 	u32 cpu_reg_mask;
 	u32 num_entries;
@@ -2744,7 +2745,7 @@ static ssize_t debugfs_trace_method_get(struct file *file, char __user *buf,
 		len = snprintf(debug_buf, sizeof(debug_buf), "xor\n");
 	else
 		return -EINVAL;
-        rc = simple_read_from_buffer((void __user *) buf, count, ppos,
+	rc = simple_read_from_buffer((void __user *) buf, len, ppos,
 				     (void *) debug_buf, len);
 
 	mutex_unlock(&debug_buf_mutex);
