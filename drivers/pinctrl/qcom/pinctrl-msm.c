@@ -74,6 +74,8 @@ struct msm_pinctrl {
 	void __iomem *regs_direct;
 };
 
+static struct msm_pinctrl *msm_pinctrl_data;
+
 static inline struct msm_pinctrl *to_msm_pinctrl(struct gpio_chip *gc)
 {
 	return container_of(gc, struct msm_pinctrl, chip);
@@ -636,10 +638,6 @@ static void msm_gpio_irq_unmask(struct irq_data *d)
 
 	spin_lock_irqsave(&pctrl->lock, flags);
 
-	val = readl(pctrl->regs + g->intr_status_reg);
-	val &= ~BIT(g->intr_status_bit);
-	writel(val, pctrl->regs + g->intr_status_reg);
-
 	val = readl(pctrl->regs + g->intr_cfg_reg);
 	val |= BIT(g->intr_enable_bit);
 	writel(val, pctrl->regs + g->intr_cfg_reg);
@@ -960,7 +958,7 @@ static void msm_pinctrl_resume(void)
 	spin_lock_irqsave(&pctrl->lock, flags);
 	for_each_set_bit(i, pctrl->enabled_irqs, pctrl->chip.ngpio) {
 		g = &pctrl->soc->groups[i];
-		val = readl(pctrl->regs + g->intr_status_reg);
+		val = readl_relaxed(pctrl->regs + g->intr_status_reg);
 		if (val & BIT(g->intr_status_bit)) {
 			irq = irq_find_mapping(pctrl->chip.irqdomain, i);
 			desc = irq_to_desc(irq);
