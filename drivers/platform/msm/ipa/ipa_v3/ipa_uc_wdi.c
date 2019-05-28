@@ -1312,7 +1312,6 @@ int ipa3_enable_wdi_pipe(u32 clnt_hdl)
 	struct ipa3_ep_context *ep;
 	union IpaHwWdiCommonChCmdData_t enable;
 	struct ipa_ep_cfg_holb holb_cfg;
-	struct ipahal_reg_endp_init_rsrc_grp rsrc_grp;
 
 	if (clnt_hdl >= ipa3_ctx->ipa_num_pipes ||
 	    ipa3_ctx->ep[clnt_hdl].valid == 0) {
@@ -1344,20 +1343,6 @@ int ipa3_enable_wdi_pipe(u32 clnt_hdl)
 		result = -EFAULT;
 		goto uc_timeout;
 	}
-
-	/* Assign the resource group for pipe */
-	memset(&rsrc_grp, 0, sizeof(rsrc_grp));
-	rsrc_grp.rsrc_grp = ipa_get_ep_group(ep->client);
-	if (rsrc_grp.rsrc_grp == -1) {
-		IPAERR("invalid group for client %d\n", ep->client);
-		WARN_ON(1);
-		return -EFAULT;
-	}
-
-	IPADBG("Setting group %d for pipe %d\n",
-		rsrc_grp.rsrc_grp, clnt_hdl);
-	ipahal_write_reg_n_fields(IPA_ENDP_INIT_RSRC_GRP_n, clnt_hdl,
-		&rsrc_grp);
 
 	if (IPA_CLIENT_IS_CONS(ep->client)) {
 		memset(&holb_cfg, 0 , sizeof(holb_cfg));
