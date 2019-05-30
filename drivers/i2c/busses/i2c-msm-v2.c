@@ -1274,10 +1274,10 @@ static int i2c_msm_dma_xfer_process(struct i2c_msm_ctrl *ctrl)
 						tx->dir,
 						(SPS_IOVEC_FLAG_EOT |
 							SPS_IOVEC_FLAG_NWD));
-	if (IS_ERR_OR_NULL(dma_desc_tx)) {
+	if (dma_desc_tx < 0) {
 		dev_err(ctrl->dev, "error dmaengine_prep_slave_sg tx:%ld\n",
 							PTR_ERR(dma_desc_tx));
-		ret = dma_desc_tx ? PTR_ERR(dma_desc_tx) : -ENOMEM;
+		ret = PTR_ERR(dma_desc_tx);
 		goto dma_xfer_end;
 	}
 
@@ -1292,11 +1292,11 @@ static int i2c_msm_dma_xfer_process(struct i2c_msm_ctrl *ctrl)
 					sg_rx_itr - sg_rx, rx->dir,
 					(SPS_IOVEC_FLAG_EOT |
 							SPS_IOVEC_FLAG_NWD));
-	if (IS_ERR_OR_NULL(dma_desc_rx)) {
+	if (dma_desc_rx < 0) {
 		dev_err(ctrl->dev,
 			"error dmaengine_prep_slave_sg rx:%ld\n",
 						PTR_ERR(dma_desc_rx));
-		ret = dma_desc_rx ? PTR_ERR(dma_desc_rx) : -ENOMEM;
+		ret = PTR_ERR(dma_desc_rx);
 		goto dma_xfer_end;
 	}
 
