@@ -1315,8 +1315,7 @@ static int i2c_msm_dma_xfer_process(struct i2c_msm_ctrl *ctrl)
 
 	ret = i2c_msm_xfer_wait_for_completion(ctrl, &ctrl->xfer.complete);
 	if (!ret && ctrl->xfer.rx_cnt)
-		ret = i2c_msm_xfer_wait_for_completion(ctrl,
-						&ctrl->xfer.rx_complete);
+		i2c_msm_xfer_wait_for_completion(ctrl, &ctrl->xfer.rx_complete);
 
 dma_xfer_end:
 	/* free scatter-gather lists */
@@ -1722,7 +1721,9 @@ static irqreturn_t i2c_msm_qup_isr(int irq, void *devid)
 	void __iomem        *base = ctrl->rsrcs.base;
 	struct i2c_msm_xfer *xfer = &ctrl->xfer;
 	struct i2c_msm_xfer_mode_blk *blk = &ctrl->xfer.blk;
+	u32  i2c_status = 0;
 	u32  err_flags  = 0;
+	u32  qup_op     = 0;
 	u32  clr_flds   = 0;
 	bool log_event       = false;
 	bool signal_complete = false;
@@ -1735,24 +1736,24 @@ static irqreturn_t i2c_msm_qup_isr(int irq, void *devid)
 		return IRQ_HANDLED;
 	}
 
-	ctrl->i2c_sts_reg  = readl_relaxed(base + QUP_I2C_STATUS);
-	err_flags	   = readl_relaxed(base + QUP_ERROR_FLAGS);
-	ctrl->qup_op_reg   = readl_relaxed(base + QUP_OPERATIONAL);
+	i2c_status  = readl_relaxed(base + QUP_I2C_STATUS);
+	err_flags   = readl_relaxed(base + QUP_ERROR_FLAGS);
+	qup_op      = readl_relaxed(base + QUP_OPERATIONAL);
 
-	if (ctrl->i2c_sts_reg & QUP_MSTR_STTS_ERR_MASK) {
+	if (i2c_status & QUP_MSTR_STTS_ERR_MASK) {
 		signal_complete = true;
 		log_event       = true;
 		/*
 		 * If there is more than 1 error here, last one sticks.
 		 * The order of the error set here matters.
 		 */
-		if (ctrl->i2c_sts_reg & QUP_ARB_LOST)
+		if (i2c_status & QUP_ARB_LOST)
 			ctrl->xfer.err = I2C_MSM_ERR_ARB_LOST;
 
-		if (ctrl->i2c_sts_reg & QUP_BUS_ERROR)
+		if (i2c_status & QUP_BUS_ERROR)
 			ctrl->xfer.err = I2C_MSM_ERR_BUS_ERR;
 
-		if (ctrl->i2c_sts_reg & QUP_PACKET_NACKED)
+		if (i2c_status & QUP_PACKET_NACKED)
 			ctrl->xfer.err = I2C_MSM_ERR_NACK;
 	}
 
@@ -1765,7 +1766,7 @@ static irqreturn_t i2c_msm_qup_isr(int irq, void *devid)
 		i2c_msm_dbg_qup_reg_dump(ctrl);
 
 	/* clear interrupts fields */
-	clr_flds = ctrl->i2c_sts_reg & QUP_MSTR_STTS_ERR_MASK;
+	clr_flds = i2c_status & QUP_MSTR_STTS_ERR_MASK;
 	if (clr_flds) {
 		writel_relaxed(clr_flds, base + QUP_I2C_STATUS);
 		need_wmb = true;
@@ -1777,9 +1778,7 @@ static irqreturn_t i2c_msm_qup_isr(int irq, void *devid)
 		need_wmb = true;
 	}
 
-	clr_flds = ctrl->qup_op_reg &
-			(QUP_OUTPUT_SERVICE_FLAG |
-			QUP_INPUT_SERVICE_FLAG);
+	clr_flds = qup_op & (QUP_OUTPUT_SERVICE_FLAG | QUP_INPUT_SERVICE_FLAG);
 	if (clr_flds) {
 		writel_relaxed(clr_flds, base + QUP_OPERATIONAL);
 		need_wmb = true;
@@ -1820,25 +1819,25 @@ static irqreturn_t i2c_msm_qup_isr(int irq, void *devid)
 	/* handle data completion */
 	if (xfer->mode_id == I2C_MSM_XFER_MODE_BLOCK) {
 		/* block ready for writing */
-		if (ctrl->qup_op_reg & QUP_OUTPUT_SERVICE_FLAG) {
+		if (qup_op & QUP_OUTPUT_SERVICE_FLAG) {
 			log_event = true;
-			if (ctrl->qup_op_reg & QUP_OUT_BLOCK_WRITE_REQ)
+			if (qup_op & QUP_OUT_BLOCK_WRITE_REQ)
 				complete(&blk->wait_tx_blk);
 
-			if ((ctrl->qup_op_reg & blk->complete_mask)
+			if ((qup_op & blk->complete_mask)
 					== blk->complete_mask) {
 				log_event       = true;
 				signal_complete = true;
 			}
 		}
 		/* block ready for reading */
-		if (ctrl->qup_op_reg & QUP_INPUT_SERVICE_FLAG) {
+		if (qup_op & QUP_INPUT_SERVICE_FLAG) {
 			log_event = true;
 			complete(&blk->wait_rx_blk);
 		}
 	} else {
 		/* for FIFO/DMA Mode*/
-		if (ctrl->qup_op_reg & QUP_MAX_INPUT_DONE_FLAG) {
+		if (qup_op & QUP_MAX_INPUT_DONE_FLAG) {
 			log_event = true;
 			/*
 			 * If last transaction is an input then the entire
@@ -1856,7 +1855,7 @@ static irqreturn_t i2c_msm_qup_isr(int irq, void *devid)
 		 * here QUP_OUTPUT_SERVICE_FLAG and assumes that
 		 * QUP_MAX_OUTPUT_DONE_FLAG.
 		 */
-		if (ctrl->qup_op_reg & (QUP_OUTPUT_SERVICE_FLAG |
+		if (qup_op & (QUP_OUTPUT_SERVICE_FLAG |
 						QUP_MAX_OUTPUT_DONE_FLAG)) {
 			log_event = true;
 			/*
@@ -1869,11 +1868,13 @@ static irqreturn_t i2c_msm_qup_isr(int irq, void *devid)
 	}
 
 isr_end:
+	if (ctrl->xfer.err || (ctrl->dbgfs.dbg_lvl >= MSM_DBG))
+		i2c_msm_dbg_dump_diag(ctrl, true, i2c_status, qup_op);
+
 	if (log_event || (ctrl->dbgfs.dbg_lvl >= MSM_DBG))
 		i2c_msm_prof_evnt_add(ctrl, MSM_PROF,
 					I2C_MSM_IRQ_END,
-					ctrl->i2c_sts_reg, ctrl->qup_op_reg,
-					err_flags);
+					i2c_status, qup_op, err_flags);
 
 	if (signal_complete)
 		complete(&ctrl->xfer.complete);
@@ -2093,12 +2094,8 @@ static int i2c_msm_xfer_wait_for_completion(struct i2c_msm_ctrl *ctrl,
 					xfer->timeout, time_left, 0);
 	} else {
 		/* return an error if one detected by ISR */
-		if (ctrl->xfer.err ||
-				(ctrl->dbgfs.dbg_lvl >= MSM_DBG)) {
-			i2c_msm_dbg_dump_diag(ctrl, true,
-					ctrl->i2c_sts_reg, ctrl->qup_op_reg);
+		if (xfer->err)
 			ret = -(xfer->err);
-		}
 		i2c_msm_prof_evnt_add(ctrl, MSM_DBG, I2C_MSM_COMPLT_OK,
 					xfer->timeout, time_left, 0);
 	}
