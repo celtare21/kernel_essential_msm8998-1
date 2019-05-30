@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -53,8 +53,7 @@ static int  i2c_msm_pm_resume(struct device *dev);
 static void i2c_msm_pm_suspend(struct device *dev);
 static void i2c_msm_clk_path_init(struct i2c_msm_ctrl *ctrl);
 static struct pinctrl_state *
-	i2c_msm_rsrcs_gpio_get_state(struct i2c_msm_ctrl *ctrl,
-					const char *name);
+i2c_msm_rsrcs_gpio_get_state(struct i2c_msm_ctrl *ctrl, const char *name);
 static void i2c_msm_pm_pinctrl_state(struct i2c_msm_ctrl *ctrl,
 						bool runtime_active);
 
@@ -1923,6 +1922,7 @@ static void i2c_msm_qup_init(struct i2c_msm_ctrl *ctrl)
 			"error on verifying HW support (I2C_MAST_GEN=0)\n");
 }
 
+
 static void qup_i2c_recover_bit_bang(struct i2c_msm_ctrl *ctrl)
 {
 	int i, ret;
@@ -1932,15 +1932,7 @@ static void qup_i2c_recover_bit_bang(struct i2c_msm_ctrl *ctrl)
 	uint32_t status = readl_relaxed(ctrl->rsrcs.base + QUP_I2C_STATUS);
 	struct pinctrl_state *bitbang;
 
-	dev_info(ctrl->dev, "Executing bus recovery procedure (9 clk pulse)\n");
 	disable_irq(ctrl->rsrcs.irq);
-	if (!(status & (I2C_STATUS_BUS_ACTIVE)) ||
-		(status & (I2C_STATUS_BUS_MASTER))) {
-		dev_warn(ctrl->dev, "unexpected i2c recovery call:0x%x\n",
-				    status);
-		goto recovery_exit;
-	}
-
 	gpio_clk = of_get_named_gpio(ctrl->adapter.dev.of_node, "qcom,i2c-clk",
 				     0);
 	gpio_dat = of_get_named_gpio(ctrl->adapter.dev.of_node, "qcom,i2c-dat",
@@ -1958,7 +1950,8 @@ static void qup_i2c_recover_bit_bang(struct i2c_msm_ctrl *ctrl)
 		dev_err(ctrl->dev, "GPIO pins have no bitbang setting\n");
 		goto recovery_exit;
 	}
-	for (i = 0; i < 10; i++) {
+
+	for (i = 0; i < 9; i++) {
 		if (gpio_get_value(gpio_dat) && gpio_clk_status)
 			break;
 		gpio_direction_output(gpio_clk, 0);
@@ -1981,20 +1974,22 @@ static void qup_i2c_recover_bit_bang(struct i2c_msm_ctrl *ctrl)
 
 	status = readl_relaxed(ctrl->rsrcs.base + QUP_I2C_STATUS);
 	if (!(status & I2C_STATUS_BUS_ACTIVE)) {
-		dev_info(ctrl->dev,
-			"Bus busy cleared after %d clock cycles, status %x\n",
+		dev_info(ctrl->dev, "Bus busy cleared after %d clock cycles, "
+			 "status %x\n",
 			 i, status);
 		goto recovery_exit;
 	}
 
 	dev_warn(ctrl->dev, "Bus still busy, status %x\n", status);
-
 recovery_exit:
 	enable_irq(ctrl->rsrcs.irq);
 }
 
 static int i2c_msm_qup_post_xfer(struct i2c_msm_ctrl *ctrl, int err)
 {
+	if (ctrl->xfer.err == I2C_MSM_ERR_ARB_LOST)
+		qup_i2c_recover_bit_bang(ctrl);
+
 	/* poll until bus is released */
 	if (i2c_msm_qup_poll_bus_active_unset(ctrl)) {
 		if ((ctrl->xfer.err == I2C_MSM_ERR_ARB_LOST) ||
@@ -2245,7 +2240,18 @@ static int i2c_msm_pm_clk_enable(struct i2c_msm_ctrl *ctrl)
 static int i2c_msm_pm_xfer_start(struct i2c_msm_ctrl *ctrl)
 {
 	int ret;
+	struct i2c_msm_xfer *xfer = &ctrl->xfer;
 	mutex_lock(&ctrl->xfer.mtx);
+
+	/* if system is suspended just bail out */
+	if (ctrl->pwr_state == I2C_MSM_PM_SYS_SUSPENDED) {
+		struct i2c_msg *msgs = xfer->msgs + xfer->cur_buf.msg_idx;
+		dev_err(ctrl->dev,
+				"slave:0x%x is calling xfer when system is suspended\n",
+				msgs->addr);
+		mutex_unlock(&ctrl->xfer.mtx);
+		return -EIO;
+	}
 
 	i2c_msm_pm_pinctrl_state(ctrl, true);
 	pm_runtime_get_sync(ctrl->dev);
@@ -2327,23 +2333,9 @@ i2c_msm_frmwrk_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	struct i2c_msm_ctrl      *ctrl = i2c_get_adapdata(adap);
 	struct i2c_msm_xfer      *xfer = &ctrl->xfer;
 
-	if (num < 1) {
-		dev_err(ctrl->dev,
-		"error on number of msgs(%d) received\n", num);
-		return -EINVAL;
-	}
-
 	if (IS_ERR_OR_NULL(msgs)) {
 		dev_err(ctrl->dev, " error on msgs Accessing invalid  pointer location\n");
 		return PTR_ERR(msgs);
-	}
-
-	/* if system is suspended just bail out */
-	if (ctrl->pwr_state == I2C_MSM_PM_SYS_SUSPENDED) {
-		dev_err(ctrl->dev,
-				"slave:0x%x is calling xfer when system is suspended\n",
-				msgs->addr);
-		return -EIO;
 	}
 
 	ret = i2c_msm_pm_xfer_start(ctrl);
@@ -2851,8 +2843,8 @@ static void i2c_msm_pm_rt_init(struct device *dev) {}
 
 static const struct dev_pm_ops i2c_msm_pm_ops = {
 #ifdef CONFIG_PM_SLEEP
-	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(i2c_msm_pm_sys_suspend_noirq,
-					i2c_msm_pm_sys_resume_noirq)
+	.suspend_noirq		= i2c_msm_pm_sys_suspend_noirq,
+	.resume_noirq		= i2c_msm_pm_sys_resume_noirq,
 #endif
 	SET_RUNTIME_PM_OPS(i2c_msm_pm_rt_suspend,
 			   i2c_msm_pm_rt_resume,
@@ -2884,6 +2876,7 @@ static int i2c_msm_frmwrk_reg(struct platform_device *pdev,
 	ctrl->adapter.nr = pdev->id;
 	ctrl->adapter.dev.parent = &pdev->dev;
 	ctrl->adapter.dev.of_node = pdev->dev.of_node;
+	ctrl->adapter.retries = I2C_MSM_MAX_RETRIES;
 	ret = i2c_add_numbered_adapter(&ctrl->adapter);
 	if (ret) {
 		dev_err(ctrl->dev, "error i2c_add_adapter failed\n");
@@ -3037,7 +3030,7 @@ static int i2c_msm_init(void)
 {
 	return platform_driver_register(&i2c_msm_driver);
 }
-subsys_initcall(i2c_msm_init);
+arch_initcall(i2c_msm_init);
 
 static void i2c_msm_exit(void)
 {

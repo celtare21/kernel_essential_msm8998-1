@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015,2017-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015,2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -19,6 +19,8 @@
 
 #include <linux/bitops.h>
 #include <linux/dmaengine.h>
+#include <linux/dma-direction.h>
+#include <linux/i2c.h>
 
 enum msm_i2_debug_level {
 	MSM_ERR,	/* Error messages only. Always on */
@@ -37,6 +39,7 @@ enum msm_i2_debug_level {
 #define MASK_IS_SET_BOOL(val, mask) (MASK_IS_SET(val, mask) ? 1 : 0)
 #define KHz(freq) (1000 * freq)
 #define I2C_MSM_CLK_FAST_PLUS_FREQ  (1000000)
+#define I2C_MSM_MAX_RETRIES 5
 
 /* QUP Registers */
 enum {
@@ -201,6 +204,7 @@ enum i2c_msm_power_state {
 #define I2C_MSM_MAX_POLL_MSEC           (100)
 #define I2C_MSM_TIMEOUT_SAFTY_COEF      (10)
 #define I2C_MSM_TIMEOUT_MIN_USEC        (500000)
+#define I2C_QUP_MAX_BUS_RECOVERY_RETRY  (10)
 
 /* QUP v2 tags */
 #define QUP_TAG2_DATA_WRITE        (0x82ULL)
