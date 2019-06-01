@@ -367,7 +367,7 @@ int kgsl_devfreq_get_dev_status(struct device *dev,
 	struct kgsl_device *device = dev_get_drvdata(dev);
 	struct kgsl_pwrctrl *pwrctrl;
 	struct kgsl_pwrscale *pwrscale;
-	ktime_t tmp1, tmp2;
+	ktime_t tmp;
 
 	if (device == NULL)
 		return -ENODEV;
@@ -378,8 +378,6 @@ int kgsl_devfreq_get_dev_status(struct device *dev,
 	pwrctrl = &device->pwrctrl;
 
 	mutex_lock(&device->mutex);
-
-	tmp1 = ktime_get();
 	/*
 	 * If the GPU clock is on grab the latest power counter
 	 * values.  Otherwise the most recent ACTIVE values will
@@ -387,9 +385,9 @@ int kgsl_devfreq_get_dev_status(struct device *dev,
 	 */
 	kgsl_pwrscale_update_stats(device);
 
-	tmp2 = ktime_get();
-	stat->total_time = ktime_us_delta(tmp2, pwrscale->time);
-	pwrscale->time = tmp1;
+	tmp = ktime_get();
+	stat->total_time = ktime_us_delta(tmp, pwrscale->time);
+	pwrscale->time = tmp;
 
 	stat->busy_time = pwrscale->accum_stats.busy_time;
 
