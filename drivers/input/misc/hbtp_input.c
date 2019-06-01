@@ -335,7 +335,7 @@ static int hbtp_input_report_events(struct hbtp_data *hbtp_data,
 			input_mt_report_slot_state(hbtp_data->input_dev,
 					MT_TOOL_FINGER, tch->active);
 
-			if (likely(tch->active)) {
+			if (tch->active) {
 				input_report_abs(hbtp_data->input_dev,
 						ABS_MT_PRESSURE,
 						200);
