@@ -1369,27 +1369,31 @@ static int _execute_reg_sequence(struct adreno_device *adreno_dev,
 
 	/* todo double check the reg writes */
 	while ((cur - opcode) < length) {
-		if (cur[0] == 1 && ((cur + 4) - opcode) <= length) {
-			/* Write a 32 bit value to a 64 bit reg */
+		switch (cur[0]) {
+		/* Write a 32 bit value to a 64 bit reg */
+		case 1:
 			reg = cur[2];
 			reg = (reg << 32) | cur[1];
 			kgsl_regwrite(KGSL_DEVICE(adreno_dev), reg, cur[3]);
 			cur += 4;
-		} else if (cur[0] == 2 && ((cur + 5) - opcode) <= length) {
-			/* Write a 64 bit value to a 64 bit reg */
+			break;
+		/* Write a 64 bit value to a 64 bit reg */
+		case 2:
 			reg = cur[2];
 			reg = (reg << 32) | cur[1];
 			val = cur[4];
 			val = (val << 32) | cur[3];
 			kgsl_regwrite(KGSL_DEVICE(adreno_dev), reg, val);
 			cur += 5;
-		} else if (cur[0] == 3 && ((cur + 2) - opcode) <= length) {
-			/* Delay for X usec */
+			break;
+		/* Delay for X usec */
+		case 3:
 			udelay(cur[1]);
 			cur += 2;
-		} else
+			break;
+		default:
 			return -EINVAL;
-	}
+	} }
 	return 0;
 }
 
