@@ -2990,11 +2990,7 @@ static void cfq_arm_slice_timer(struct cfq_data *cfqd)
 	 * with sync vs async workloads.
 	 */
 	if (blk_queue_nonrot(cfqd->queue) && cfqd->hw_tag &&
-<<<<<<< HEAD
 		!get_group_idle(cfqd))
-=======
-		!cfqd->cfq_group_idle)
->>>>>>> v4.4.157
 		return;
 
 	WARN_ON(!RB_EMPTY_ROOT(&cfqq->sort_list));
