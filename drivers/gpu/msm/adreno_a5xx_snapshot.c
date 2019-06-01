@@ -619,8 +619,7 @@ static size_t a5xx_snapshot_shader_memory(struct kgsl_device *device,
 	header->index = info->bank;
 	header->size = block->sz;
 
-	memcpy(data, registers.hostptr + info->offset,
-		block->sz * sizeof(unsigned int));
+	memcpy(data, registers.hostptr + info->offset, block->sz);
 
 	return SHADER_SECTION_SZ(block->sz);
 }
