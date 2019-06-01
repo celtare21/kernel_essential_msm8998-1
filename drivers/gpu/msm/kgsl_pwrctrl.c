@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2037,7 +2037,7 @@ static inline void _close_clks(struct kgsl_device *device)
 
 int kgsl_pwrctrl_init(struct kgsl_device *device)
 {
-	int i, k, m, n = 0, result, freq;
+	int i, k, m, n = 0, result;
 	struct platform_device *pdev = device->pdev;
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	struct device_node *ocmem_bus_node;
@@ -2083,7 +2083,7 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 	pwr->wakeup_maxpwrlevel = 0;
 
 	for (i = 0; i < pwr->num_pwrlevels; i++) {
-		freq = pwr->pwrlevels[i].gpu_freq;
+		unsigned int freq = pwr->pwrlevels[i].gpu_freq;
 
 		if (freq > 0)
 			freq = clk_round_rate(pwr->grp_clks[0], freq);
@@ -2094,10 +2094,11 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 	kgsl_pwrctrl_clk_set_rate(pwr->grp_clks[0],
 		pwr->pwrlevels[pwr->num_pwrlevels - 1].gpu_freq, clocks[0]);
 
-	freq = clk_round_rate(pwr->grp_clks[6], KGSL_RBBMTIMER_CLK_FREQ);
-	if (freq > 0)
+	if (pwr->grp_clks[6] != NULL)
 		kgsl_pwrctrl_clk_set_rate(pwr->grp_clks[6],
-			freq, clocks[6]);
+			clk_round_rate(pwr->grp_clks[6],
+			KGSL_RBBMTIMER_CLK_FREQ),
+			clocks[6]);
 
 	_isense_clk_set_rate(pwr, pwr->num_pwrlevels - 1);
 
