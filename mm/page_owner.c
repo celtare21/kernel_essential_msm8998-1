@@ -242,9 +242,8 @@ print_page_owner(char __user *buf, size_t count, unsigned long pfn,
 		return -ENOMEM;
 
 	ret = snprintf(kbuf, count,
-			"Page allocated via order %u, mask %#x(%pGg)\n",
-			page_ext->order, page_ext->gfp_mask,
-			&page_ext->gfp_mask);
+			"Page allocated via order %u, mask 0x%x\n",
+			page_ext->order, page_ext->gfp_mask);
 
 	if (ret >= count)
 		goto err;
@@ -253,12 +252,23 @@ print_page_owner(char __user *buf, size_t count, unsigned long pfn,
 	pageblock_mt = get_pfnblock_migratetype(page, pfn);
 	page_mt  = gfpflags_to_migratetype(page_ext->gfp_mask);
 	ret += snprintf(kbuf + ret, count - ret,
-			"PFN %lu type %s Block %lu type %s Flags %#lx(%pGp)\n",
+			"PFN %lu Block %lu type %d %s Flags %s%s%s%s%s%s%s%s%s%s%s%s\n",
 			pfn,
-			migratetype_names[page_mt],
 			pfn >> pageblock_order,
-			migratetype_names[pageblock_mt],
-			page->flags, &page->flags);
+			pageblock_mt,
+			pageblock_mt != page_mt ? "Fallback" : "        ",
+			PageLocked(page)	? "K" : " ",
+			PageError(page)		? "E" : " ",
+			PageReferenced(page)	? "R" : " ",
+			PageUptodate(page)	? "U" : " ",
+			PageDirty(page)		? "D" : " ",
+			PageLRU(page)		? "L" : " ",
+			PageActive(page)	? "A" : " ",
+			PageSlab(page)		? "S" : " ",
+			PageWriteback(page)	? "W" : " ",
+			PageCompound(page)	? "C" : " ",
+			PageSwapCache(page)	? "B" : " ",
+			PageMappedToDisk(page)	? "M" : " ");
 
 	if (ret >= count)
 		goto err;
