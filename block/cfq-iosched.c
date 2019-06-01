@@ -2990,7 +2990,11 @@ static void cfq_arm_slice_timer(struct cfq_data *cfqd)
 	 * with sync vs async workloads.
 	 */
 	if (blk_queue_nonrot(cfqd->queue) && cfqd->hw_tag &&
+<<<<<<< HEAD
 		!get_group_idle(cfqd))
+=======
+		!cfqd->cfq_group_idle)
+>>>>>>> v4.4.157
 		return;
 
 	WARN_ON(!RB_EMPTY_ROOT(&cfqq->sort_list));
@@ -3905,7 +3909,8 @@ cfq_get_queue(struct cfq_data *cfqd, bool is_sync, struct cfq_io_cq *cic,
 			goto out;
 	}
 
-	cfqq = kmem_cache_alloc_node(cfq_pool, GFP_NOWAIT | __GFP_ZERO,
+	cfqq = kmem_cache_alloc_node(cfq_pool,
+				     GFP_NOWAIT | __GFP_ZERO | __GFP_NOWARN,
 				     cfqd->queue->node);
 	if (!cfqq) {
 		cfqq = &cfqd->oom_cfqq;
