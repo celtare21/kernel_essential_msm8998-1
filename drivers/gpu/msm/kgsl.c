@@ -3481,16 +3481,10 @@ static int _sparse_add_to_bind_tree(struct kgsl_mem_entry *entry,
 		parent = *node;
 		this = rb_entry(parent, struct sparse_bind_object, node);
 
-		if ((new->v_off < this->v_off) &&
-			((new->v_off + new->size) <= this->v_off))
+		if (new->v_off < this->v_off)
 			node = &parent->rb_left;
-		else if ((new->v_off > this->v_off) &&
-			(new->v_off >= (this->v_off + this->size)))
+		else if (new->v_off > this->v_off)
 			node = &parent->rb_right;
-		else {
-			kfree(new);
-			return -EADDRINUSE;
-		}
 	}
 
 	rb_link_node(&new->node, parent, node);
