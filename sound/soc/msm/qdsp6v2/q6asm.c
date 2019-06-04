@@ -4647,7 +4647,7 @@ static int q6asm_enc_cfg_blk_pcm_v5(struct audio_client *ac,
 		goto fail_cmd;
 	}
 
-	if (channels > PCM_FORMAT_MAX_NUM_CHANNEL_V2) {
+	if (channels > PCM_FORMAT_MAX_NUM_CHANNEL) {
 		pr_err("%s: Invalid channel count %d\n", __func__, channels);
 		rc = -EINVAL;
 		goto fail_cmd;

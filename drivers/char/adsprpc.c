@@ -1042,15 +1042,6 @@ static void context_notify_user(struct smq_invoke_ctx *ctx, int retval)
 	complete(&ctx->work);
 }
 
-	if (!kernel) {
-		VERIFY(err, invoke->handle != FASTRPC_STATIC_HANDLE_KERNEL);
-		if (err) {
-			pr_err("adsprpc: ERROR: %s: user application %s trying to send a kernel RPC message to channel %d",
-				__func__, current->comm, cid);
-			goto bail;
-		}
-	}
-
 static void fastrpc_notify_users(struct fastrpc_file *me)
 {
 	struct smq_invoke_ctx *ictx;
@@ -1595,6 +1586,15 @@ static int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 
 	if (fl->profile)
 		getnstimeofday(&invoket);
+
+	if (!kernel) {
+		VERIFY(err, invoke->handle != FASTRPC_STATIC_HANDLE_KERNEL);
+		if (err) {
+			pr_err("adsprpc: ERROR: %s: user application %s trying to send a kernel RPC message to channel %d",
+				__func__, current->comm, cid);
+			goto bail;
+		}
+	}
 
 	VERIFY(err, fl->sctx != NULL);
 	if (err)
