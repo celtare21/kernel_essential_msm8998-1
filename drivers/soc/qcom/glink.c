@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2954,7 +2954,7 @@ static int glink_tx_common(void *handle, void *pkt_priv,
 			if (!wait_for_completion_timeout(
 					&ctx->int_req_ack_complete,
 					ctx->rx_intent_req_timeout_jiffies)) {
-				GLINK_ERR(
+				GLINK_ERR_CH(ctx,
 					"%s: Intent request ack with size: %zu not granted for lcid\n",
 					__func__, size);
 				ret = -ETIMEDOUT;
@@ -2974,7 +2974,7 @@ static int glink_tx_common(void *handle, void *pkt_priv,
 			if (!wait_for_completion_timeout(
 					&ctx->int_req_complete,
 					ctx->rx_intent_req_timeout_jiffies)) {
-				GLINK_ERR(
+				GLINK_ERR_CH(ctx,
 					"%s: Intent request with size: %zu not granted for lcid\n",
 					__func__, size);
 				ret = -ETIMEDOUT;
