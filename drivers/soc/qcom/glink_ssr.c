@@ -22,6 +22,7 @@
 #include <linux/random.h>
 #include <soc/qcom/glink.h>
 #include <soc/qcom/subsystem_notif.h>
+#include <soc/qcom/subsystem_restart.h>
 #include "glink_private.h"
 
 #define GLINK_SSR_REPLY_TIMEOUT	HZ
@@ -606,9 +607,13 @@ int notify_for_subsystem(struct subsys_info *ss_info)
 			kfree(do_cleanup_data);
 			ss_leaf_entry->cb_data->do_cleanup_data = NULL;
 
-			if (!strcmp(ss_leaf_entry->ssr_name, "rpm"))
+			if (strcmp(ss_leaf_entry->ssr_name, "rpm")) {
+				subsystem_restart(ss_leaf_entry->ssr_name);
+				ss_leaf_entry->restarted = true;
+			} else {
 				panic("%s: Could not queue intent for RPM!\n",
 						__func__);
+			}
 			atomic_dec(&responses_remaining);
 			kref_put(&ss_leaf_entry->cb_data->cb_kref,
 							cb_data_release);
@@ -633,9 +638,13 @@ int notify_for_subsystem(struct subsys_info *ss_info)
 			kfree(do_cleanup_data);
 			ss_leaf_entry->cb_data->do_cleanup_data = NULL;
 
-			if (!strcmp(ss_leaf_entry->ssr_name, "rpm"))
+			if (strcmp(ss_leaf_entry->ssr_name, "rpm")) {
+				subsystem_restart(ss_leaf_entry->ssr_name);
+				ss_leaf_entry->restarted = true;
+			} else {
 				panic("%s: glink_tx() to RPM failed!\n",
 						__func__);
+			}
 			atomic_dec(&responses_remaining);
 			kref_put(&ss_leaf_entry->cb_data->cb_kref,
 							cb_data_release);
@@ -677,7 +686,11 @@ int notify_for_subsystem(struct subsys_info *ss_info)
 			/* Check for RPM, as it can't be restarted */
 			if (!strcmp(ss_leaf_entry->ssr_name, "rpm"))
 				panic("%s: RPM failed to respond!\n", __func__);
+			else if (!ss_leaf_entry->restarted)
+				subsystem_restart(ss_leaf_entry->ssr_name);
 		}
+		ss_leaf_entry->restarted = false;
+
 		if (!IS_ERR_OR_NULL(ss_leaf_entry->cb_data))
 			ss_leaf_entry->cb_data->responded = false;
 		kref_put(&ss_leaf_entry->cb_data->cb_kref, cb_data_release);
@@ -997,6 +1010,7 @@ static int glink_ssr_probe(struct platform_device *pdev)
 		ss_info_leaf->ssr_name = subsys_name;
 		ss_info_leaf->edge = edge;
 		ss_info_leaf->xprt = xprt;
+		ss_info_leaf->restarted = false;
 		list_add_tail(&ss_info_leaf->notify_list_node,
 				&ss_info->notify_list);
 		ss_info->notify_list_len++;
