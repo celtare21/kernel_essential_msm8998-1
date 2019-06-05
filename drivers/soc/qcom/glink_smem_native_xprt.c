@@ -900,6 +900,15 @@ static void __rx_worker(struct edge_info *einfo, bool atomic_ctx)
 
 	rcu_id = srcu_read_lock(&einfo->use_ref);
 
+	if (unlikely(!einfo->rx_fifo) && atomic_ctx) {
+		if (!get_rx_fifo(einfo)) {
+			srcu_read_unlock(&einfo->use_ref, rcu_id);
+			return;
+		}
+		einfo->in_ssr = false;
+		einfo->xprt_if.glink_core_if_ptr->link_up(&einfo->xprt_if);
+	}
+
 	if (einfo->in_ssr) {
 		srcu_read_unlock(&einfo->use_ref, rcu_id);
 		return;
@@ -1487,24 +1496,6 @@ static void tx_cmd_ch_remote_close_ack(struct glink_transport_if *if_ptr,
 
 	fifo_tx(einfo, &cmd, sizeof(cmd));
 	srcu_read_unlock(&einfo->use_ref, rcu_id);
-}
-
-/**
- * subsys_up() - process a subsystem up notification
- * @if_ptr:	The transport which is up
- *
- */
-static void subsys_up(struct glink_transport_if *if_ptr)
-{
-	struct edge_info *einfo;
-
-	einfo = container_of(if_ptr, struct edge_info, xprt_if);
-	if (!einfo->rx_fifo) {
-		if (!get_rx_fifo(einfo))
-			return;
-		einfo->in_ssr = false;
-		einfo->xprt_if.glink_core_if_ptr->link_up(&einfo->xprt_if);
-	}
 }
 
 /**
@@ -2187,7 +2178,6 @@ static void init_xprt_if(struct edge_info *einfo)
 	einfo->xprt_if.tx_cmd_ch_remote_open_ack = tx_cmd_ch_remote_open_ack;
 	einfo->xprt_if.tx_cmd_ch_remote_close_ack = tx_cmd_ch_remote_close_ack;
 	einfo->xprt_if.ssr = ssr;
-	einfo->xprt_if.subsys_up = subsys_up;
 	einfo->xprt_if.allocate_rx_intent = allocate_rx_intent;
 	einfo->xprt_if.deallocate_rx_intent = deallocate_rx_intent;
 	einfo->xprt_if.tx_cmd_local_rx_intent = tx_cmd_local_rx_intent;
@@ -2458,7 +2448,6 @@ static int glink_smem_native_probe(struct platform_device *pdev)
 									rc);
 		goto request_irq_fail;
 	}
-	einfo->in_ssr = true;
 	rc = enable_irq_wake(irq_line);
 	if (rc < 0)
 		pr_err("%s: enable_irq_wake() failed on %d\n", __func__,
@@ -2959,7 +2948,6 @@ static int glink_mailbox_probe(struct platform_device *pdev)
 	cfg_p_addr = smem_virt_to_phys(mbox_cfg);
 	writel_relaxed(lower_32_bits(cfg_p_addr), mbox_loc);
 	writel_relaxed(upper_32_bits(cfg_p_addr), mbox_loc + 4);
-	einfo->in_ssr = true;
 	send_irq(einfo);
 	iounmap(mbox_size);
 	iounmap(mbox_loc);
