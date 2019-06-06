@@ -1479,28 +1479,6 @@ static int ion_share_dma_buf_fd_nolock(struct ion_client *client,
 	return __ion_share_dma_buf_fd(client, handle, false);
 }
 
-bool ion_dma_buf_is_secure(struct dma_buf *dmabuf)
-{
-	struct ion_buffer *buffer;
-	enum ion_heap_type type;
-
-	/* Return false if we didn't create the buffer */
-	if (!dmabuf || dmabuf->ops != &dma_buf_ops)
-		return false;
-
-	buffer = dmabuf->priv;
-
-	if (!buffer || !buffer->heap)
-		return false;
-
-	type = buffer->heap->type;
-
-	return (type == (enum ion_heap_type)ION_HEAP_TYPE_SECURE_DMA ||
-		type == (enum ion_heap_type)ION_HEAP_TYPE_SYSTEM_SECURE) ?
-		true : false;
-}
-EXPORT_SYMBOL(ion_dma_buf_is_secure);
-
 static struct ion_handle *__ion_import_dma_buf(struct ion_client *client,
 					       int fd, bool lock_client)
 {
