@@ -34,6 +34,9 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
+#include <linux/wakelock.h>
+
+#define FPC_TTW_HOLD_TIME 1000
 
 #define RESET_LOW_SLEEP_MIN_US 5000
 #define RESET_LOW_SLEEP_MAX_US (RESET_LOW_SLEEP_MIN_US + 100)
@@ -41,6 +44,8 @@
 #define RESET_HIGH_SLEEP1_MAX_US (RESET_HIGH_SLEEP1_MIN_US + 100)
 #define RESET_HIGH_SLEEP2_MIN_US 5000
 #define RESET_HIGH_SLEEP2_MAX_US (RESET_HIGH_SLEEP2_MIN_US + 100)
+#define PWR_ON_SLEEP_MIN_US 100
+#define PWR_ON_SLEEP_MAX_US (PWR_ON_SLEEP_MIN_US + 900)
 
 #define NUM_PARAMS_REG_ENABLE_SET 2
 
@@ -56,12 +61,12 @@ struct fpc1020_data {
 	struct pinctrl *fingerprint_pinctrl;
 	struct pinctrl_state *pinctrl_state[ARRAY_SIZE(pctl_names)];
 
+	struct wake_lock ttw_wl;
 	int irq_gpio;
 	int rst_gpio;
 	struct mutex lock; /* To set/get exported values in sysfs */
+	bool prepared;
 	atomic_t wakeup_enabled; /* Used both in ISR and non-ISR */
-	struct workqueue_struct *fpc1020_wq;
-	struct work_struct irq_work;
 };
 
 /**
@@ -246,25 +251,18 @@ static const struct attribute_group attribute_group = {
 	.attrs = attributes,
 };
 
-static void fpc1020_irq_work(struct work_struct *work)
-{
-	struct fpc1020_data *fpc1020 =
-		container_of(work, typeof(*fpc1020), irq_work);
-
-	if (atomic_read(&fpc1020->wakeup_enabled))
-		pm_wakeup_event(fpc1020->dev, 100);
-
-	sysfs_notify(&fpc1020->dev->kobj, NULL, dev_attr_irq.attr.name);
-}
-
 static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 {
 	struct fpc1020_data *fpc1020 = handle;
 
 	dev_dbg(fpc1020->dev, "%s\n", __func__);
 
-	/* Force on first big core */
-	queue_work_on(4, fpc1020->fpc1020_wq, &fpc1020->irq_work);
+	if (atomic_read(&fpc1020->wakeup_enabled)) {
+		wake_lock_timeout(&fpc1020->ttw_wl,
+					msecs_to_jiffies(FPC_TTW_HOLD_TIME));
+	}
+
+	sysfs_notify(&fpc1020->dev->kobj, NULL, dev_attr_irq.attr.name);
 
 	return IRQ_HANDLED;
 }
@@ -362,9 +360,11 @@ static int fpc1020_probe(struct platform_device *pdev)
 
 	atomic_set(&fpc1020->wakeup_enabled, 0);
 
-	irqf = IRQF_TRIGGER_RISING | IRQF_ONESHOT | IRQF_PERF_CRITICAL;
-
-	device_init_wakeup(dev, true);
+	irqf = IRQF_TRIGGER_RISING | IRQF_ONESHOT;
+	if (of_property_read_bool(dev->of_node, "fpc,enable-wakeup")) {
+		irqf |= IRQF_NO_SUSPEND;
+		device_init_wakeup(dev, 1);
+	}
 
 	mutex_init(&fpc1020->lock);
 	rc = devm_request_threaded_irq(dev, gpio_to_irq(fpc1020->irq_gpio),
@@ -381,20 +381,13 @@ static int fpc1020_probe(struct platform_device *pdev)
 	/* Request that the interrupt should be wakeable */
 	enable_irq_wake(gpio_to_irq(fpc1020->irq_gpio));
 
+	wake_lock_init(&fpc1020->ttw_wl, WAKE_LOCK_SUSPEND, "fpc_ttw_wl");
+
 	rc = sysfs_create_group(&dev->kobj, &attribute_group);
 	if (rc) {
 		dev_err(dev, "could not create sysfs\n");
 		goto exit;
 	}
-
-	fpc1020->fpc1020_wq = alloc_workqueue("fpc1020_wq", WQ_HIGHPRI, 0);
-	if (!fpc1020->fpc1020_wq) {
-		pr_err("Create input workqueue failed\n");
-		rc = -EINVAL;
-		goto exit;
-	}
-
-	INIT_WORK(&fpc1020->irq_work, fpc1020_irq_work);
 
 	rc = hw_reset(fpc1020);
 
@@ -410,6 +403,7 @@ static int fpc1020_remove(struct platform_device *pdev)
 
 	sysfs_remove_group(&pdev->dev.kobj, &attribute_group);
 	mutex_destroy(&fpc1020->lock);
+	wake_lock_destroy(&fpc1020->ttw_wl);
 	dev_info(&pdev->dev, "%s\n", __func__);
 
 	return 0;
