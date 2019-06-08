@@ -850,7 +850,7 @@ static int vspmi_pmic_arb_probe(struct platform_device *pdev)
 		goto err_put_ctrl;
 	}
 
-	irq_set_chained_handler_and_data(pa->irq, pmic_arb_chained_irq, pa);
+	irq_set_chained_handler_and_data(pa->irq, (irq_flow_handler_t)pmic_arb_chained_irq, pa);
 	enable_irq_wake(pa->irq);
 
 	err = spmi_controller_add(ctrl);
