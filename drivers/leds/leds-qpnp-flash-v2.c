@@ -771,7 +771,7 @@ static int qpnp_flash_led_get_voltage_headroom(struct qpnp_flash_led *led)
 static int qpnp_flash_led_calc_max_current(struct qpnp_flash_led *led,
 					int *max_current)
 {
-	int ocv_uv, rbatt_uohm, ibat_now, voltage_hdrm_mv, rc;
+	int ocv_uv, rbatt_uohm = 0, ibat_now, voltage_hdrm_mv, rc;
 	int64_t ibat_flash_ua, avail_flash_ua, avail_flash_power_fw;
 	int64_t ibat_safe_ua, vin_flash_uv, vph_flash_uv, vph_flash_vdip;
 

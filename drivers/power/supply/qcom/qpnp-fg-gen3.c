@@ -2356,7 +2356,7 @@ static void esr_filter_work(struct work_struct *work)
 {
 	struct fg_chip *chip = container_of(work,
 			struct fg_chip, esr_filter_work);
-	int rc, batt_temp;
+	int rc, batt_temp = 0;
 
 	rc = fg_get_battery_temp(chip, &batt_temp);
 	if (rc < 0) {
