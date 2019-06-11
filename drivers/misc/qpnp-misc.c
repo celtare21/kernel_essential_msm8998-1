@@ -95,7 +95,7 @@ static int qpnp_write_byte(struct qpnp_misc_dev *mdev, u16 addr, u8 val)
 
 static int qpnp_read_byte(struct qpnp_misc_dev *mdev, u16 addr, u8 *val)
 {
-	unsigned int temp;
+	unsigned int temp = 0;
 	int rc;
 
 	rc = regmap_read(mdev->regmap, mdev->base + addr, &temp);
@@ -135,7 +135,7 @@ int qpnp_misc_read_reg(struct device_node *node, u16 addr, u8 *val)
 	struct qpnp_misc_dev *mdev = NULL;
 	struct qpnp_misc_dev *mdev_found = NULL;
 	int rc;
-	u8 temp;
+	u8 temp = 0;
 
 	if (IS_ERR_OR_NULL(node)) {
 		pr_err("Invalid device node pointer\n");
