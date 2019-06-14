@@ -1402,7 +1402,6 @@ static int handle3_egress_format(struct net_device *dev,
 
 	if ((e->u.data) & RMNET_IOCTL_EGRESS_FORMAT_AGGREGATION) {
 		IPAWANERR("WAN UL Aggregation not supported!!\n");
-		WARN_ON(1);
 		return -EINVAL;
 		ipa_wan_ep_cfg->ipa_ep_cfg.aggr.aggr_en = IPA_ENABLE_DEAGGR;
 		ipa_wan_ep_cfg->ipa_ep_cfg.aggr.aggr = IPA_QCMAP;
