@@ -655,7 +655,8 @@ static int sync_fill_pt_info(struct fence *fence, void *data, int size)
 static long sync_fence_ioctl_fence_info(struct sync_fence *fence,
 					unsigned long arg)
 {
-	struct sync_fence_info_data *data;
+	static u8 data_buf[4096] ____cacheline_aligned_in_smp;
+	struct sync_fence_info_data *data = (typeof(data))data_buf;
 	__u32 size;
 	__u32 len = 0;
 	int ret, i;
@@ -668,10 +669,6 @@ static long sync_fence_ioctl_fence_info(struct sync_fence *fence,
 
 	if (size > 4096)
 		size = 4096;
-
-	data = kzalloc(size, GFP_KERNEL);
-	if (data == NULL)
-		return -ENOMEM;
 
 	strlcpy(data->name, fence->name, sizeof(data->name));
 	data->status = atomic_read(&fence->status);
@@ -686,7 +683,7 @@ static long sync_fence_ioctl_fence_info(struct sync_fence *fence,
 		ret = sync_fill_pt_info(pt, (u8 *)data + len, size - len);
 
 		if (ret < 0)
-			goto out;
+			return ret;
 
 		len += ret;
 	}
@@ -697,9 +694,6 @@ static long sync_fence_ioctl_fence_info(struct sync_fence *fence,
 		ret = -EFAULT;
 	else
 		ret = 0;
-
-out:
-	kfree(data);
 
 	return ret;
 }
