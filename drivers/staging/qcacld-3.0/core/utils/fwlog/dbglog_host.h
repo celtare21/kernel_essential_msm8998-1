@@ -232,6 +232,11 @@ static inline int cnss_diag_activate_service(void)
 {
 	return 0;
 }
+
+static inline int cnss_diag_deactivate_service(void)
+{
+        return 0;
+}
 #endif /* WLAN_DEBUG */
 
 /**
