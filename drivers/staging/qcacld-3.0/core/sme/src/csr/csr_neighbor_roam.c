@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -153,8 +144,8 @@ QDF_STATUS csr_neighbor_roam_update_fast_roaming_enabled(tpAniSirGlobal mac_ctx,
 						REASON_CONNECT);
 			} else {
 				csr_roam_offload_scan(mac_ctx, session_id,
-						ROAM_SCAN_OFFLOAD_STOP,
-						REASON_DISCONNECTED);
+					ROAM_SCAN_OFFLOAD_STOP,
+					REASON_SUPPLICANT_DISABLED_ROAMING);
 			}
 			sme_release_global_lock(&mac_ctx->sme);
 		} else {
@@ -995,7 +986,7 @@ static void csr_neighbor_roam_info_ctx_init(
 
 	/* Based on the auth scheme tell if we are 11r */
 	if (csr_is_auth_type11r
-		(session->connectedProfile.AuthType,
+		(pMac, session->connectedProfile.AuthType,
 		session->connectedProfile.MDID.mdiePresent)) {
 		if (pMac->roam.configParam.isFastTransitionEnabled)
 			init_ft_flag = true;

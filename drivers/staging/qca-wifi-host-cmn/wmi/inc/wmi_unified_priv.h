@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -49,6 +40,8 @@
 #define WMI_EVENT_DEBUG_ENTRY_MAX_LENGTH (16)
 /* wmi_mgmt commands */
 #define WMI_MGMT_EVENT_DEBUG_MAX_ENTRY (256)
+/* wmi diag rx events max buffer */
+#define WMI_DIAG_RX_EVENT_DEBUG_MAX_ENTRY (256)
 
 /**
  * struct wmi_command_debug - WMI command log buffer data type
@@ -127,12 +120,14 @@ struct wmi_log_buf_t {
  * @wmi_mgmt_command_tx_cmp_log_buf_info - Buffer info for WMI Management
  * Command Tx completion log
  * @wmi_mgmt_event_log_buf_info - Buffer info for WMI Management event log
+ * @wmi_diag_event_log_buf_info - Buffer info for WMI diag event log
  * @wmi_record_lock - Lock WMI recording
  * @wmi_logging_enable - Enable/Disable state for WMI logging
  * @buf_offset_command - Offset from where WMI command data should be logged
  * @buf_offset_event - Offset from where WMI event data should be logged
  * @is_management_record - Function refernce to check if command/event is
  *  management record
+ * @is_diag_event - Function refernce to check if event is diag event
  * @wmi_id_to_name - Function refernce to API to convert Command id to
  * string name
  * @wmi_log_debugfs_dir - refernce to debugfs directory
@@ -147,12 +142,14 @@ struct wmi_debug_log_info {
 	struct wmi_log_buf_t wmi_mgmt_command_log_buf_info;
 	struct wmi_log_buf_t wmi_mgmt_command_tx_cmp_log_buf_info;
 	struct wmi_log_buf_t wmi_mgmt_event_log_buf_info;
+	struct wmi_log_buf_t wmi_diag_event_log_buf_info;
 
 	qdf_spinlock_t wmi_record_lock;
 	bool wmi_logging_enable;
 	uint32_t buf_offset_command;
 	uint32_t buf_offset_event;
 	bool (*is_management_record)(uint32_t cmd_id);
+	bool (*is_diag_event)(uint32_t event_id);
 	uint8_t *(*wmi_id_to_name)(uint32_t cmd_id);
 	struct dentry *wmi_log_debugfs_dir;
 	uint8_t wmi_instance_id;
@@ -1217,6 +1214,9 @@ QDF_STATUS (*send_sar_limit_cmd)(wmi_unified_t wmi_handle,
 
 QDF_STATUS (*get_sar_limit_cmd)(wmi_unified_t wmi_handle);
 
+QDF_STATUS (*send_coex_config_cmd)(wmi_unified_t wmi_handle,
+				   struct coex_config_params *params);
+
 QDF_STATUS (*extract_sar_limit_event)(wmi_unified_t wmi_handle,
 				      uint8_t *evt_buf,
 				      struct sar_limit_event *event);
@@ -1250,6 +1250,8 @@ QDF_STATUS (*send_offload_11k_cmd)(wmi_unified_t wmi_handle,
 
 QDF_STATUS (*send_invoke_neighbor_report_cmd)(wmi_unified_t wmi_handle,
 		struct wmi_invoke_neighbor_report_params *params);
+QDF_STATUS (*send_btm_config)(wmi_unified_t wmi_handle,
+			      struct wmi_btm_config *params);
 };
 
 struct target_abi_version {

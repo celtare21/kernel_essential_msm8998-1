@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #ifndef WLAN_QCT_WMA_H
@@ -160,6 +151,7 @@
 #define WMA_DELETE_BSS_RSP             SIR_HAL_DELETE_BSS_RSP
 #define WMA_DELETE_BSS_HO_FAIL_RSP     SIR_HAL_DELETE_BSS_HO_FAIL_RSP
 #define WMA_SEND_BEACON_REQ            SIR_HAL_SEND_BEACON_REQ
+#define WMA_SEND_BCN_RSP               SIR_HAL_SEND_BCN_RSP
 #define WMA_SEND_PROBE_RSP_TMPL        SIR_HAL_SEND_PROBE_RSP_TMPL
 
 #define WMA_SET_BSSKEY_REQ             SIR_HAL_SET_BSSKEY_REQ
@@ -169,7 +161,6 @@
 #define WMA_UPDATE_EDCA_PROFILE_IND    SIR_HAL_UPDATE_EDCA_PROFILE_IND
 
 #define WMA_UPDATE_BEACON_IND          SIR_HAL_UPDATE_BEACON_IND
-#define WMA_UPDATE_CF_IND              SIR_HAL_UPDATE_CF_IND
 #define WMA_CHNL_SWITCH_REQ            SIR_HAL_CHNL_SWITCH_REQ
 #define WMA_ADD_TS_REQ                 SIR_HAL_ADD_TS_REQ
 #define WMA_DEL_TS_REQ                 SIR_HAL_DEL_TS_REQ

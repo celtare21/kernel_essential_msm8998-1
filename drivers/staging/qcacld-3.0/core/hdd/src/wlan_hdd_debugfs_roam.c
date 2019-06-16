@@ -1,9 +1,6 @@
 
 /*
- * Copyright (c) 2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -216,7 +213,6 @@ static char *hdd_roam_scan_trigger_to_str(uint32_t roam_scan_trigger)
 	default:
 		return "UNKNOWN REASON";
 	}
-	return "UNKNOWN REASON";
 }
 
 /**
@@ -281,7 +277,6 @@ static char *hdd_client_id_to_str(uint32_t client_id)
 	default:
 		return "UNKNOWN";
 	}
-	return "UNKNOWN";
 }
 
 /**
@@ -455,6 +450,19 @@ wlan_hdd_update_roam_stats(hdd_context_t *hdd_ctx, hdd_adapter_t *adapter,
 
 		length += hdd_roam_scan_chan(scan, buf + length,
 					     buf_avail_len - length);
+		if (length >= buf_avail_len) {
+			hdd_err("No sufficient buf_avail_len");
+			length = buf_avail_len;
+			goto free_mem;
+		}
+
+		ret_val = scnprintf(buf + length, buf_avail_len - length,
+			"\nRaom Scan time: 0x%llx\n",
+			roam_stats->roam_scan[rsi].time_stamp);
+		if (ret_val <= 0)
+			goto free_mem;
+		length += ret_val;
+
 		if (length >= buf_avail_len) {
 			hdd_err("No sufficient buf_avail_len");
 			length = buf_avail_len;

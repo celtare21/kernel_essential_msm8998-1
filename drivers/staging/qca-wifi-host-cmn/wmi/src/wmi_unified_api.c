@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2016-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2016-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,11 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
 #include "wmi_unified_priv.h"
 #include "wmi_unified_param.h"
 
@@ -6414,6 +6406,17 @@ QDF_STATUS wmi_unified_get_sar_limit_cmd(void *wmi_hdl)
 	return QDF_STATUS_E_FAILURE;
 }
 
+QDF_STATUS wmi_unified_send_coex_config_cmd(void *wmi_hdl,
+					    struct coex_config_params *params)
+{
+	wmi_unified_t wmi_handle = (wmi_unified_t)wmi_hdl;
+
+	if (wmi_handle->ops->send_coex_config_cmd)
+		return wmi_handle->ops->send_coex_config_cmd(wmi_handle,
+							     params);
+	return QDF_STATUS_E_FAILURE;
+}
+
 QDF_STATUS wmi_unified_extract_sar_limit_event(void *wmi_hdl,
 					       uint8_t *evt_buf,
 					       struct sar_limit_event *event)
@@ -6580,6 +6583,18 @@ wmi_extract_roam_scan_stats_res_evt(wmi_unified_t wmi, void *evt_buf,
 		return wmi->ops->extract_roam_scan_stats_res_evt(wmi,
 							evt_buf,
 							vdev_id, res_param);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+QDF_STATUS wmi_unified_send_btm_config(void *wmi_hdl,
+				       struct wmi_btm_config *params)
+{
+	wmi_unified_t wmi_handle = (wmi_unified_t) wmi_hdl;
+
+	if (wmi_handle->ops->send_btm_config)
+		return wmi_handle->ops->send_btm_config(wmi_handle,
+							params);
 
 	return QDF_STATUS_E_FAILURE;
 }

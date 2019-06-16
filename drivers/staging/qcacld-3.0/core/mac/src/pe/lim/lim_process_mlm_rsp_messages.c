@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #include "wni_api.h"
@@ -253,7 +244,8 @@ void lim_process_mlm_start_cnf(tpAniSirGlobal pMac, uint32_t *pMsgBuf)
 					FL("Start Beacon with ssid %s Ch %d"),
 					psessionEntry->ssId.ssId,
 					psessionEntry->currentOperChannel);
-			lim_send_beacon_ind(pMac, psessionEntry);
+			lim_send_beacon_ind(pMac, psessionEntry,
+					    REASON_DEFAULT);
 		}
 	}
 }
@@ -788,6 +780,7 @@ lim_fill_assoc_ind_params(tpAniSirGlobal mac_ctx,
 		sme_assoc_ind->HTCaps = assoc_ind->HTCaps;
 	if (assoc_ind->VHTCaps.present)
 		sme_assoc_ind->VHTCaps = assoc_ind->VHTCaps;
+	sme_assoc_ind->capability_info = assoc_ind->capabilityInfo;
 
 }
 
@@ -1373,8 +1366,14 @@ void lim_handle_sme_join_result(tpAniSirGlobal mac_ctx,
 		session_entry->pLimJoinReq = NULL;
 	}
 error:
-	/* Delete the session if JOIN failure occurred. */
-	if (result_code != eSIR_SME_SUCCESS) {
+	/* Delete the session if JOIN failure occurred.
+	 * if the peer is not created, then there is no
+	 * need to send down the set link state which will
+	 * try to delete the peer. Instead a join response
+	 * failure should be sent to the upper layers.
+	 */
+	if (result_code != eSIR_SME_SUCCESS &&
+	    result_code != eSIR_SME_PEER_CREATE_FAILED) {
 		param = qdf_mem_malloc(sizeof(join_params));
 		if (param != NULL) {
 			param->result_code = result_code;
@@ -2660,7 +2659,7 @@ void lim_process_mlm_update_hidden_ssid_rsp(tpAniSirGlobal mac_ctx,
 	}
 	/* Update beacon */
 	sch_set_fixed_beacon_fields(mac_ctx, session_entry);
-	lim_send_beacon_ind(mac_ctx, session_entry);
+	lim_send_beacon_ind(mac_ctx, session_entry, REASON_CONFIG_UPDATE);
 
 free_req:
 	if (NULL != hidden_ssid_vdev_restart) {
@@ -2721,6 +2720,7 @@ void lim_process_mlm_set_sta_key_rsp(tpAniSirGlobal mac_ctx,
 	session_entry = pe_find_session_by_session_id(mac_ctx, session_id);
 	if (session_entry == NULL) {
 		pe_err("session does not exist for given session_id");
+		qdf_mem_zero(msg->bodyptr, sizeof(tSetBssKeyParams));
 		qdf_mem_free(msg->bodyptr);
 		msg->bodyptr = NULL;
 		lim_send_sme_set_context_rsp(mac_ctx,
@@ -2746,6 +2746,7 @@ void lim_process_mlm_set_sta_key_rsp(tpAniSirGlobal mac_ctx,
 	else
 		mlm_set_key_cnf.key_len_nonzero = false;
 
+	qdf_mem_zero(msg->bodyptr, sizeof(tSetBssKeyParams));
 
 	qdf_mem_free(msg->bodyptr);
 	msg->bodyptr = NULL;
@@ -2843,6 +2844,7 @@ void lim_process_mlm_set_bss_key_rsp(tpAniSirGlobal mac_ctx,
 		set_key_cnf.resultCode = result_status;
 	}
 
+	qdf_mem_zero(msg->bodyptr, sizeof(tSetBssKeyParams));
 	qdf_mem_free(msg->bodyptr);
 	msg->bodyptr = NULL;
 	/* Restore MLME state */
@@ -3192,25 +3194,25 @@ free:
 	qdf_mem_free(body);
 }
 
-void lim_send_beacon_ind(tpAniSirGlobal pMac, tpPESession psessionEntry)
+QDF_STATUS lim_send_beacon_ind(tpAniSirGlobal pMac, tpPESession psessionEntry,
+			       enum sir_bcn_update_reason reason)
 {
 	tBeaconGenParams *pBeaconGenParams = NULL;
 	tSirMsgQ limMsg;
 	/** Allocate the Memory for Beacon Pre Message and for Stations in PoweSave*/
-	if (psessionEntry == NULL) {
+	if (!psessionEntry) {
 		pe_err("Error:Unable to get the PESessionEntry");
-		return;
+		return QDF_STATUS_E_INVAL;
 	}
 	pBeaconGenParams = qdf_mem_malloc(sizeof(*pBeaconGenParams));
-	if (NULL == pBeaconGenParams) {
+	if (!pBeaconGenParams) {
 		pe_err("Unable to allocate memory during sending beaconPreMessage");
-		return;
+		return QDF_STATUS_E_NOMEM;
 	}
 	qdf_mem_copy((void *)pBeaconGenParams->bssId,
 		     (void *)psessionEntry->bssId, QDF_MAC_ADDR_SIZE);
 	limMsg.bodyptr = pBeaconGenParams;
-	sch_process_pre_beacon_ind(pMac, &limMsg);
-	return;
+	return sch_process_pre_beacon_ind(pMac, &limMsg, reason);
 }
 
 #ifdef FEATURE_WLAN_SCAN_PNO

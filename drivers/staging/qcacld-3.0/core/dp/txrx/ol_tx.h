@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -48,7 +39,8 @@ qdf_nbuf_t ol_tx_ll_fast(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list,
 			 bool notify_tx_comp);
 #endif
 
-qdf_nbuf_t ol_tx_ll_queue(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list);
+qdf_nbuf_t ol_tx_ll_queue(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list,
+			  bool notify_tx_comp);
 
 #ifdef CONFIG_HL_SUPPORT
 #define OL_TX_SEND ol_tx_hl
@@ -91,11 +83,12 @@ ol_tx_non_std_hl(ol_txrx_vdev_handle data_vdev,
  * ol_tx_hl() - transmit tx frames for a HL system.
  * @vdev: the virtual device transmit the data
  * @msdu_list: the tx frames to send
+ * @notify_tx_comp: is OTA to be notified
  *
  * Return: NULL if all MSDUs are accepted
  */
 qdf_nbuf_t
-ol_tx_hl(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list);
+ol_tx_hl(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list, bool notify_tx_comp);
 
 qdf_nbuf_t
 ol_tx_non_std_ll(ol_txrx_vdev_handle data_vdev,

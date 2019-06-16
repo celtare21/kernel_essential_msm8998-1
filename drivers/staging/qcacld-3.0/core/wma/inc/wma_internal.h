@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #ifndef WMA_INTERNAL_H
@@ -1510,9 +1501,9 @@ int wma_fill_beacon_interval_reset_req(tp_wma_handle wma, uint8_t vdev_id,
 				uint16_t beacon_interval, uint32_t timeout);
 
 /**
- * wma_peer_ant_info_evt_handler - event handler to handle antenna info
+ * wma_pdev_div_info_evt_handler - event handler to handle antenna info
  * @handle: the wma handle
- * @event: buffer with event
+ * @event_buf: buffer with event
  * @len: buffer length
  *
  * This function receives antenna info from firmware and passes the event
@@ -1520,7 +1511,7 @@ int wma_fill_beacon_interval_reset_req(tp_wma_handle wma, uint8_t vdev_id,
  *
  * Return: 0 on success
  */
-int wma_peer_ant_info_evt_handler(void *handle, u_int8_t *event,
+int wma_pdev_div_info_evt_handler(void *handle, u_int8_t *event_buf,
 	u_int32_t len);
 
 /**

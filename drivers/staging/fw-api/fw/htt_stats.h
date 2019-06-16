@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -249,15 +249,24 @@ enum htt_dbg_ext_stats_type {
      * PARAMS:
      *   - config_param0:
      *      [Bit0]          vdev_id_set:1
-         *      set to 1 if vdev_id is set and vdev stats are requested
+     *          set to 1 if vdev_id is set and vdev stats are requested
      *      [Bit8 : Bit1]   vdev_id:8
      *          note:0xFF to get all active vdevs based on pdev_mask.
      *      [Bit31 : Bit9]  rsvd:22
-
+     *
      * RESP MSG:
      *   - htt_tx_sounding_stats_t
      */
     HTT_DBG_EXT_STATS_TX_SOUNDING_INFO           = 22,
+
+    /* HTT_DBG_EXT_STATS_PDEV_OBSS_PD_STATS
+     * PARAMS:
+     *   - config_param0:
+     *      No params
+     * RESP MSG:
+     *   - htt_pdev_obss_pd_stats_t
+     */
+    HTT_DBG_EXT_STATS_PDEV_OBSS_PD_STATS         = 23,
 
 
     /* keep this last */
@@ -351,6 +360,9 @@ typedef enum {
     HTT_STATS_TX_HWQ_TRIED_MPDU_CNT_HIST_TAG            = 83,    /* htt_tx_hwq_tried_mpdu_cnt_hist_tlv_v */
     HTT_STATS_TX_HWQ_TXOP_USED_CNT_HIST_TAG             = 84,    /* htt_tx_hwq_txop_used_cnt_hist_tlv_v */
     HTT_STATS_TX_DE_FW2WBM_RING_FULL_HIST_TAG           = 85,    /* htt_tx_de_fw2wbm_ring_full_hist_tlv */
+    HTT_STATS_SCHED_TXQ_SCHED_ORDER_SU_TAG              = 86,    /* htt_sched_txq_sched_order_su_tlv */
+    HTT_STATS_SCHED_TXQ_SCHED_INELIGIBILITY_TAG         = 87,    /* htt_sched_txq_sched_eligibility_tlv */
+    HTT_STATS_PDEV_OBSS_PD_TAG                          = 88,    /* htt_pdev_obss_pd_stats_tlv */
 
     HTT_STATS_MAX_TAG,
 } htt_tlv_tag_t;
@@ -381,11 +393,25 @@ typedef enum {
      } while (0)
 
 typedef struct {
-    /* BIT [11 :  0]   :- tag
-     * BIT [23 : 12]   :- length
-     * BIT [31 : 24]   :- reserved
-     */
-    A_UINT32 tag__length;
+    union {
+        /* BIT [11 :  0]   :- tag
+         * BIT [23 : 12]   :- length
+         * BIT [31 : 24]   :- reserved
+         */
+        A_UINT32 tag__length;
+        /*
+         * The following struct is not endian-portable.
+         * It is suitable for use within the target, which is known to be
+         * little-endian.
+         * The host should use the above endian-portable macros to access
+         * the tag and length bitfields in an endian-neutral manner.
+         */
+        struct {
+            A_UINT32 tag:      12, /* BIT [11 :  0] */
+                     length:   12, /* BIT [23 : 12] */
+                     reserved:  8; /* BIT [31 : 24] */
+        };
+    };
 } htt_tlv_hdr_t;
 
 #define HTT_STATS_MAX_STRING_SZ32            4
@@ -407,6 +433,7 @@ typedef enum {
 #define HTT_TX_PDEV_MAX_SIFS_BURST_HIST_STATS  10
 #define HTT_TX_PDEV_MAX_PHY_ERR_STATS          18
 #define HTT_TX_PDEV_SCHED_TX_MODE_MAX          4
+#define HTT_TX_PDEV_NUM_SCHED_ORDER_LOG        20
 
 #define HTT_RX_STATS_REFILL_MAX_RING         4
 #define HTT_RX_STATS_RXDMA_MAX_ERR           16
@@ -610,8 +637,8 @@ typedef struct {
  */
 typedef struct {
     htt_tlv_hdr_t tlv_hdr;
-    A_UINT32 tried_mpdu_cnt_hist[1]; /* HTT_TX_PDEV_TRIED_MPDU_CNT_HIST */
     A_UINT32 hist_bin_size;
+    A_UINT32 tried_mpdu_cnt_hist[1]; /* HTT_TX_PDEV_TRIED_MPDU_CNT_HIST */
 } htt_tx_pdev_stats_tried_mpdu_cnt_hist_tlv_v;
 
 /* STATS_TYPE: HTT_DBG_EXT_STATS_PDEV_TX
@@ -1004,6 +1031,13 @@ typedef struct {
     /* Total ppdu transmitted bytes for peer: includes MAC header overhead */
     A_UINT32 ppdu_transmitted_bytes_low;
     A_UINT32 ppdu_transmitted_bytes_high;
+    A_UINT32 peer_ttl_removed_count;
+    /* inactive_time
+     * Running duration of the time since last tx/rx activity by this peer,
+     * units = seconds.
+     * If the peer is currently active, this inactive_time will be 0x0.
+     */
+    A_UINT32 inactive_time;
 } htt_peer_stats_cmn_tlv;
 
 typedef struct {
@@ -1096,6 +1130,20 @@ typedef struct _htt_rx_peer_rate_stats_tlv {
     /* Counters to track number of rx packets in each GI in each mcs (0-11) */
     A_UINT32 rx_gi[HTT_RX_PEER_STATS_NUM_GI_COUNTERS][HTT_RX_PEER_STATS_NUM_MCS_COUNTERS];
 
+    A_UINT32 rx_ulofdma_non_data_ppdu; /* ppdu level */
+    A_UINT32 rx_ulofdma_data_ppdu;     /* ppdu level */
+    A_UINT32 rx_ulofdma_mpdu_ok;       /* mpdu level */
+    A_UINT32 rx_ulofdma_mpdu_fail;     /* mpdu level */
+    A_INT8   rx_ul_fd_rssi[HTT_RX_PEER_STATS_NUM_SPATIAL_STREAMS];/* dBm unit */
+    /* per_chain_rssi_pkt_type:
+     * This field shows what type of rx frame the per-chain RSSI was computed
+     * on, by recording the frame type and sub-type as bit-fields within this
+     * field:
+     * BIT [3 : 0]    :- IEEE80211_FC0_TYPE
+     * BIT [7 : 4]    :- IEEE80211_FC0_SUBTYPE
+     * BIT [31 : 8]   :- Reserved
+     */
+    A_UINT32  per_chain_rssi_pkt_type;
 } htt_rx_peer_rate_stats_tlv;
 
 typedef enum {
@@ -1381,9 +1429,9 @@ typedef struct {
  * */
 typedef struct {
     htt_tlv_hdr_t tlv_hdr;
+    A_UINT32 hist_bin_size;
     /* Histogram of number of mpdus on tried mpdu */
     A_UINT32 tried_mpdu_cnt_hist[1]; /* HTT_TX_HWQ_TRIED_MPDU_CNT_HIST */
-    A_UINT32 hist_bin_size;
 } htt_tx_hwq_tried_mpdu_cnt_hist_tlv_v;
 
 #define HTT_TX_HWQ_TXOP_USED_CNT_HIST_TLV_SZ(_num_elems) (sizeof(A_UINT32) * (_num_elems))
@@ -1670,6 +1718,52 @@ typedef struct {
     A_UINT32 sched_cmd_reaped[1]; /* HTT_TX_PDEV_SCHED_TX_MODE_MAX */
 } htt_sched_txq_cmd_reaped_tlv_v;
 
+#define HTT_SCHED_TXQ_SCHED_ORDER_SU_TLV_SZ(_num_elems) (sizeof(A_UINT32) * (_num_elems))
+
+/* NOTE: Variable length TLV, use length spec to infer array size */
+typedef struct {
+    htt_tlv_hdr_t tlv_hdr;
+    /*
+     * sched_order_su contains the peer IDs of peers chosen in the last
+     * NUM_SCHED_ORDER_LOG scheduler instances.
+     * The array is circular; it's unspecified which array element corresponds
+     * to the most recent scheduler invocation, and which corresponds to
+     * the (NUM_SCHED_ORDER_LOG-1) most recent scheduler invocation.
+     */
+    A_UINT32 sched_order_su[1]; /* HTT_TX_PDEV_NUM_SCHED_ORDER_LOG */
+} htt_sched_txq_sched_order_su_tlv_v;
+
+typedef enum {
+    HTT_SCHED_TID_SKIP_SCHED_MASK_DISABLED = 0, /* Skip the tid when WAL_TID_DISABLE_TX_SCHED_MASK is true                                       */
+    HTT_SCHED_TID_SKIP_NOTIFY_MPDU,             /* Skip the tid's 2nd sched_cmd when 1st cmd is ongoing                                          */
+    HTT_SCHED_TID_SKIP_MPDU_STATE_INVALID,      /* Skip the tid when MPDU state is invalid                                                       */
+    HTT_SCHED_TID_SKIP_SCHED_DISABLED,          /* Skip the tid when scheduling is disabled for that tid                                         */
+    HTT_SCHED_TID_SKIP_TQM_BYPASS_CMD_PENDING,  /* Skip the TQM bypass tid when it has pending sched_cmd                                         */
+    HTT_SCHED_TID_SKIP_SECOND_SU_SCHEDULE,      /* Skip tid from 2nd SU schedule when any of the following flag is set
+                                                   WAL_TX_TID(SEND_BAR | TQM_MPDU_STATE_VALID | SEND_QOS_NULL | TQM_NOTIFY_MPDU | SENDN_PENDING) */
+    HTT_SCHED_TID_SKIP_CMD_SLOT_NOT_AVAIL,      /* Skip the tid when command slot is not available                                               */
+    HTT_SCHED_TID_SKIP_NO_ENQ,                  /* Skip the tid when num_frames is zero with g_disable_remove_tid as true                        */
+    HTT_SCHED_TID_SKIP_LOW_ENQ,                 /* Skip the tid when enqueue is low                                                              */
+    HTT_SCHED_TID_SKIP_PAUSED,                  /* Skipping the paused tid(sendn-frames)                                                         */
+    HTT_SCHED_TID_SKIP_UL,                      /* UL tid skip                                                                                   */
+    HTT_SCHED_TID_REMOVE_PAUSED,                /* Removing the paused tid when number of sendn frames is zero                                   */
+    HTT_SCHED_TID_REMOVE_NO_ENQ,                /* Remove tid with zero queue depth                                                              */
+    HTT_SCHED_TID_REMOVE_UL,                    /* UL tid remove                                                                                 */
+    HTT_SCHED_TID_QUERY,                        /* Moving to next user and adding tid in prepend list when qstats update is pending              */
+    HTT_SCHED_TID_SU_ONLY,                      /* Tid is eligible and TX_SCHED_SU_ONLY is true                                                  */
+    HTT_SCHED_TID_ELIGIBLE,                     /* Tid is eligible for scheduling                                                                */
+    HTT_SCHED_INELIGIBILITY_MAX,
+} htt_sched_txq_sched_ineligibility_tlv_enum;
+
+#define HTT_SCHED_TXQ_SCHED_INELIGIBILITY_TLV_SZ(_num_elems) (sizeof(A_UINT32) * (_num_elems))
+
+/* NOTE: Variable length TLV, use length spec to infer array size */
+typedef struct {
+    htt_tlv_hdr_t tlv_hdr;
+    /* sched_ineligibility counts the number of occurrences of different reasons for tid ineligibility during eligibility checks per txq in scheduling */
+    A_UINT32 sched_ineligibility[1]; /* indexed by htt_sched_txq_sched_ineligibility_tlv_enum */
+} htt_sched_txq_sched_ineligibility_tlv_v;
+
 #define HTT_TX_PDEV_STATS_SCHED_PER_TXQ_MAC_ID_M         0x000000ff
 #define HTT_TX_PDEV_STATS_SCHED_PER_TXQ_MAC_ID_S                  0
 
@@ -1742,6 +1836,8 @@ typedef struct {
     A_UINT32 num_tqm_sched_algo_trigger;
     /* Num of schedules for notify frame */
     A_UINT32 notify_sched;
+    /* Duration based sendn termination */
+    A_UINT32 dur_based_sendn_term;
 } htt_tx_pdev_stats_sched_per_txq_tlv;
 
 #define HTT_STATS_TX_SCHED_CMN_MAC_ID_M     0x000000ff
@@ -1773,6 +1869,8 @@ typedef struct {
  *     - HTT_STATS_TX_PDEV_SCHEDULER_TXQ_STATS_TAG
  *     - HTT_STATS_SCHED_TXQ_CMD_POSTED_TAG
  *     - HTT_STATS_SCHED_TXQ_CMD_REAPED_TAG
+ *     - HTT_STATS_SCHED_TXQ_SCHED_ORDER_SU_TAG
+ *     - HTT_STATS_SCHED_TXQ_SCHED_INELIGIBILITY_TAG
  */
 /* NOTE:
  * This structure is for documentation, and cannot be safely used directly.
@@ -1784,6 +1882,8 @@ typedef struct {
         htt_tx_pdev_stats_sched_per_txq_tlv txq_tlv;
         htt_sched_txq_cmd_posted_tlv_v cmd_posted_tlv;
         htt_sched_txq_cmd_reaped_tlv_v cmd_reaped_tlv;
+        htt_sched_txq_sched_order_su_tlv_v sched_order_su_tlv;
+        htt_sched_txq_sched_ineligibility_tlv_v sched_ineligibility_tlv;
     } txq[1];
 } htt_stats_tx_sched_t;
 
@@ -2789,6 +2889,8 @@ typedef struct {
 #define HTT_RX_PDEV_STATS_NUM_BW_COUNTERS          4
 #define HTT_RX_PDEV_STATS_NUM_SPATIAL_STREAMS      8
 #define HTT_RX_PDEV_STATS_NUM_PREAMBLE_TYPES       HTT_STATS_PREAM_COUNT
+#define HTT_RX_PDEV_MAX_OFDMA_NUM_USER             8
+#define HTT_RX_PDEV_STATS_RXEVM_MAX_PILOTS_PER_NSS 16
 
 #define HTT_RX_PDEV_RATE_STATS_MAC_ID_M     0x000000ff
 #define HTT_RX_PDEV_RATE_STATS_MAC_ID_S              0
@@ -2841,6 +2943,41 @@ typedef struct {
     A_UINT32 rx_legacy_ofdm_rate[HTT_RX_PDEV_STATS_NUM_LEGACY_OFDM_STATS];
     A_UINT32 rx_active_dur_us_low;
     A_UINT32 rx_active_dur_us_high;
+
+    A_UINT32 rx_11ax_ul_ofdma;
+
+    A_UINT32 ul_ofdma_rx_mcs[HTT_RX_PDEV_STATS_NUM_MCS_COUNTERS];
+    A_UINT32 ul_ofdma_rx_gi[HTT_TX_PDEV_STATS_NUM_GI_COUNTERS][HTT_RX_PDEV_STATS_NUM_MCS_COUNTERS];
+    A_UINT32 ul_ofdma_rx_nss[HTT_TX_PDEV_STATS_NUM_SPATIAL_STREAMS];
+    A_UINT32 ul_ofdma_rx_bw[HTT_TX_PDEV_STATS_NUM_BW_COUNTERS];
+    A_UINT32 ul_ofdma_rx_stbc;
+    A_UINT32 ul_ofdma_rx_ldpc;
+
+    /* record the stats for each user index */
+    A_UINT32 rx_ulofdma_non_data_ppdu[HTT_RX_PDEV_MAX_OFDMA_NUM_USER]; /* ppdu level */
+    A_UINT32 rx_ulofdma_data_ppdu[HTT_RX_PDEV_MAX_OFDMA_NUM_USER];     /* ppdu level */
+    A_UINT32 rx_ulofdma_mpdu_ok[HTT_RX_PDEV_MAX_OFDMA_NUM_USER];       /* mpdu level */
+    A_UINT32 rx_ulofdma_mpdu_fail[HTT_RX_PDEV_MAX_OFDMA_NUM_USER];     /* mpdu level */
+
+    A_UINT32 nss_count;
+    A_UINT32 pilot_count;
+    /* RxEVM stats in dB */
+    A_INT32  rx_pilot_evm_dB[HTT_RX_PDEV_STATS_NUM_SPATIAL_STREAMS][HTT_RX_PDEV_STATS_RXEVM_MAX_PILOTS_PER_NSS];
+    /* rx_pilot_evm_dB_mean:
+     * EVM mean across pilots, computed as
+     *     mean(10*log10(rx_pilot_evm_linear)) = mean(rx_pilot_evm_dB)
+     */
+    A_INT32 rx_pilot_evm_dB_mean[HTT_RX_PDEV_STATS_NUM_SPATIAL_STREAMS];
+    A_INT8  rx_ul_fd_rssi[HTT_RX_PDEV_STATS_NUM_SPATIAL_STREAMS][HTT_RX_PDEV_MAX_OFDMA_NUM_USER]; /* dBm units */
+    /* per_chain_rssi_pkt_type:
+     * This field shows what type of rx frame the per-chain RSSI was computed
+     * on, by recording the frame type and sub-type as bit-fields within this
+     * field:
+     * BIT [3 : 0]    :- IEEE80211_FC0_TYPE
+     * BIT [7 : 4]    :- IEEE80211_FC0_SUBTYPE
+     * BIT [31 : 8]   :- Reserved
+     */
+    A_UINT32  per_chain_rssi_pkt_type;
 } htt_rx_pdev_rate_stats_tlv;
 
 
@@ -3538,5 +3675,19 @@ typedef struct {
     htt_tx_sounding_stats_tlv sounding_tlv;
 } htt_tx_sounding_stats_t;
 
+typedef struct {
+    htt_tlv_hdr_t   tlv_hdr;
+
+    A_UINT32        num_obss_tx_ppdu_success;
+    A_UINT32        num_obss_tx_ppdu_failure;
+} htt_pdev_obss_pd_stats_tlv;
+
+/* NOTE:
+ * This structure is for documentation, and cannot be safely used directly.
+ * Instead, use the constituent TLV structures to fill/parse.
+ */
+typedef struct {
+    htt_pdev_obss_pd_stats_tlv obss_pd_stat;
+} htt_pdev_obss_pd_stats_t;
 
 #endif /* __HTT_STATS_H__ */

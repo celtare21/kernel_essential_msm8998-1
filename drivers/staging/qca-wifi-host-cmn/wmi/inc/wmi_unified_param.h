@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2016-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2016-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -1829,6 +1820,9 @@ typedef struct {
 	uint32_t wmm_caps;
 	/* since this is 4 byte aligned, we don't declare it as tlv array */
 	uint32_t mcsset[WMI_HOST_ROAM_OFFLOAD_NUM_MCS_SET >> 2];
+	uint32_t ho_delay_for_rx;
+	uint32_t roam_preauth_retry_count;
+	uint32_t roam_preauth_no_ack_timeout;
 } roam_offload_param;
 
 #define WMI_FILS_MAX_RRK_LENGTH 64
@@ -1872,6 +1866,8 @@ struct roam_fils_params {
  * @prefer_5ghz: prefer select 5G candidate
  * @roam_rssi_cat_gap: gap for every category bucket
  * @select_5ghz_margin: select 5 Ghz margin
+ * @min_delay_btw_roam_scans: Delay btw two roam scans
+ * @roam_trigger_reason_bitmask: Roam reason bitmark
  * @krk: KRK
  * @btk: BTK
  * @reassoc_failure_timeout: reassoc failure timeout
@@ -1910,7 +1906,10 @@ struct roam_offload_scan_params {
 	bool fw_okc;
 	bool fw_pmksa_cache;
 #endif
+	uint32_t min_delay_btw_roam_scans;
+	uint32_t roam_trigger_reason_bitmask;
 	bool is_ese_assoc;
+	bool is_11r_assoc;
 	struct mobility_domain_info mdid;
 #ifndef WMI_NON_TLV_SUPPORT
 	/* THis is not available in non tlv target.
@@ -2930,6 +2929,7 @@ struct dhcp_stop_ind_params {
  * @tspec: tspec value
  * @status: CDF status
  * @sessionId: session id
+ * @vdev_id: vdev-id
  */
 struct aggr_add_ts_param {
 	uint16_t staIdx;
@@ -2937,6 +2937,7 @@ struct aggr_add_ts_param {
 	struct mac_tspec_ie tspec[WMI_QOS_NUM_AC_MAX];
 	QDF_STATUS status[WMI_QOS_NUM_AC_MAX];
 	uint8_t sessionId;
+	uint8_t vdev_id;
 };
 
 
@@ -3234,6 +3235,7 @@ struct wmi_tdls_params {
 	uint32_t puapsd_rx_frame_threshold;
 	uint32_t teardown_notification_ms;
 	uint32_t tdls_peer_kickout_threshold;
+	uint32_t tdls_discovery_wake_timeout;
 };
 
 /**
@@ -3407,6 +3409,7 @@ struct periodic_tx_pattern {
  * @kek_len: Kek length
  * @ullKeyReplayCounter: replay counter
  * @bssid: bss id
+ * @is_fils_connection: Whether the present connection with the AP is FILS
  */
 struct gtk_offload_params {
 	uint32_t ulFlags;
@@ -3415,6 +3418,7 @@ struct gtk_offload_params {
 	uint32_t kek_len;
 	uint64_t ullKeyReplayCounter;
 	struct qdf_mac_addr bssid;
+	bool is_fils_connection;
 };
 
 /**
@@ -7284,6 +7288,40 @@ struct sar_limit_event {
 };
 
 /**
+ * enum coex_config_type - For identifying coex config type params
+ * COEX_CONFIG_TX_POWER: To set wlan total tx power when bt coex
+ * COEX_CONFIG_HANDOVER_RSSI: To set WLAN RSSI (dBm units)
+ * COEX_CONFIG_BTC_MODE: To set BTC mode
+ * COEX_CONFIG_ANTENNA_ISOLATION: To set solation between BT and WLAN antenna
+ * COEX_CONFIG_BT_LOW_RSSI_THRESHOLD: To set BT low rssi threshold (dbm units)
+ * COEX_CONFIG_BT_INTERFERENCE_LEVEL: To set BT interference level (dbm units)
+ */
+enum coex_config_type {
+	COEX_CONFIG_TX_POWER = 0x01,
+	COEX_CONFIG_HANDOVER_RSSI = 0x02,
+	COEX_CONFIG_BTC_MODE = 0x03,
+	COEX_CONFIG_ANTENNA_ISOLATION = 0x04,
+	COEX_CONFIG_BT_LOW_RSSI_THRESHOLD = 0x05,
+	COEX_CONFIG_BT_INTERFERENCE_LEVEL = 0x06
+};
+
+#define MAX_COEX_CONFIG_TYPE_ARGS 6
+/**
+ * struct coex_config_params - COEX config params
+ * @vdev_id: Virtual device Id
+ * @config_type: Type of config type from enum coex_config_type
+ * @config_value: config type values for enum coex_config_type,
+ *                only config type COEX_CONFIG_BT_INTERFERENCE_LEVEL
+ *                will use all arguments remaining will use only
+ *                0th argument.
+ */
+struct coex_config_params {
+	uint32_t vdev_id;
+	enum coex_config_type config_type;
+	uint32_t config_value[MAX_COEX_CONFIG_TYPE_ARGS];
+};
+
+/**
  * enum rcpi_measurement_type - for identifying type of rcpi measurement
  * @RCPI_MEASUREMENT_TYPE_AVG_MGMT: avg rcpi of mgmt frames
  * @RCPI_MEASUREMENT_TYPE_AVG_DATA: avg rcpi of data frames
@@ -7381,13 +7419,19 @@ struct action_wakeup_set_param {
  * @WMI_ACTION_OUI_CONNECT_1X1: for 1x1 connection only
  * @WMI_ACTION_OUI_ITO_EXTENSION: for extending inactivity time of station
  * @WMI_ACTION_OUI_CCKM_1X1: for TX with CCKM 1x1 only
+ * @WMI_ACTION_OUI_ITO_ALTERNATE: for alternate inactivity time of station
+ * WMI_ACTION_OUI_SWITCH_TO_11N_MODE: for switching to 11n mode connection
+ * WMI_ACTION_OUI_CONNECT_1x1_WITH_1_CHAIN: for 1x1 connection with 1 Chain
  * @WMI_ACTION_OUI_MAXIMUM_ID: maximun number of action oui types
  */
 enum wmi_action_oui_id {
 	WMI_ACTION_OUI_CONNECT_1X1 = 0,
 	WMI_ACTION_OUI_ITO_EXTENSION = 1,
 	WMI_ACTION_OUI_CCKM_1X1 = 2,
-	WMI_ACTION_OUI_MAXIMUM_ID = 3,
+	WMI_ACTION_OUI_ITO_ALTERNATE = 3,
+	WMI_ACTION_OUI_SWITCH_TO_11N_MODE = 4,
+	WMI_ACTION_OUI_CONNECT_1x1_WITH_1_CHAIN = 5,
+	WMI_ACTION_OUI_MAXIMUM_ID = 6,
 };
 
 /**
@@ -7552,6 +7596,23 @@ struct wmi_mawc_roam_params {
 	uint32_t best_ap_rssi_threshold;
 	uint8_t rssi_stationary_high_adjust;
 	uint8_t rssi_stationary_low_adjust;
+};
+/**
+ * struct wmi_btm_config - BSS Transition Management offload params
+ * @vdev_id: VDEV on which the parameters should be applied
+ * @btm_offload_config: BTM config
+ * @btm_solicited_timeout: Timeout value for waiting BTM request
+ * @btm_max_attempt_cnt: Maximum attempt for sending BTM query to ESS
+ * @btm_sticky_time: Stick time after roaming to new AP by BTM
+ * @btm_query_bitmask: roam trigger reasons to trigger BTM Query
+ */
+struct wmi_btm_config {
+	uint8_t vdev_id;
+	uint32_t btm_offload_config;
+	uint32_t btm_solicited_timeout;
+	uint32_t btm_max_attempt_cnt;
+	uint32_t btm_sticky_time;
+	uint32_t btm_query_bitmask;
 };
 
 /**

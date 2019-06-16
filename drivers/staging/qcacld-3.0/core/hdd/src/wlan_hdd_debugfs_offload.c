@@ -2,9 +2,6 @@
 /*
  * Copyright (c) 2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -314,7 +311,10 @@ wlan_hdd_apf_info_debugfs(hdd_context_t *hdd_ctx,
 	int ret_val;
 	bool apf_enabled;
 
-	apf_enabled = adapter->apf_enabled;
+	if (hdd_ctx->apf_version > 2)
+		apf_enabled = adapter->apf_context.apf_enabled;
+	else
+		apf_enabled = hdd_ctx->apf_enabled_v2;
 
 	ret_val = scnprintf(buf, buf_avail_len,
 			    "\nAPF OFFLOAD DETAILS, offload_applied: %u\n\n",

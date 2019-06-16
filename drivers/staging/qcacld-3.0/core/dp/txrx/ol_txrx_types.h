@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -383,9 +374,10 @@ struct ol_tx_sched_t;
 #ifndef OL_TXRX_NUM_LOCAL_PEER_IDS
 /*
  * Each AP will occupy one ID, so it will occupy two IDs for AP-AP mode.
- * And the remainder IDs will be assigned to other 32 clients.
+ * Clients will be assigned max 32 IDs.
+ * STA(associated)/P2P DEV (self-PEER) will get one ID.
  */
-#define OL_TXRX_NUM_LOCAL_PEER_IDS (2 + 32)
+#define OL_TXRX_NUM_LOCAL_PEER_IDS (32 + 1 + 1 + 1)
 #endif
 
 #ifndef ol_txrx_local_peer_id_t
@@ -1369,8 +1361,7 @@ struct ol_txrx_peer_t {
 	u_int16_t tx_pause_flag;
 #endif
 	qdf_time_t last_assoc_rcvd;
-	qdf_time_t last_disassoc_rcvd;
-	qdf_time_t last_deauth_rcvd;
+	qdf_time_t last_disassoc_deauth_rcvd;
 	qdf_atomic_t fw_create_pending;
 	qdf_timer_t peer_unmap_timer;
 };

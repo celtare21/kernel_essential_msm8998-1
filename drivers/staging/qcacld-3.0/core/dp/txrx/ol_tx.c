@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /* OS abstraction libraries */
@@ -538,8 +529,8 @@ qdf_nbuf_t ol_tx_ll(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list,
  *
  * Return: None
  */
-static void ol_tx_trace_pkt(qdf_nbuf_t skb, uint16_t msdu_id,
-			    uint8_t vdev_id)
+static inline void ol_tx_trace_pkt(qdf_nbuf_t skb, uint16_t msdu_id,
+				   uint8_t vdev_id)
 {
 	DPTRACE(qdf_dp_trace_ptr(skb,
 				 QDF_DP_TRACE_TXRX_FAST_PACKET_PTR_RECORD,
@@ -1157,7 +1148,8 @@ ol_tx_vdev_pause_queue_append(struct ol_txrx_vdev_t *vdev,
  * Store up the tx frame in the vdev's tx queue if the vdev is paused.
  * If there are too many frames in the tx queue, reject it.
  */
-qdf_nbuf_t ol_tx_ll_queue(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list)
+qdf_nbuf_t ol_tx_ll_queue(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list,
+			  bool notify_tx_comp)
 {
 	uint16_t eth_type;
 	uint32_t paused_reason;
@@ -1870,6 +1862,17 @@ ol_tx_hl_base(
 			txq = ol_tx_classify(vdev, tx_desc, msdu,
 							&tx_msdu_info);
 
+			/* initialize the HW tx descriptor */
+			htt_tx_desc_init(
+					pdev->htt_pdev, tx_desc->htt_tx_desc,
+					tx_desc->htt_tx_desc_paddr,
+					ol_tx_desc_id(pdev, tx_desc),
+					msdu,
+					&tx_msdu_info.htt,
+					&tx_msdu_info.tso_info,
+					&tx_ctrl,
+					vdev->opmode == wlan_op_mode_ocb);
+
 			if ((!txq) || TX_FILTER_CHECK(&tx_msdu_info)) {
 				/*
 				 * drop this frame,
@@ -1947,16 +1950,6 @@ ol_tx_hl_base(
 						&tx_msdu_info))
 				goto MSDU_LOOP_BOTTOM;
 
-			/* initialize the HW tx descriptor */
-			htt_tx_desc_init(
-					pdev->htt_pdev, tx_desc->htt_tx_desc,
-					tx_desc->htt_tx_desc_paddr,
-					ol_tx_desc_id(pdev, tx_desc),
-					msdu,
-					&tx_msdu_info.htt,
-					&tx_msdu_info.tso_info,
-					&tx_ctrl,
-					vdev->opmode == wlan_op_mode_ocb);
 			/*
 			 * If debug display is enabled, show the meta-data
 			 * being downloaded to the target via the
@@ -1979,7 +1972,8 @@ MSDU_LOOP_BOTTOM:
 }
 
 qdf_nbuf_t
-ol_tx_hl(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list)
+ol_tx_hl(ol_txrx_vdev_handle vdev, qdf_nbuf_t msdu_list,
+	 bool notify_tx_comp)
 {
 	struct ol_txrx_pdev_t *pdev = vdev->pdev;
 	int tx_comp_req = pdev->cfg.default_tx_comp_req;

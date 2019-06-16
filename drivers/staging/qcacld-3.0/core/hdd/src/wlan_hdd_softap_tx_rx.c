@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /* Include files */
@@ -351,10 +342,8 @@ bool hdd_dhcp_indication(hdd_adapter_t *adapter,
 {
 	enum qdf_proto_subtype subtype = QDF_PROTO_INVALID;
 	hdd_station_info_t *hdd_sta_info;
-
 	bool notify_tx_comp = false;
 
-	hdd_debug("adapter=%p, sta_id=%d, dir=%d", adapter, sta_id, dir);
 
 	if (((adapter->device_mode == QDF_SAP_MODE) ||
 	     (adapter->device_mode == QDF_P2P_GO_MODE)) &&
@@ -444,9 +433,11 @@ static netdev_tx_t __hdd_softap_hard_start_xmit(struct sk_buff *skb,
 	 * context may not be reinitialized at this time which may
 	 * lead to a crash.
 	 */
-	if (cds_is_driver_recovering() || cds_is_driver_in_bad_state()) {
+	if (cds_is_driver_recovering() || cds_is_driver_in_bad_state() ||
+	    cds_is_load_or_unload_in_progress()) {
 		QDF_TRACE(QDF_MODULE_ID_HDD_SAP_DATA, QDF_TRACE_LEVEL_INFO_HIGH,
-			  "%s: Recovery in Progress. Ignore!!!", __func__);
+			  "%s: Recovery/(Un)load in Progress. Ignore!!!",
+			  __func__);
 		goto drop_pkt;
 	}
 
@@ -544,10 +535,8 @@ static netdev_tx_t __hdd_softap_hard_start_xmit(struct sk_buff *skb,
 #endif
 
 		skb = hdd_skb_orphan(pAdapter, skb);
-		if (!skb) {
-			++pAdapter->hdd_stats.hddTxRxStats.tx_unshare_failed;
+		if (!skb)
 			goto drop_pkt_accounting;
-		}
 
 #if defined(IPA_OFFLOAD)
 	} else {
@@ -866,7 +855,7 @@ QDF_STATUS hdd_softap_rx_packet_cbk(void *context, qdf_nbuf_t rxBuf)
 	struct sk_buff *skb = NULL;
 	hdd_context_t *pHddCtx = NULL;
 	struct qdf_mac_addr src_mac;
-	uint8_t staid = 0;
+	uint8_t staid;
 
 	/* Sanity check on inputs */
 	if (unlikely((NULL == context) || (NULL == rxBuf))) {
@@ -932,6 +921,18 @@ QDF_STATUS hdd_softap_rx_packet_cbk(void *context, qdf_nbuf_t rxBuf)
 				      0, QDF_RX));
 
 	skb->protocol = eth_type_trans(skb, skb->dev);
+
+	/* hold configurable wakelock for unicast traffic */
+	if (pHddCtx->config->rx_wakelock_timeout &&
+	    skb->pkt_type != PACKET_BROADCAST &&
+	    skb->pkt_type != PACKET_MULTICAST) {
+		cds_host_diag_log_work(&pHddCtx->rx_wake_lock,
+				       pHddCtx->config->rx_wakelock_timeout,
+				       WIFI_POWER_EVENT_WAKELOCK_HOLD_RX);
+		qdf_wake_lock_timeout_acquire(&pHddCtx->rx_wake_lock,
+					      pHddCtx->config->
+						      rx_wakelock_timeout);
+	}
 
 	/* Remove SKB from internal tracking table before submitting
 	 * it to stack
@@ -1195,9 +1196,13 @@ QDF_STATUS hdd_softap_stop_bss(hdd_adapter_t *pAdapter)
 			}
 		}
 	}
+	if (pAdapter->device_mode == QDF_SAP_MODE &&
+	    !pHddCtx->config->disable_channel)
+		wlan_hdd_restore_channels(pHddCtx);
 
 	/* Mark the indoor channel (passive) to enable */
-	if (pHddCtx->config->disable_indoor_channel) {
+	if (pHddCtx->config->disable_indoor_channel &&
+			pAdapter->device_mode == QDF_SAP_MODE) {
 		hdd_update_indoor_channel(pHddCtx, false);
 		sme_update_channel_list(pHddCtx->hHal);
 	}

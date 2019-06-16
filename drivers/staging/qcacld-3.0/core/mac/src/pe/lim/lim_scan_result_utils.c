@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -390,6 +381,12 @@ lim_check_and_add_bss_description(tpAniSirGlobal mac_ctx,
 	tSirMacAddr bssid_zero =  {0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
 	tpSirMacDataHdr3a hdr;
 
+	uint16_t  unsafe_chan[NUM_CHANNELS];
+	uint16_t  unsafe_chan_cnt = 0;
+	uint16_t  cnt = 0;
+	bool      is_unsafe_chan = false;
+	qdf_device_t qdf_ctx;
+
 	hdr = WMA_GET_RX_MPDUHEADER3A((uint8_t *) rx_packet_info);
 
 	/*  Check For Null BSSID and Skip in case of P2P */
@@ -432,8 +429,29 @@ lim_check_and_add_bss_description(tpAniSirGlobal mac_ctx,
 				if (freq_diff <= 10)
 					drop_bcn_prb_rsp = false;
 			}
+
+			qdf_ctx = cds_get_context(QDF_MODULE_ID_QDF_DEVICE);
+			if (!qdf_ctx) {
+				pe_err("qdf_ctx is NULL");
+				return;
+			}
+			pld_get_wlan_unsafe_channel(qdf_ctx->dev, unsafe_chan,
+						    &unsafe_chan_cnt,
+						    sizeof(unsafe_chan));
+			if (mac_ctx->roam.configParam.sta_roam_policy.
+				skip_unsafe_channels && unsafe_chan_cnt) {
+				for (cnt = 0; cnt < unsafe_chan_cnt; cnt++) {
+					if (unsafe_chan[cnt] ==
+					    rx_chan_in_beacon) {
+						is_unsafe_chan = true;
+						break;
+					}
+				}
+			}
+
 			/* Drop beacon, if CH do not match, Drop */
-			if (!fProbeRsp && drop_bcn_prb_rsp) {
+			if (!fProbeRsp &&
+			    (drop_bcn_prb_rsp || is_unsafe_chan)) {
 				pe_debug("Beacon Rsp dropped. Channel in BD: %d Channel in beacon: %d",
 					rx_chan_bd, rx_chan_in_beacon);
 				return;

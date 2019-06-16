@@ -2,9 +2,6 @@
 /*
  * Copyright (c) 2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -68,10 +65,20 @@ wlan_hdd_version_info_debugfs(hdd_context_t *hdd_ctx, uint8_t *buf,
 	ret_val = scnprintf(buf + length, buf_avail_len - length,
 			   "Host Driver Version: %s\n"
 			   "Firmware Version: %d.%d.%d.%d.%d\n"
-			   "Hardware Version: %s\n",
+			   "Hardware Version: %s\n"
+			   "Board version: %x\n"
+			   "Ref design id: %x\n"
+			   "Customer id: %x\n"
+			   "Project id: %x\n"
+			   "Board Data Rev: %x\n",
 			   QWLAN_VERSIONSTR,
 			   major_spid, minor_spid, siid, crmid, sub_id,
-			   hdd_ctx->target_hw_name);
+			   hdd_ctx->target_hw_name,
+			   hdd_ctx->hw_bd_info.bdf_version,
+			   hdd_ctx->hw_bd_info.ref_design_id,
+			   hdd_ctx->hw_bd_info.customer_id,
+			   hdd_ctx->hw_bd_info.project_id,
+			   hdd_ctx->hw_bd_info.board_data_rev);
 	if (ret_val <= 0)
 		return length;
 

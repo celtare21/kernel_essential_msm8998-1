@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 #if !defined(WLAN_HDD_TX_RX_H)
@@ -203,8 +194,10 @@ void wlan_hdd_classify_pkt(struct sk_buff *skb);
 
 #ifdef MSM_PLATFORM
 void hdd_reset_tcp_delack(hdd_context_t *hdd_ctx);
+#define HDD_MSM_CFG(msm_cfg)	msm_cfg
 #else
 static inline void hdd_reset_tcp_delack(hdd_context_t *hdd_ctx) {}
+#define HDD_MSM_CFG(msm_cfg)	0
 #endif
 
 #ifdef FEATURE_WLAN_DIAG_SUPPORT

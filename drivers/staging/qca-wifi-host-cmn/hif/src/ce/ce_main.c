@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -19,11 +16,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
- */
 #include "targcfg.h"
 #include "qdf_lock.h"
 #include "qdf_status.h"
@@ -589,7 +581,7 @@ static void ce_ring_test_initial_indexes(int ce_id, struct CE_ring_state *ring,
 
 int hif_ce_bus_early_suspend(struct hif_softc *scn)
 {
-	uint8_t ul_pipe = 0, dl_pipe = 0;
+	uint8_t ul_pipe, dl_pipe;
 	int ce_id, status, ul_is_polled, dl_is_polled;
 	struct CE_state *ce_state;
 
@@ -2321,13 +2313,18 @@ void hif_unconfig_ce(struct hif_softc *hif_sc)
 		if (pipe_info->ce_hdl) {
 			ce_unregister_irq(hif_state, (1 << pipe_num));
 			hif_sc->request_irq_done = false;
+		}
+	}
+	deinit_tasklet_workers(hif_hdl);
+	for (pipe_num = 0; pipe_num < hif_sc->ce_count; pipe_num++) {
+		pipe_info = &hif_state->pipe_info[pipe_num];
+		if (pipe_info->ce_hdl) {
 			ce_fini(pipe_info->ce_hdl);
 			pipe_info->ce_hdl = NULL;
 			pipe_info->buf_sz = 0;
 			qdf_spinlock_destroy(&pipe_info->recv_bufs_needed_lock);
 		}
 	}
-	deinit_tasklet_workers(hif_hdl);
 	if (hif_sc->athdiag_procfs_inited) {
 		athdiag_procfs_remove();
 		hif_sc->athdiag_procfs_inited = false;

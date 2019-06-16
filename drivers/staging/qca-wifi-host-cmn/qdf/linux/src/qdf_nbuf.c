@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -296,13 +287,16 @@ struct sk_buff *__qdf_nbuf_alloc(qdf_device_t osdev, size_t size, int reserve,
 		size += (align - 1);
 
 	if (in_interrupt() || irqs_disabled() || in_atomic()) {
+		flags = GFP_ATOMIC;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
 		/*
 		 * Observed that kcompactd burns out CPU to make order-3 page.
 		 *__netdev_alloc_skb has 4k page fallback option just in case of
 		 * failing high order page allocation so we don't need to be
 		 * hard. Make kcompactd rest in piece.
 		 */
-		flags = GFP_ATOMIC & ~__GFP_KSWAPD_RECLAIM;
+		flags = flags & ~__GFP_KSWAPD_RECLAIM;
+#endif
 	}
 
 	skb = __netdev_alloc_skb(NULL, size, flags);
@@ -2379,14 +2373,15 @@ qdf_export_symbol(qdf_nbuf_alloc_debug);
 
 void qdf_nbuf_free_debug(qdf_nbuf_t nbuf, uint8_t *file, uint32_t line)
 {
+	if (qdf_unlikely(!nbuf))
+		return;
+
 	if (qdf_nbuf_is_tso(nbuf) && qdf_nbuf_get_users(nbuf) > 1)
 		goto free_buf;
 
 	/* Remove SKB from internal QDF tracking table */
-	if (qdf_likely(nbuf)) {
-		qdf_net_buf_debug_delete_node(nbuf);
-		qdf_nbuf_history_add(nbuf, file, line, QDF_NBUF_FREE);
-	}
+	qdf_net_buf_debug_delete_node(nbuf);
+	qdf_nbuf_history_add(nbuf, file, line, QDF_NBUF_FREE);
 
 free_buf:
 	__qdf_nbuf_free(nbuf);

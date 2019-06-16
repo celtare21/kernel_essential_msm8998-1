@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -478,6 +469,15 @@ void qdf_vtrace_msg(QDF_MODULE_ID module, QDF_TRACE_LEVEL level,
  * restart of SAP
  * @QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL: Switch using fav channel(s)
  * without SAP restart
+ * @QDF_MCC_TO_SCC_SWITCH_FORCE_PREFERRED_WITHOUT_DISCONNECTION:**Not In Use**
+ * Force switch without SAP restart. MCC is allowed only in below exception
+ * cases:
+ *	Exception Case-1: When STA is operating on DFS channel.
+ *	Exception Case-2: When STA is operating on LTE-CoEx channel.
+ *	Exception Case-3: When STA is operating on AP disabled channel.
+ * @QDF_MCC_TO_SCC_WITH_PREFERRED_BAND: Force SCC only in user preferred band.
+ * Allow MCC if STA is operating or comes up on other than user preferred band.
+ *
  * @QDF_MCC_TO_SCC_SWITCH_MAX: max switch
  */
 typedef enum {
@@ -486,6 +486,8 @@ typedef enum {
 	QDF_MCC_TO_SCC_SWITCH_FORCE,
 	QDF_MCC_TO_SCC_SWITCH_FORCE_WITHOUT_DISCONNECTION,
 	QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL,
+	QDF_MCC_TO_SCC_SWITCH_FORCE_PREFERRED_WITHOUT_DISCONNECTION,
+	QDF_MCC_TO_SCC_WITH_PREFERRED_BAND,
 	QDF_MCC_TO_SCC_SWITCH_MAX
 } tQDF_MCC_TO_SCC_SWITCH_MODE;
 #endif

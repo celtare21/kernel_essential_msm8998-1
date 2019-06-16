@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -303,7 +294,7 @@ populate_dot11f_chan_switch_wrapper(tpAniSirGlobal pMac,
 	/*
 	 * Add the VHT Transmit power Envelope Sublement.
 	 */
-	ie_ptr = lim_get_ie_ptr_new(pMac,
+	ie_ptr = wlan_cfg_get_ie_ptr(
 		psessionEntry->addIeParams.probeRespBCNData_buff,
 		psessionEntry->addIeParams.probeRespBCNDataLen,
 		DOT11F_EID_VHT_TRANSMIT_POWER_ENV, ONE_BYTE);
@@ -1068,6 +1059,25 @@ populate_dot11f_vht_caps(tpAniSirGlobal pMac,
 				VHT_TX_HIGHEST_SUPPORTED_DATA_RATE_1_1;
 			pDot11f->rxHighSupDataRate =
 				VHT_RX_HIGHEST_SUPPORTED_DATA_RATE_1_1;
+			if (!psessionEntry->ch_width &&
+			    !pMac->roam.configParam.enable_vht20_mcs9 &&
+			    ((pDot11f->txMCSMap & VHT_1x1_MCS_MASK) ==
+			     VHT_1x1_MCS9_MAP)) {
+				DISABLE_VHT_MCS_9(pDot11f->txMCSMap,
+						NSS_1x1_MODE);
+				DISABLE_VHT_MCS_9(pDot11f->rxMCSMap,
+						NSS_1x1_MODE);
+			}
+		} else {
+			if (!psessionEntry->ch_width &&
+			    !pMac->roam.configParam.enable_vht20_mcs9 &&
+			    ((pDot11f->txMCSMap & VHT_2x2_MCS_MASK) ==
+			     VHT_2x2_MCS9_MAP)) {
+				DISABLE_VHT_MCS_9(pDot11f->txMCSMap,
+						NSS_2x2_MODE);
+				DISABLE_VHT_MCS_9(pDot11f->rxMCSMap,
+						NSS_2x2_MODE);
+			}
 		}
 	}
 	lim_log_vht_cap(pMac, pDot11f);
@@ -5932,9 +5942,11 @@ tSirRetStatus populate_dot11f_wfatpc(tpAniSirGlobal pMac,
 }
 
 tSirRetStatus populate_dot11f_beacon_report(tpAniSirGlobal pMac,
-					    tDot11fIEMeasurementReport *pDot11f,
-					    tSirMacBeaconReport *pBeaconReport)
+				tDot11fIEMeasurementReport *pDot11f,
+				tSirMacBeaconReport *pBeaconReport,
+				bool is_last_frame)
 {
+	tDot11fIEbeacon_report_frm_body_fragment_id *frm_body_frag_id;
 
 	pDot11f->report.Beacon.regClass = pBeaconReport->regClass;
 	pDot11f->report.Beacon.channel = pBeaconReport->channel;
@@ -5961,6 +5973,30 @@ tSirRetStatus populate_dot11f_beacon_report(tpAniSirGlobal pMac,
 			pBeaconReport->numIes;
 	}
 
+	if (pBeaconReport->last_bcn_report_ind_support) {
+		pe_debug("Including Last Beacon Report in RRM Frame");
+		frm_body_frag_id = &pDot11f->report.Beacon.
+			beacon_report_frm_body_fragment_id;
+
+		frm_body_frag_id->present = 1;
+		frm_body_frag_id->beacon_report_id =
+			pBeaconReport->frame_body_frag_id.id;
+		frm_body_frag_id->fragment_id_number =
+			pBeaconReport->frame_body_frag_id.frag_id;
+		frm_body_frag_id->more_fragments =
+			pBeaconReport->frame_body_frag_id.more_frags;
+
+		pDot11f->report.Beacon.last_beacon_report_indication.present =
+			1;
+
+		pDot11f->report.Beacon.last_beacon_report_indication.
+			last_fragment = is_last_frame;
+		pe_debug("id %d frag_id %d more_frags %d is_last_frame %d",
+			 frm_body_frag_id->beacon_report_id,
+			 frm_body_frag_id->fragment_id_number,
+			 frm_body_frag_id->more_fragments,
+			 is_last_frame);
+	}
 	return eSIR_SUCCESS;
 
 }

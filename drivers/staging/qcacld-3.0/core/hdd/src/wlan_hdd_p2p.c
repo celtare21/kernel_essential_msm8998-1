@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
- *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /**
@@ -719,7 +710,11 @@ QDF_STATUS wlan_hdd_remain_on_channel_callback(tHalHandle hHal, void *pCtx,
 		hdd_warn("No Rem on channel pending for which Rsp is received");
 		return QDF_STATUS_SUCCESS;
 	}
-
+	if (pRemainChanCtx->scan_id != scan_id) {
+		mutex_unlock(&cfgState->remain_on_chan_ctx_lock);
+		hdd_warn("RoC scan id is not matching");
+		return QDF_STATUS_SUCCESS;
+	}
 	hdd_debug("Received remain on channel rsp");
 	if (qdf_mc_timer_stop(&pRemainChanCtx->hdd_remain_on_chan_timer)
 			!= QDF_STATUS_SUCCESS)
@@ -807,7 +802,9 @@ QDF_STATUS wlan_hdd_remain_on_channel_callback(tHalHandle hHal, void *pCtx,
 	 * Always schedule below work queue only after completing the
 	 * cancel_rem_on_chan_var event.
 	 */
-        queue_delayed_work(system_freezable_wq, &hdd_ctx->roc_req_work, 0);
+	/* If ssr is inprogress, do not schedule next roc req */
+	if (!hdd_ctx->is_ssr_in_progress)
+		schedule_delayed_work(&hdd_ctx->roc_req_work, 0);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -962,6 +959,8 @@ static void wlan_hdd_cancel_pending_roc(hdd_adapter_t *adapter)
 	roc_scan_id = roc_ctx->scan_id;
 	mutex_unlock(&cfg_state->remain_on_chan_ctx_lock);
 
+	INIT_COMPLETION(adapter->cancel_rem_on_chan_var);
+
 	if (adapter->device_mode == QDF_P2P_GO_MODE) {
 		void *sap_ctx = WLAN_HDD_GET_SAP_CTX_PTR(adapter);
 
@@ -1108,6 +1107,7 @@ static int wlan_hdd_execute_remain_on_channel(hdd_adapter_t *pAdapter,
 	cfgState->remain_on_chan_ctx = pRemainChanCtx;
 	cfgState->current_freq = pRemainChanCtx->chan.center_freq;
 	pAdapter->is_roc_inprogress = true;
+	pRemainChanCtx->is_recd_roc_ready = false;
 	mutex_unlock(&cfgState->remain_on_chan_ctx_lock);
 
 	/* Initialize Remain on chan timer */
@@ -1141,6 +1141,12 @@ static int wlan_hdd_execute_remain_on_channel(hdd_adapter_t *pAdapter,
 			duration *= P2P_ROC_DURATION_MULTIPLIER_GO_PRESENT;
 		else
 			duration *= P2P_ROC_DURATION_MULTIPLIER_GO_ABSENT;
+
+		/* this is to protect too huge value if some customers
+		 * give a higher value from supplicant
+		 */
+		if (duration > HDD_P2P_MAX_ROC_DURATION)
+			duration = HDD_P2P_MAX_ROC_DURATION;
 	}
 
 	hdd_prevent_suspend(WIFI_POWER_EVENT_WAKELOCK_ROC);
@@ -1535,7 +1541,7 @@ static int wlan_hdd_request_remain_on_channel(struct wiphy *wiphy,
 						HDD_P2P_MAX_ROC_DURATION;
 
 			wlan_hdd_roc_request_enqueue(pAdapter, pRemainChanCtx);
-			queue_delayed_work(system_freezable_wq, &pHddCtx->roc_req_work,
+			schedule_delayed_work(&pHddCtx->roc_req_work,
 			msecs_to_jiffies(
 				pHddCtx->config->p2p_listen_defer_interval));
 			hdd_debug("Defer interval is %hu, pAdapter %pK",
@@ -1577,7 +1583,7 @@ static int wlan_hdd_request_remain_on_channel(struct wiphy *wiphy,
 	 */
 	if (isBusy == false && pAdapter->is_roc_inprogress == false) {
 		hdd_debug("scheduling delayed work: no connection/roc active");
-		queue_delayed_work(system_freezable_wq, &pHddCtx->roc_req_work, 0);
+		schedule_delayed_work(&pHddCtx->roc_req_work, 0);
 	}
 	return 0;
 }
@@ -1656,6 +1662,7 @@ void hdd_remain_chan_ready_handler(hdd_adapter_t *pAdapter,
 	mutex_lock(&cfgState->remain_on_chan_ctx_lock);
 	pRemainChanCtx = cfgState->remain_on_chan_ctx;
 	if (pRemainChanCtx != NULL) {
+		pRemainChanCtx->is_recd_roc_ready = true;
 		MTRACE(qdf_trace(QDF_MODULE_ID_HDD,
 				 TRACE_CODE_HDD_REMAINCHANREADYHANDLER,
 				 pAdapter->sessionId,
@@ -1957,6 +1964,7 @@ static int __wlan_hdd_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	uint8_t home_ch = 0;
 	bool enb_random_mac = false;
 	uint32_t mgmt_hdr_len = sizeof(struct ieee80211_hdr_3addr);
+	QDF_STATUS qdf_status;
 	int32_t mgmt_id;
 
 	ENTER();
@@ -1990,6 +1998,22 @@ static int __wlan_hdd_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	hdd_debug("Device_mode %s(%d) type: %d, wait: %d, offchan: %d",
 		   hdd_device_mode_to_string(pAdapter->device_mode),
 		   pAdapter->device_mode, type, wait, offchan);
+
+	/*
+	 * When frame to be transmitted is auth mgmt, then trigger
+	 * sme_send_mgmt_tx to send auth frame
+	 */
+	if ((pAdapter->device_mode == QDF_STA_MODE) &&
+	    (type == SIR_MAC_MGMT_FRAME &&
+	    subType == SIR_MAC_MGMT_AUTH)) {
+		qdf_status = sme_send_mgmt_tx(WLAN_HDD_GET_HAL_CTX(pAdapter),
+					      pAdapter->sessionId, buf, len);
+
+		if (QDF_IS_STATUS_SUCCESS(qdf_status))
+			return 0;
+		else
+			return -EINVAL;
+	}
 
 	if (type == SIR_MAC_MGMT_FRAME && subType == SIR_MAC_MGMT_ACTION &&
 	    len > IEEE80211_MIN_ACTION_SIZE)
@@ -2239,16 +2263,34 @@ static int __wlan_hdd_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 			(QDF_TIMER_STATE_RUNNING !=
 			 qdf_mc_timer_get_current_state(
 				 &pRemainChanCtx->hdd_remain_on_chan_timer))) {
-				 mutex_unlock(
-				 &cfgState->remain_on_chan_ctx_lock);
-			hdd_debug("remain_on_chan_ctx exists but RoC timer not running. wait for ready on channel");
-			rc = wait_for_completion_timeout(&pAdapter->
-					rem_on_chan_ready_event,
-					msecs_to_jiffies
-					(WAIT_REM_CHAN_READY));
-			if (!rc)
-				hdd_err("timeout waiting for remain on channel ready indication");
-
+			if (!pRemainChanCtx->is_recd_roc_ready) {
+				mutex_unlock(
+				    &cfgState->remain_on_chan_ctx_lock);
+				hdd_debug("remain_on_chan_ctx exists but RoC timer not running. wait for ready on channel");
+				rc = wait_for_completion_timeout(&pAdapter->
+						rem_on_chan_ready_event,
+						msecs_to_jiffies
+						(WAIT_REM_CHAN_READY));
+				if (!rc)
+					hdd_err("timeout waiting for remain on channel ready indication");
+			} else {
+				/* Timer expired and posted msg to mc thread
+				 * but is not yet processed clean the roc ctx
+				 * and send response to upper layer.
+				 */
+				mutex_unlock(
+				    &cfgState->remain_on_chan_ctx_lock);
+				INIT_COMPLETION(pAdapter->
+						cancel_rem_on_chan_var);
+				rc = wait_for_completion_timeout(&pAdapter->
+						cancel_rem_on_chan_var,
+						msecs_to_jiffies(
+							WAIT_CANCEL_REM_CHAN));
+				if (!rc) {
+					hdd_err("Timeout waiting for cancel ROC indication");
+					goto err_rem_channel;
+				}
+			}
 			mutex_lock(&cfgState->remain_on_chan_ctx_lock);
 			pRemainChanCtx = cfgState->remain_on_chan_ctx;
 		}

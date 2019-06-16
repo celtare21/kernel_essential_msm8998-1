@@ -1,4 +1,4 @@
-KERNEL_SRC ?= /lib/modules/$(shell uname -r)/build
+KERNEL_SRC ?= ../kernel
 
 # The Make variable $(M) must point to the directory that contains the module
 # source code (which includes this Makefile). It can either be an absolute or a

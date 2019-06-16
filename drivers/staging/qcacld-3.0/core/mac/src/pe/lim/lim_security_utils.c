@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
- *
- * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
- *
+ * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,12 +14,6 @@
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- */
-
-/*
- * This file was originally distributed by Qualcomm Atheros, Inc.
- * under proprietary terms before Copyright ownership was assigned
- * to the Linux Foundation.
  */
 
 /*
@@ -472,11 +463,17 @@ lim_restore_from_auth_state(tpAniSirGlobal pMac, tSirResultCodes resultCode,
 	 * retry is needed also cancel the auth rety timer
 	 */
 	pMac->auth_ack_status = LIM_AUTH_ACK_RCD_SUCCESS;
-	/* 'Change' timer for future activations */
-	lim_deactivate_and_change_timer(pMac, eLIM_AUTH_RETRY_TIMER);
 
+	/* Auth retry and AUth failure timers are not started for SAE */
 	/* 'Change' timer for future activations */
-	lim_deactivate_and_change_timer(pMac, eLIM_AUTH_FAIL_TIMER);
+	if (tx_timer_running(&pMac->lim.limTimers.
+	    g_lim_periodic_auth_retry_timer))
+		lim_deactivate_and_change_timer(pMac,
+				eLIM_AUTH_RETRY_TIMER);
+	/* 'Change' timer for future activations */
+	if (tx_timer_running(&pMac->lim.limTimers.gLimAuthFailureTimer))
+		lim_deactivate_and_change_timer(pMac,
+				eLIM_AUTH_FAIL_TIMER);
 
 	sir_copy_mac_addr(currentBssId, sessionEntry->bssId);
 
@@ -752,6 +749,7 @@ void lim_post_sme_set_keys_cnf(tpAniSirGlobal pMac,
 			 &pMlmSetKeysReq->peer_macaddr);
 
 	/* Free up buffer allocated for mlmSetKeysReq */
+	qdf_mem_zero(pMlmSetKeysReq, sizeof(tLimMlmSetKeysReq));
 	qdf_mem_free(pMlmSetKeysReq);
 	pMac->lim.gpLimMlmSetKeysReq = NULL;
 
@@ -970,7 +968,6 @@ void lim_send_set_sta_key_req(tpAniSirGlobal pMac,
 					     (uint8_t *) &pMlmSetKeysReq->
 					     key[i], sizeof(tSirKeys));
 			}
-			pSetStaKeyParams->wepType = eSIR_WEP_STATIC;
 			sessionEntry->limMlmState =
 				eLIM_MLM_WT_SET_STA_KEY_STATE;
 			MTRACE(mac_trace
@@ -1028,6 +1025,7 @@ void lim_send_set_sta_key_req(tpAniSirGlobal pMac,
 		return;         /* Continue after WMA_SET_STAKEY_RSP... */
 
 free_sta_key:
+	qdf_mem_zero(pSetStaKeyParams, sizeof(tSetStaKeyParams));
 	qdf_mem_free(pSetStaKeyParams);
 fail:
 	/* Respond to SME with LIM_MLM_SETKEYS_CNF */
