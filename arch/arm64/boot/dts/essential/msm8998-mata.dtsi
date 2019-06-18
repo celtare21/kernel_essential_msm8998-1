@@ -1097,6 +1097,40 @@
 		};
 	};
 
+	i2c_2: i2c@c176000 { /* BLSP1 QUP2 */
+		status = "okay";
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&msm8998_gpio32_active &msm8998_gpio33_active>;
+		pinctrl-1 = <&msm8998_gpio32_sleep &msm8998_gpio33_sleep>;
+	};
+
+	i2c_5: i2c@c179000 { /* BLSP1 QUP5 */
+		status = "okay";
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&msm8998_gpio87_active &msm8998_gpio88_active>;
+		pinctrl-1 = <&msm8998_gpio87_sleep &msm8998_gpio88_sleep>;
+	};
+
+	i2c_6: i2c@c17a000 { /* BLSP1 QUP6 */
+		status = "ok";
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&msm8998_gpio43_active &msm8998_gpio44_active>;
+		pinctrl-1 = <&msm8998_gpio43_sleep &msm8998_gpio44_sleep>;
+	};
+
+	i2c_7: i2c@c1b5000 { /* BLSP2 QUP1 */
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&msm8998_gpio55_active &msm8998_gpio56_active>;
+		pinctrl-1 = <&msm8998_gpio55_sleep &msm8998_gpio56_sleep>;
+	};
+
+	i2c_9: i2c@c1b7000 { /* BLSP2 QUP3 */
+		status = "ok";
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&msm8998_gpio51_active &msm8998_gpio52_active>;
+		pinctrl-1 = <&msm8998_gpio51_sleep &msm8998_gpio52_sleep>;
+	};
+
 	spi_1: spi@c175000 { /* BLSP1 QUP1 */
 		status = "ok";
 		pinctrl-names = "spi_default", "spi_sleep";
