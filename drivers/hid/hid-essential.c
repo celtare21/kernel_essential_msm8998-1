@@ -85,7 +85,7 @@ static int mata_dongle_raw_event(struct hid_device *hid, struct hid_report *repo
 
 static int mata_dongle_probe(struct hid_device *hid, const struct hid_device_id *id)
 {
-	int ret;
+	int ret = -EPERM;
 	struct mata_dongle_dev *data = NULL;
 
 	data = devm_kzalloc(&hid->dev, sizeof(struct mata_dongle_dev), GFP_KERNEL);
@@ -96,7 +96,7 @@ static int mata_dongle_probe(struct hid_device *hid, const struct hid_device_id 
 	data->headset_dev.name = "mata_headset";
 	if (switch_dev_register(&data->headset_dev) < 0) {
 		pr_err("%s: register in switch failed\n",__func__);
-		return 0;
+		goto err_free;
 	}
 	hid_set_drvdata(hid, data);
 

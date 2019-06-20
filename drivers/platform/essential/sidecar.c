@@ -371,7 +371,7 @@ static void gpio_clean(struct sidecar_platform_data *pdata)
 #ifdef CONFIG_OF
 static int parse_dt_to_pdata(struct device *dev, struct sidecar_platform_data *pdata)
 {
-	int rc = -ENOMEM;
+	int rc = -EPERM;
 	struct device_node *np = dev->of_node;
 
 	pdata->irq_gpio = of_get_named_gpio(np, "hallsensor,irq-gpio", 0);
