@@ -52,9 +52,7 @@ struct ion_buffer *ion_handle_buffer(struct ion_handle *handle);
  *			a void *
  * @priv_phys:		private data to the buffer representable as
  *			an ion_phys_addr_t (and someday a phys_addr_t)
- * @alloc_lock:		protects the buffer's kmap allocation and deallocation
- * @page_lock:		protects the buffer's pages
- * @vma_lock:		protects the buffer's vma list
+ * @lock:		protects the buffers cnt fields
  * @kmap_cnt:		number of times the buffer is mapped to the kernel
  * @vaddr:		the kenrel mapping if kmap_cnt is not zero
  * @sg_table:		the sg table for the buffer.  Note that if you need
@@ -86,18 +84,14 @@ struct ion_buffer {
 		void *priv_virt;
 		ion_phys_addr_t priv_phys;
 	};
-	struct mutex alloc_lock;
+	struct mutex kmap_lock;
 	struct mutex page_lock;
 	struct mutex vma_lock;
-	atomic_t kmap_cnt;
+	int kmap_cnt;
 	void *vaddr;
 	struct sg_table *sg_table;
 	struct page **pages;
 	struct list_head vmas;
-	/* used to track orphaned buffers */
-	atomic_t handle_count;
-	char task_comm[TASK_COMM_LEN];
-	pid_t pid;
 };
 void ion_buffer_destroy(struct ion_buffer *buffer);
 
@@ -201,29 +195,7 @@ struct ion_heap {
 	size_t free_list_size;
 	spinlock_t free_lock;
 	wait_queue_head_t waitqueue;
-	struct task_struct *task;
-
-	int (*debug_show)(struct ion_heap *heap, struct seq_file *, void *);
-	atomic_t total_allocated;
-	atomic_t total_handles;
 };
-
-/**
- * ion_buffer_cached - this ion buffer is cached
- * @buffer:		buffer
- *
- * indicates whether this ion buffer is cached
- */
-bool ion_buffer_cached(struct ion_buffer *buffer);
-
-/**
- * ion_buffer_fault_user_mappings - fault in user mappings of this buffer
- * @buffer:		buffer
- *
- * indicates whether userspace mappings of this buffer will be faulted
- * in, this can affect how buffers are allocated from the heap.
- */
-bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer);
 
 /**
  * ion_device_create - allocates and returns an ion device
@@ -421,7 +393,7 @@ void ion_carveout_free(struct ion_heap *heap, ion_phys_addr_t addr,
  * @low_count:		number of lowmem items in the pool
  * @high_items:		list of highmem items
  * @low_items:		list of lowmem items
- * @lock:		lock protecting this struct and especially the count
+ * @mutex:		lock protecting this struct and especially the count
  *			item list
  * @gfp_mask:		gfp_mask to use from alloc
  * @order:		order of pages in the pool
@@ -513,9 +485,14 @@ struct ion_handle *ion_handle_get_by_id(struct ion_client *client, int id);
 
 void ion_handle_put(struct ion_handle *handle);
 
-bool ion_handle_validate(struct ion_client *client, struct ion_handle *handle);
+bool ion_handle_validate_get(struct ion_client *client,
+			     struct ion_handle *handle);
 
 struct ion_buffer *get_buffer(struct ion_handle *handle);
 
+static inline bool ion_buffer_cached(struct ion_buffer *buffer)
+{
+	return buffer->flags & ION_FLAG_CACHED;
+}
 
 #endif /* _ION_PRIV_H */
