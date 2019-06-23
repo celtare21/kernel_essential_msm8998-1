@@ -2961,11 +2961,6 @@ static void __mdss_mdp_kickoff(struct mdss_mdp_ctl *ctl,
 			}
 		}
 
-		/* Don't let the CPU servicing the MDP IRQs enter deep idle */
-		if (!cancel_work_sync(&mdata->pm_unset_work))
-			pm_qos_update_request(&mdata->pm_irq_req, 100);
-		mdata->pm_irq_set = true;
-
 		/* SW Kickoff */
 		mdss_mdp_ctl_write(ctl, MDSS_MDP_REG_CTL_START, 1);
 		MDSS_XLOG(0x11, ctx->autorefresh_state);
@@ -3136,6 +3131,11 @@ static int mdss_mdp_cmd_kickoff(struct mdss_mdp_ctl *ctl, void *arg)
 		else if (ctx->lineptr_enabled)
 			mdss_mdp_cmd_lineptr_ctrl(ctl, false);
 	}
+
+	/* Don't let the CPU servicing the MDP IRQs enter deep idle */
+	if (!cancel_work_sync(&mdata->pm_unset_work))
+		pm_qos_update_request(&mdata->pm_irq_req, 100);
+	WRITE_ONCE(mdata->pm_irq_set, true);
 
 	/* Kickoff */
 	__mdss_mdp_kickoff(ctl, sctl, ctx);
