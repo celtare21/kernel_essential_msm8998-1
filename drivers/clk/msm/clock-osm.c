@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -393,6 +393,7 @@ struct clk_osm {
 	u32 acd_extint1_cfg;
 	u32 acd_autoxfer_ctl;
 	u32 acd_debugfs_addr;
+	u32 acd_debugfs_addr_size;
 	bool acd_init;
 	bool secure_init;
 	bool red_fsm_en;
@@ -1447,6 +1448,7 @@ static int clk_osm_resources_init(struct platform_device *pdev)
 			return -ENOMEM;
 		}
 		pwrcl_clk.pbases[ACD_BASE] = pbase;
+		pwrcl_clk.acd_debugfs_addr_size = resource_size(res);
 		pwrcl_clk.vbases[ACD_BASE] = vbase;
 		pwrcl_clk.acd_init = true;
 	} else {
@@ -1464,6 +1466,7 @@ static int clk_osm_resources_init(struct platform_device *pdev)
 			return -ENOMEM;
 		}
 		perfcl_clk.pbases[ACD_BASE] = pbase;
+		perfcl_clk.acd_debugfs_addr_size = resource_size(res);
 		perfcl_clk.vbases[ACD_BASE] = vbase;
 		perfcl_clk.acd_init = true;
 	} else {
@@ -1628,11 +1631,8 @@ static int clk_osm_setup_hw_table(struct clk_osm *c)
 	struct osm_entry *entry = c->osm_table;
 	int i;
 	u32 freq_val = 0, volt_val = 0, override_val = 0, spare_val = 0;
-	u32 table_entry_offset, last_spare, last_virtual_corner = 0;
+	u32 table_entry_offset = 0, last_spare = 0, last_virtual_corner = 0;
 
-	if (c->num_entries <= 0 ) {
-		return -EINVAL;
-	}
 	for (i = 0; i < OSM_TABLE_SIZE; i++) {
 		if (i < c->num_entries) {
 			freq_val = entry[i].freq_data;
@@ -2813,7 +2813,7 @@ static ssize_t debugfs_trace_method_get(struct file *file, char __user *buf,
 					size_t count, loff_t *ppos)
 {
 	struct clk_osm *c = file->private_data;
-	int len, rc;
+	int len = 0, rc;
 
 	if (IS_ERR(file) || file == NULL) {
 		pr_err("input error %ld\n", PTR_ERR(file));
@@ -2831,9 +2831,8 @@ static ssize_t debugfs_trace_method_get(struct file *file, char __user *buf,
 		len = snprintf(debug_buf, sizeof(debug_buf), "periodic\n");
 	else if (c->trace_method == XOR_PACKET)
 		len = snprintf(debug_buf, sizeof(debug_buf), "xor\n");
-	else
-		return -EINVAL;
-	rc = simple_read_from_buffer((void __user *) buf, len, ppos,
+
+	rc = simple_read_from_buffer((void __user *) buf, count, ppos,
 				     (void *) debug_buf, len);
 
 	mutex_unlock(&debug_buf_mutex);
@@ -2983,6 +2982,11 @@ static int debugfs_get_debug_reg(void *data, u64 *val)
 {
 	struct clk_osm *c = data;
 
+	if (!c->pbases[ACD_BASE]) {
+		pr_err("ACD base start not defined\n");
+		return -EINVAL;
+	}
+
 	if (c->acd_debugfs_addr >= ACD_MASTER_ONLY_REG_ADDR)
 		*val = readl_relaxed((char *)c->vbases[ACD_BASE] +
 				     c->acd_debugfs_addr);
@@ -2994,6 +2998,11 @@ static int debugfs_get_debug_reg(void *data, u64 *val)
 static int debugfs_set_debug_reg(void *data, u64 val)
 {
 	struct clk_osm *c = data;
+
+	if (!c->pbases[ACD_BASE]) {
+		pr_err("ACD base start not defined\n");
+		return -EINVAL;
+	}
 
 	if (c->acd_debugfs_addr >= ACD_MASTER_ONLY_REG_ADDR)
 		clk_osm_acd_master_write_reg(c, val, c->acd_debugfs_addr);
@@ -3012,7 +3021,13 @@ static int debugfs_get_debug_reg_addr(void *data, u64 *val)
 {
 	struct clk_osm *c = data;
 
+	if (!c->pbases[ACD_BASE]) {
+		pr_err("ACD base start not defined\n");
+		return -EINVAL;
+	}
+
 	*val = c->acd_debugfs_addr;
+
 	return 0;
 }
 
@@ -3020,7 +3035,16 @@ static int debugfs_set_debug_reg_addr(void *data, u64 val)
 {
 	struct clk_osm *c = data;
 
+	if (!c->pbases[ACD_BASE]) {
+		pr_err("ACD base start not defined\n");
+		return -EINVAL;
+	}
+
+	if (val >= c->acd_debugfs_addr_size)
+		return -EINVAL;
+
 	c->acd_debugfs_addr = val;
+
 	return 0;
 }
 DEFINE_SIMPLE_ATTRIBUTE(debugfs_acd_debug_reg_addr_fops,
