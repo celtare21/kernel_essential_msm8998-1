@@ -8,8 +8,8 @@
 #include <linux/uaccess.h>
 
 #define APR_PROC_MFR_NAME  "modemfailurereason"
-#define MAX_SSR_REASON_LEN 81U
-extern char mfr_failure_reason[MAX_SSR_REASON_LEN];
+#define MAX_SSR_REASON_LEN 130U
+char mfr_failure_reason[MAX_SSR_REASON_LEN];
 static struct proc_dir_entry *entry_apr_mfr;
 
 

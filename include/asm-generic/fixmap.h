@@ -28,7 +28,9 @@
  */
 static __always_inline unsigned long fix_to_virt(const unsigned int idx)
 {
+#ifndef CONFIG_LTO
 	BUILD_BUG_ON(idx >= __end_of_fixed_addresses);
+#endif
 	return __fix_to_virt(idx);
 }
 
