@@ -52,9 +52,7 @@ struct ion_buffer *ion_handle_buffer(struct ion_handle *handle);
  *			a void *
  * @priv_phys:		private data to the buffer representable as
  *			an ion_phys_addr_t (and someday a phys_addr_t)
- * @alloc_lock:		protects the buffer's kmap allocation and deallocation
- * @page_lock:		protects the buffer's pages
- * @vma_lock:		protects the buffer's vma list
+ * @lock:		protects the buffers cnt fields
  * @kmap_cnt:		number of times the buffer is mapped to the kernel
  * @vaddr:		the kenrel mapping if kmap_cnt is not zero
  * @sg_table:		the sg table for the buffer.  Note that if you need
@@ -395,7 +393,7 @@ void ion_carveout_free(struct ion_heap *heap, ion_phys_addr_t addr,
  * @low_count:		number of lowmem items in the pool
  * @high_items:		list of highmem items
  * @low_items:		list of lowmem items
- * @lock:		lock protecting this struct and especially the count
+ * @mutex:		lock protecting this struct and especially the count
  *			item list
  * @gfp_mask:		gfp_mask to use from alloc
  * @order:		order of pages in the pool

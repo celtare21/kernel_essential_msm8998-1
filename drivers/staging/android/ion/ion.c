@@ -437,7 +437,6 @@ int ion_phys(struct ion_client *client, struct ion_handle *handle,
 
 	return buffer->heap->ops->phys(buffer->heap, buffer, addr, len);
 }
-EXPORT_SYMBOL(ion_free);
 
 struct ion_client *ion_client_create(struct ion_device *dev)
 {
@@ -510,34 +509,6 @@ struct sg_table *ion_sg_table(struct ion_client *client,
 	buffer = handle->buffer;
 	table = buffer->sg_table;
 	return table;
-}
-
-static struct scatterlist *ion_sg_alloc(unsigned int nents, gfp_t gfp_mask)
-{
-	if (nents == SG_MAX_SINGLE_ALLOC)
-		return kmem_cache_alloc(ion_page_pool, gfp_mask);
-
-	return kmalloc(nents * sizeof(struct scatterlist), gfp_mask);
-}
-
-static void ion_sg_free(struct scatterlist *sg, unsigned int nents)
-{
-	if (nents == SG_MAX_SINGLE_ALLOC)
-		kmem_cache_free(ion_page_pool, sg);
-	else
-		kfree(sg);
-}
-
-static int ion_sg_alloc_table(struct sg_table *table, unsigned int nents,
-			      gfp_t gfp_mask)
-{
-	return __sg_alloc_table(table, nents, SG_MAX_SINGLE_ALLOC, NULL,
-				gfp_mask, ion_sg_alloc);
-}
-
-static void ion_sg_free_table(struct sg_table *table)
-{
-	__sg_free_table(table, SG_MAX_SINGLE_ALLOC, false, ion_sg_free);
 }
 
 static struct scatterlist *ion_sg_alloc(unsigned int nents, gfp_t gfp_mask)
@@ -779,7 +750,7 @@ static void *ion_dma_buf_kmap(struct dma_buf *dmabuf, unsigned long offset)
 {
 	struct ion_buffer *buffer = dmabuf->priv;
 
-	return READ_ONCE(buffer->vaddr) + offset * PAGE_SIZE;
+	return buffer->vaddr + offset * PAGE_SIZE;
 }
 
 static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf, size_t start,
