@@ -641,6 +641,10 @@ KBUILD_CFLAGS   += -O2
 endif
 endif
 
+ifeq ($(cc-name),gcc)
+KBUILD_CFLAGS	+= -march=armv8-a+crc+crypto -mcpu=cortex-a73.cortex-a53+crc+crypto -mtune=cortex-a73.cortex-a53
+endif
+
 ifdef CONFIG_CC_WERROR
 KBUILD_CFLAGS	+= -Werror
 endif
