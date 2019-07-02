@@ -36,64 +36,95 @@ bool msm_vidc_thermal_mitigation_disabled = false;
 bool msm_vidc_bitrate_clock_scaling = true;
 bool msm_vidc_debug_timeout = false;
 
-static struct mutex debugfs_lock;
+#define MAX_DBG_BUF_SIZE 4096
 
 #define DYNAMIC_BUF_OWNER(__binfo) ({ \
 	atomic_read(&__binfo->ref_count) == 2 ? "video driver" : "firmware";\
 })
 
-static int vidc_debug_core_show(struct seq_file *s, void *unused)
+struct core_inst_pair {
+	struct msm_vidc_core *core;
+	struct msm_vidc_inst *inst;
+};
+
+static int core_info_open(struct inode *inode, struct file *file)
 {
-	struct msm_vidc_core *core = s->private;
+	file->private_data = inode->i_private;
+	return 0;
+}
+
+static u32 write_str(char *buffer,
+		size_t size, const char *fmt, ...)
+{
+	va_list args;
+	u32 len;
+
+	va_start(args, fmt);
+	len = vscnprintf(buffer, size, fmt, args);
+	va_end(args);
+	return len;
+}
+
+static ssize_t core_info_read(struct file *file, char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	struct msm_vidc_core *core = file->private_data;
 	struct hfi_device *hdev;
 	struct hal_fw_info fw_info = { {0} };
+	char *dbuf, *cur, *end;
 	int i = 0, rc = 0;
+	ssize_t len = 0;
 
 	if (!core || !core->device) {
-		dprintk(VIDC_ERR, "Invalid params\n");
+		dprintk(VIDC_ERR, "Invalid params, core: %pK\n", core);
 		return 0;
 	}
 
-	mutex_lock(&debugfs_lock);
+	dbuf = kzalloc(MAX_DBG_BUF_SIZE, GFP_KERNEL);
+	if (!dbuf) {
+		dprintk(VIDC_ERR, "%s: Allocation failed!\n", __func__);
+		return -ENOMEM;
+	}
+	cur = dbuf;
+	end = cur + MAX_DBG_BUF_SIZE;
 	hdev = core->device;
 
-	seq_puts(s, "===============================\n");
-	seq_printf(s, "CORE %d: %pK\n", core->id, core);
-	seq_puts(s, "===============================\n");
-	seq_printf(s, "Core state: %d\n", core->state);
+	cur += write_str(cur, end - cur, "===============================\n");
+	cur += write_str(cur, end - cur, "CORE %d: %pK\n", core->id, core);
+	cur += write_str(cur, end - cur, "===============================\n");
+	cur += write_str(cur, end - cur, "Core state: %d\n", core->state);
 	rc = call_hfi_op(hdev, get_fw_info, hdev->hfi_device_data, &fw_info);
 	if (rc) {
 		dprintk(VIDC_WARN, "Failed to read FW info\n");
 		goto err_fw_info;
 	}
 
-	seq_printf(s, "FW version : %s\n", fw_info.version);
-	seq_printf(s, "base addr: %pa\n", &fw_info.base_addr);
-	seq_printf(s, "register_base: %pa\n", &fw_info.register_base);
-	seq_printf(s, "register_size: %u\n", fw_info.register_size);
-	seq_printf(s, "irq: %u\n", fw_info.irq);
+	cur += write_str(cur, end - cur,
+		"FW version : %s\n", &fw_info.version);
+	cur += write_str(cur, end - cur,
+		"base addr: 0x%x\n", fw_info.base_addr);
+	cur += write_str(cur, end - cur,
+		"register_base: 0x%x\n", fw_info.register_base);
+	cur += write_str(cur, end - cur,
+		"register_size: %u\n", fw_info.register_size);
+	cur += write_str(cur, end - cur, "irq: %u\n", fw_info.irq);
 
 err_fw_info:
 	for (i = SYS_MSG_START; i < SYS_MSG_END; i++) {
-		seq_printf(s, "completions[%d]: %s\n", i,
+		cur += write_str(cur, end - cur, "completions[%d]: %s\n", i,
 			completion_done(&core->completions[SYS_MSG_INDEX(i)]) ?
 			"pending" : "done");
 	}
+	len = simple_read_from_buffer(buf, count, ppos,
+			dbuf, cur - dbuf);
 
-	mutex_unlock(&debugfs_lock);
-	return 0;
-}
-
-static int vidc_debug_core_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, vidc_debug_core_show, inode->i_private);
+	kfree(dbuf);
+	return len;
 }
 
 static const struct file_operations core_info_fops = {
-	.open = vidc_debug_core_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
+	.open = core_info_open,
+	.read = core_info_read,
 };
 
 static int trigger_ssr_open(struct inode *inode, struct file *file)
@@ -144,7 +175,6 @@ struct dentry *msm_vidc_debugfs_init_drv(void)
 	bool ok = false;
 	struct dentry *dir = NULL;
 
-	mutex_init(&debugfs_lock);
 	dir = debugfs_create_dir("msm_vidc", NULL);
 	if (IS_ERR_OR_NULL(dir)) {
 		dir = NULL;
@@ -198,11 +228,6 @@ failed_create_dir:
 	return NULL;
 }
 
-void msm_vidc_debugfs_deinit_drv(void)
-{
-	mutex_destroy(&debugfs_lock);
-}
-
 struct dentry *msm_vidc_debugfs_init_core(struct msm_vidc_core *core,
 		struct dentry *parent)
 {
@@ -235,34 +260,17 @@ failed_create_dir:
 	return NULL;
 }
 
-static struct msm_vidc_inst *get_inst(struct msm_vidc_inst *inst)
+static int inst_info_open(struct inode *inode, struct file *file)
 {
-	struct msm_vidc_core *core = NULL;
-	struct msm_vidc_inst *temp, *ret = NULL;
-
-	if (!inst)
-		return NULL;
-
-	mutex_lock(&vidc_driver->lock);
-	list_for_each_entry(core, &vidc_driver->cores, list) {
-		mutex_lock(&core->lock);
-		list_for_each_entry(temp, &core->instances, list)
-			if (temp == inst) {
-				ret = kref_get_unless_zero(&inst->kref) ?
-					inst : NULL;
-				break;
-			}
-		mutex_unlock(&core->lock);
-		if (ret)
-			break;
-	}
-	mutex_unlock(&vidc_driver->lock);
-	return ret;
+	dprintk(VIDC_INFO, "Open inode ptr: %pK\n", inode->i_private);
+	file->private_data = inode->i_private;
+	return 0;
 }
 
 static int publish_unreleased_reference(struct msm_vidc_inst *inst,
-		struct seq_file *s)
+		char **dbuf, char *end)
 {
+	char *cur = *dbuf;
 	struct buffer_info *temp = NULL;
 
 	if (!inst) {
@@ -271,15 +279,15 @@ static int publish_unreleased_reference(struct msm_vidc_inst *inst,
 	}
 
 	if (inst->buffer_mode_set[CAPTURE_PORT] == HAL_BUFFER_MODE_DYNAMIC) {
-		seq_puts(s, "Pending buffer references\n");
+		cur += write_str(cur, end - cur, "Pending buffer references\n");
 
 		mutex_lock(&inst->registeredbufs.lock);
 		list_for_each_entry(temp, &inst->registeredbufs.list, list) {
 			if (temp->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
 			!temp->inactive && atomic_read(&temp->ref_count)) {
-				seq_printf(s,
-					"\tpending buffer: %pad fd[0] = %d ref_count = %d held by: %s\n",
-					&temp->device_addr[0],
+				cur += write_str(cur, end - cur,
+					"\tpending buffer: %#lx fd[0] = %d ref_count = %d held by: %s\n",
+					temp->device_addr[0],
 					temp->fd[0],
 					atomic_read(&temp->ref_count),
 					DYNAMIC_BUF_OWNER(temp));
@@ -288,6 +296,7 @@ static int publish_unreleased_reference(struct msm_vidc_inst *inst,
 		mutex_unlock(&inst->registeredbufs.lock);
 	}
 
+	*dbuf = cur;
 	return 0;
 }
 
@@ -299,97 +308,140 @@ static void put_inst_helper(struct kref *kref)
 	msm_vidc_destroy(inst);
 }
 
-static int vidc_debug_inst_show(struct seq_file *s, void *unused)
+static ssize_t inst_info_read(struct file *file, char __user *buf,
+		size_t count, loff_t *ppos)
 {
-	struct msm_vidc_inst *inst = get_inst(s->private);
+	struct core_inst_pair *idata = file->private_data;
+	struct msm_vidc_core *core;
+	struct msm_vidc_inst *inst, *temp = NULL;
+	char *dbuf, *cur, *end;
 	int i, j;
+	ssize_t len = 0;
 
-	if (!inst) {
-		dprintk(VIDC_ERR, "Instance deleted\n");
-		return -EINVAL;
+	if (!idata || !idata->core || !idata->inst) {
+		dprintk(VIDC_ERR, "%s: Invalid params\n", __func__);
+		return 0;
 	}
 
-	mutex_lock(&debugfs_lock);
-	seq_puts(s, "==============================\n");
-	seq_printf(s, "INSTANCE: %pK (%s)\n", inst,
+	core = idata->core;
+	inst = idata->inst;
+
+	mutex_lock(&core->lock);
+	list_for_each_entry(temp, &core->instances, list) {
+		if (temp == inst)
+			break;
+	}
+	inst = ((temp == inst) && kref_get_unless_zero(&inst->kref)) ?
+		inst : NULL;
+	mutex_unlock(&core->lock);
+
+	if (!inst) {
+		dprintk(VIDC_ERR, "%s: Instance has become obsolete", __func__);
+		return 0;
+	}
+
+	dbuf = kzalloc(MAX_DBG_BUF_SIZE, GFP_KERNEL);
+	if (!dbuf) {
+		dprintk(VIDC_ERR, "%s: Allocation failed!\n", __func__);
+		len = -ENOMEM;
+		goto failed_alloc;
+	}
+	cur = dbuf;
+	end = cur + MAX_DBG_BUF_SIZE;
+
+	cur += write_str(cur, end - cur, "==============================\n");
+	cur += write_str(cur, end - cur, "INSTANCE: %pK (%s)\n", inst,
 		inst->session_type == MSM_VIDC_ENCODER ? "Encoder" : "Decoder");
-	seq_puts(s, "==============================\n");
-	seq_printf(s, "core: %pK\n", inst->core);
-	seq_printf(s, "height: %d\n", inst->prop.height[CAPTURE_PORT]);
-	seq_printf(s, "width: %d\n", inst->prop.width[CAPTURE_PORT]);
-	seq_printf(s, "fps: %d\n", inst->prop.fps);
-	seq_printf(s, "state: %d\n", inst->state);
-	seq_printf(s, "secure: %d\n", !!(inst->flags & VIDC_SECURE));
-	seq_puts(s, "-----------Formats-------------\n");
+	cur += write_str(cur, end - cur, "==============================\n");
+	cur += write_str(cur, end - cur, "core: %pK\n", inst->core);
+	cur += write_str(cur, end - cur, "height: %d\n",
+		inst->prop.height[CAPTURE_PORT]);
+	cur += write_str(cur, end - cur, "width: %d\n",
+		inst->prop.width[CAPTURE_PORT]);
+	cur += write_str(cur, end - cur, "fps: %d\n", inst->prop.fps);
+	cur += write_str(cur, end - cur, "state: %d\n", inst->state);
+	cur += write_str(cur, end - cur, "secure: %d\n",
+		!!(inst->flags & VIDC_SECURE));
+	cur += write_str(cur, end - cur, "-----------Formats-------------\n");
 	for (i = 0; i < MAX_PORT_NUM; i++) {
-		seq_printf(s, "capability: %s\n",
+		cur += write_str(cur, end - cur, "capability: %s\n",
 			i == OUTPUT_PORT ? "Output" : "Capture");
-		seq_printf(s, "name : %s\n", inst->fmts[i].name);
-		seq_printf(s, "planes : %d\n", inst->prop.num_planes[i]);
-		seq_printf(s, "type: %s\n", inst->fmts[i].type == OUTPUT_PORT ?
+		cur += write_str(cur, end - cur, "name : %s\n",
+			inst->fmts[i].name);
+		cur += write_str(cur, end - cur, "planes : %d\n",
+			inst->prop.num_planes[i]);
+		cur += write_str(cur, end - cur,
+			"type: %s\n", inst->fmts[i].type == OUTPUT_PORT ?
 			"Output" : "Capture");
 		switch (inst->buffer_mode_set[i]) {
 		case HAL_BUFFER_MODE_STATIC:
-			seq_printf(s, "buffer mode : %s\n", "static");
+			cur += write_str(cur, end - cur,
+				"buffer mode : %s\n", "static");
 			break;
 		case HAL_BUFFER_MODE_RING:
-			seq_printf(s, "buffer mode : %s\n", "ring");
+			cur += write_str(cur, end - cur,
+				"buffer mode : %s\n", "ring");
 			break;
 		case HAL_BUFFER_MODE_DYNAMIC:
-			seq_printf(s, "buffer mode : %s\n", "dynamic");
+			cur += write_str(cur, end - cur,
+				"buffer mode : %s\n", "dynamic");
 			break;
 		default:
-			seq_puts(s, "buffer mode : unsupported\n");
+			cur += write_str(cur, end - cur,
+				"buffer mode : unsupported\n");
 		}
 
-		seq_printf(s, "count: %u\n",
+		cur += write_str(cur, end - cur, "count: %u\n",
 				inst->bufq[i].vb2_bufq.num_buffers);
 
 		for (j = 0; j < inst->prop.num_planes[i]; j++)
-			seq_printf(s,
+			cur += write_str(cur, end - cur,
 			"size for plane %d: %u\n", j,
 			inst->bufq[i].vb2_bufq.plane_sizes[j]);
 
 		if (i < MAX_PORT_NUM - 1)
-			seq_puts(s, "\n");
+			cur += write_str(cur, end - cur, "\n");
 	}
-	seq_puts(s, "-------------------------------\n");
+	cur += write_str(cur, end - cur, "-------------------------------\n");
 	for (i = SESSION_MSG_START; i < SESSION_MSG_END; i++) {
-		seq_printf(s, "completions[%d]: %s\n", i,
+		cur += write_str(cur, end - cur, "completions[%d]: %s\n", i,
 		completion_done(&inst->completions[SESSION_MSG_INDEX(i)]) ?
 		"pending" : "done");
 	}
-	seq_printf(s, "ETB Count: %d\n", inst->count.etb);
-	seq_printf(s, "EBD Count: %d\n", inst->count.ebd);
-	seq_printf(s, "FTB Count: %d\n", inst->count.ftb);
-	seq_printf(s, "FBD Count: %d\n", inst->count.fbd);
+	cur += write_str(cur, end - cur, "ETB Count: %d\n", inst->count.etb);
+	cur += write_str(cur, end - cur, "EBD Count: %d\n", inst->count.ebd);
+	cur += write_str(cur, end - cur, "FTB Count: %d\n", inst->count.ftb);
+	cur += write_str(cur, end - cur, "FBD Count: %d\n", inst->count.fbd);
 
-	publish_unreleased_reference(inst, s);
+	publish_unreleased_reference(inst, &cur, end);
+	len = simple_read_from_buffer(buf, count, ppos,
+		dbuf, cur - dbuf);
 
+	kfree(dbuf);
+failed_alloc:
 	kref_put(&inst->kref, put_inst_helper);
+	return len;
+}
 
-	mutex_unlock(&debugfs_lock);
+static int inst_info_release(struct inode *inode, struct file *file)
+{
+	dprintk(VIDC_INFO, "Release inode ptr: %pK\n", inode->i_private);
+	file->private_data = NULL;
 	return 0;
 }
 
-static int vidc_debug_inst_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, vidc_debug_inst_show, inode->i_private);
-}
-
 static const struct file_operations inst_info_fops = {
-	.open = vidc_debug_inst_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
+	.open = inst_info_open,
+	.read = inst_info_read,
+	.release = inst_info_release,
 };
-
 
 struct dentry *msm_vidc_debugfs_init_inst(struct msm_vidc_inst *inst,
 		struct dentry *parent)
 {
 	struct dentry *dir, *info;
 	char debugfs_name[MAX_DEBUGFS_NAME];
+	struct core_inst_pair *idata = NULL;
 
 	if (!inst) {
 		dprintk(VIDC_ERR, "Invalid params, inst: %pK\n", inst);
@@ -397,10 +449,19 @@ struct dentry *msm_vidc_debugfs_init_inst(struct msm_vidc_inst *inst,
 	}
 	snprintf(debugfs_name, MAX_DEBUGFS_NAME, "inst_%pK", inst);
 
+	idata = kzalloc(sizeof(struct core_inst_pair), GFP_KERNEL);
+	if (!idata) {
+		dprintk(VIDC_ERR, "%s: Allocation failed!\n", __func__);
+		goto exit;
+	}
+
+	idata->core = inst->core;
+	idata->inst = inst;
+
 	dir = debugfs_create_dir(debugfs_name, parent);
 	if (IS_ERR_OR_NULL(dir)) {
 		dprintk(VIDC_ERR, "Failed to create debugfs for msm_vidc\n");
-		goto exit;
+		goto failed_create_dir;
 	}
 
 	info = debugfs_create_file("info", S_IRUGO, dir,
@@ -416,8 +477,27 @@ struct dentry *msm_vidc_debugfs_init_inst(struct msm_vidc_inst *inst,
 
 failed_create_file:
 	debugfs_remove_recursive(dir);
+failed_create_dir:
+	kfree(idata);
 exit:
 	return NULL;
+}
+
+void msm_vidc_debugfs_deinit_inst(struct msm_vidc_inst *inst)
+{
+	struct dentry *dentry = NULL;
+
+	if (!inst || !inst->debugfs_root)
+		return;
+
+	dentry = inst->debugfs_root;
+	if (dentry->d_inode) {
+		dprintk(VIDC_INFO, "Destroy %pK\n", dentry->d_inode->i_private);
+		kfree(dentry->d_inode->i_private);
+		dentry->d_inode->i_private = NULL;
+	}
+	debugfs_remove_recursive(dentry);
+	inst->debugfs_root = NULL;
 }
 
 void msm_vidc_debugfs_update(struct msm_vidc_inst *inst,
@@ -468,3 +548,4 @@ void msm_vidc_debugfs_update(struct msm_vidc_inst *inst,
 		break;
 	}
 }
+
