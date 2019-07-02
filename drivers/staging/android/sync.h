@@ -103,9 +103,7 @@ struct sync_timeline {
 
 	struct list_head	active_list_head;
 
-#ifdef CONFIG_DEBUG_FS
 	struct list_head	sync_timeline_list;
-#endif
 };
 
 /**
@@ -157,9 +155,7 @@ struct sync_fence {
 #ifdef CONFIG_SYNC_DEBUG
 	char			name[64];
 #endif
-#ifdef CONFIG_DEBUG_FS
 	struct list_head	sync_fence_list;
-#endif
 	int num_fences;
 
 	wait_queue_head_t	wq;
