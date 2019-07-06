@@ -42,39 +42,6 @@ struct ion_handle {
 	int id;
 };
 
-struct ion_vma_list {
-	struct list_head list;
-	struct vm_area_struct *vma;
-};
-
-static struct kmem_cache *ion_sg_table_pool;
-
-static bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
-{
-	return !(buffer->flags & ION_FLAG_CACHED_NEEDS_SYNC) &&
-		 buffer->flags & ION_FLAG_CACHED;
-}
-
-static struct page *ion_buffer_page(struct page *page)
-{
-	return (struct page *)((unsigned long)page & ~(1UL));
-}
-
-static bool ion_buffer_page_is_dirty(struct page *page)
-{
-	return (unsigned long)page & 1UL;
-}
-
-static void ion_buffer_page_dirty(struct page **page)
-{
-	*page = (struct page *)((unsigned long)(*page) | 1UL);
-}
-
-static void ion_buffer_page_clean(struct page **page)
-{
-	*page = (struct page *)((unsigned long)(*page) & ~(1UL));
-}
-
 static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 					    struct ion_device *dev,
 					    unsigned long len,
@@ -83,7 +50,6 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 {
 	struct ion_buffer *buffer;
 	struct scatterlist *sg;
-	struct sg_table *table;
 	int i, ret;
 
 	buffer = kmalloc(sizeof(*buffer), GFP_KERNEL);
@@ -95,10 +61,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 		.heap = heap,
 		.flags = flags,
 		.size = len,
-		.vmas = LIST_HEAD_INIT(buffer->vmas),
 		.kmap_lock = __MUTEX_INITIALIZER(buffer->kmap_lock),
-		.page_lock = __MUTEX_INITIALIZER(buffer->page_lock),
-		.vma_lock = __MUTEX_INITIALIZER(buffer->vma_lock),
 		.ref = {
 			.refcount = ATOMIC_INIT(1)
 		}
@@ -115,26 +78,9 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 			goto free_buffer;
 	}
 
-	table = heap->ops->map_dma(heap, buffer);
-	if (IS_ERR_OR_NULL(table))
+	buffer->sg_table = heap->ops->map_dma(heap, buffer);
+	if (IS_ERR_OR_NULL(buffer->sg_table))
 		goto free_heap;
-
-	buffer->sg_table = table;
-	if (ion_buffer_fault_user_mappings(buffer)) {
-		int num_pages = PAGE_ALIGN(buffer->size) / PAGE_SIZE;
-		int j, k = 0;
-
-		buffer->pages = vmalloc(sizeof(*buffer->pages) * num_pages);
-		if (!buffer->pages)
-			goto unmap_dma;
-
-		for_each_sg(table->sgl, sg, table->nents, i) {
-			struct page *page = sg_page(sg);
-
-			for (j = 0; j < sg->length / PAGE_SIZE; j++)
-				buffer->pages[k++] = page++;
-		}
-	}
 
 	for_each_sg(buffer->sg_table->sgl, sg, buffer->sg_table->nents, i) {
 		sg_dma_address(sg) = sg_phys(sg);
@@ -143,8 +89,6 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 
 	return buffer;
 
-unmap_dma:
-	heap->ops->unmap_dma(heap, buffer);
 free_heap:
 	heap->ops->free(buffer);
 free_buffer:
@@ -158,8 +102,6 @@ void ion_buffer_destroy(struct ion_buffer *buffer)
 		buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
 	buffer->heap->ops->unmap_dma(buffer->heap, buffer);
 	buffer->heap->ops->free(buffer);
-	if (ion_buffer_fault_user_mappings(buffer))
-		vfree(buffer->pages);
 	kfree(buffer);
 }
 
@@ -227,10 +169,9 @@ static void ion_buffer_kmap_put(struct ion_buffer *buffer)
 
 static void *ion_handle_kmap_get(struct ion_handle *handle)
 {
-	struct ion_buffer *buffer = handle->buffer;
 	void *objp;
 
-	objp = ion_buffer_kmap_get(buffer);
+	objp = ion_buffer_kmap_get(handle->buffer);
 	if (!IS_ERR(objp))
 		atomic_inc(&handle->kmap_cnt);
 
@@ -239,15 +180,8 @@ static void *ion_handle_kmap_get(struct ion_handle *handle)
 
 static void ion_handle_kmap_put(struct ion_handle *handle)
 {
-	struct ion_buffer *buffer = handle->buffer;
-
 	if (atomic_add_unless(&handle->kmap_cnt, -1, 0))
-		ion_buffer_kmap_put(buffer);
-}
-
-static void ion_handle_get(struct ion_handle *handle)
-{
-	atomic_inc(&handle->refcount);
+		ion_buffer_kmap_put(handle->buffer);
 }
 
 bool ion_handle_validate(struct ion_client *client, struct ion_handle *handle)
@@ -263,13 +197,10 @@ bool ion_handle_validate(struct ion_client *client, struct ion_handle *handle)
 
 void *ion_map_kernel(struct ion_client *client, struct ion_handle *handle)
 {
-	struct ion_buffer *buffer;
-
 	if (!ion_handle_validate(client, handle))
 		return ERR_PTR(-EINVAL);
 
-	buffer = handle->buffer;
-	if (!buffer->heap->ops->map_kernel)
+	if (!handle->buffer->heap->ops->map_kernel)
 		return ERR_PTR(-ENODEV);
 
 	return ion_handle_kmap_get(handle);
@@ -284,7 +215,6 @@ void ion_unmap_kernel(struct ion_client *client, struct ion_handle *handle)
 void ion_handle_put(struct ion_handle *handle)
 {
 	struct ion_client *client = handle->client;
-	struct ion_buffer *buffer = handle->buffer;
 
 	if (atomic_dec_return(&handle->refcount))
 		return;
@@ -298,7 +228,7 @@ void ion_handle_put(struct ion_handle *handle)
 	write_unlock(&client->rb_lock);
 
 	ion_handle_kmap_put(handle);
-	kref_put(&buffer->ref, ion_buffer_kref_destroy);
+	kref_put(&handle->buffer->ref, ion_buffer_kref_destroy);
 	kfree(handle);
 }
 
@@ -317,7 +247,7 @@ static struct ion_handle *ion_handle_lookup_get(struct ion_client *client,
 			p = &(*p)->rb_right;
 		} else {
 			read_unlock(&client->rb_lock);
-			ion_handle_get(entry);
+			atomic_inc(&entry->refcount);
 			return entry;
 		}
 	}
@@ -473,64 +403,30 @@ void ion_client_destroy(struct ion_client *client)
 int ion_handle_get_flags(struct ion_client *client, struct ion_handle *handle,
 			 unsigned long *flags)
 {
-	struct ion_buffer *buffer;
-
 	if (!ion_handle_validate(client, handle))
 		return -EINVAL;
 
-	buffer = handle->buffer;
-	*flags = buffer->flags;
+	*flags = handle->buffer->flags;
 	return 0;
 }
 
 int ion_handle_get_size(struct ion_client *client, struct ion_handle *handle,
 			size_t *size)
 {
-	struct ion_buffer *buffer;
-
 	if (!ion_handle_validate(client, handle))
 		return -EINVAL;
 
-	buffer = handle->buffer;
-	*size = buffer->size;
+	*size = handle->buffer->size;
 	return 0;
 }
 
 struct sg_table *ion_sg_table(struct ion_client *client,
 			      struct ion_handle *handle)
 {
-	struct ion_buffer *buffer;
-
 	if (!ion_handle_validate(client, handle))
 		return ERR_PTR(-EINVAL);
 
-	buffer = handle->buffer;
-	return buffer->sg_table;
-}
-
-static struct sg_table *ion_dupe_sg_table(struct sg_table *orig_table)
-{
-	struct scatterlist *sg, *sg_orig;
-	struct sg_table *table;
-	int i, ret;
-
-	table = kmem_cache_alloc(ion_sg_table_pool, GFP_KERNEL);
-	if (!table)
-		return NULL;
-
-	ret = sg_alloc_table(table, orig_table->nents, GFP_KERNEL);
-	if (ret) {
-		kmem_cache_free(ion_sg_table_pool, table);
-		return NULL;
-	}
-
-	sg_orig = orig_table->sgl;
-	for_each_sg(table->sgl, sg, table->nents, i) {
-		*sg = *sg_orig;
-		sg_orig = sg_next(sg_orig);
-	}
-
-	return table;
+	return handle->buffer->sg_table;
 }
 
 void ion_pages_sync_for_device(struct device *dev, struct page *page,
@@ -544,118 +440,20 @@ void ion_pages_sync_for_device(struct device *dev, struct page *page,
 	dma_sync_sg_for_device(dev, &sg, 1, dir);
 }
 
-static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
-				       struct device *dev,
-				       enum dma_data_direction dir)
-{
-	struct ion_vma_list *vma_list;
-	int i, pages;
-
-	if (!ion_buffer_fault_user_mappings(buffer))
-		return;
-
-	pages = PAGE_ALIGN(buffer->size) / PAGE_SIZE;
-	mutex_lock(&buffer->page_lock);
-	for (i = 0; i < pages; i++) {
-		struct page *page = buffer->pages[i];
-
-		if (ion_buffer_page_is_dirty(page))
-			ion_pages_sync_for_device(dev, ion_buffer_page(page),
-						  PAGE_SIZE, dir);
-
-		ion_buffer_page_clean(buffer->pages + i);
-	}
-	mutex_unlock(&buffer->page_lock);
-
-	mutex_lock(&buffer->vma_lock);
-	list_for_each_entry(vma_list, &buffer->vmas, list) {
-		struct vm_area_struct *vma = vma_list->vma;
-
-		zap_page_range(vma, vma->vm_start, vma->vm_end - vma->vm_start,
-			       NULL);
-	}
-	mutex_unlock(&buffer->vma_lock);
-}
-
 static struct sg_table *ion_map_dma_buf(struct dma_buf_attachment *attachment,
 					enum dma_data_direction direction)
 {
 	struct dma_buf *dmabuf = attachment->dmabuf;
 	struct ion_buffer *buffer = dmabuf->priv;
-	struct sg_table *table;
 
-	table = ion_dupe_sg_table(buffer->sg_table);
-	if (!table)
-		return NULL;
-
-	ion_buffer_sync_for_device(buffer, attachment->dev, direction);
-	return table;
+	return buffer->sg_table;
 }
 
 static void ion_unmap_dma_buf(struct dma_buf_attachment *attachment,
 			      struct sg_table *table,
 			      enum dma_data_direction direction)
 {
-	sg_free_table(table);
-	kmem_cache_free(ion_sg_table_pool, table);
 }
-
-static int ion_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
-{
-	struct ion_buffer *buffer = vma->vm_private_data;
-	unsigned long pfn;
-	int ret;
-
-	mutex_lock(&buffer->page_lock);
-	ion_buffer_page_dirty(buffer->pages + vmf->pgoff);
-	pfn = page_to_pfn(ion_buffer_page(buffer->pages[vmf->pgoff]));
-	ret = vm_insert_pfn(vma, (unsigned long)vmf->virtual_address, pfn);
-	mutex_unlock(&buffer->page_lock);
-
-	return ret ? VM_FAULT_ERROR : VM_FAULT_NOPAGE;
-}
-
-static void ion_vm_open(struct vm_area_struct *vma)
-{
-	struct ion_buffer *buffer = vma->vm_private_data;
-	struct ion_vma_list *vma_list;
-
-	vma_list = kmalloc(sizeof(*vma_list), GFP_KERNEL);
-	if (!vma_list)
-		return;
-
-	vma_list->vma = vma;
-
-	mutex_lock(&buffer->vma_lock);
-	list_add(&vma_list->list, &buffer->vmas);
-	mutex_unlock(&buffer->vma_lock);
-}
-
-static void ion_vm_close(struct vm_area_struct *vma)
-{
-	struct ion_buffer *buffer = vma->vm_private_data;
-	struct ion_vma_list *vma_list;
-
-	mutex_lock(&buffer->vma_lock);
-	list_for_each_entry(vma_list, &buffer->vmas, list) {
-		if (vma_list->vma == vma) {
-			list_del(&vma_list->list);
-			break;
-		}
-	}
-	mutex_unlock(&buffer->vma_lock);
-
-	if (buffer->heap->ops->unmap_user)
-		buffer->heap->ops->unmap_user(buffer->heap, buffer);
-
-	kfree(vma_list);
-}
-
-static const struct vm_operations_struct ion_vma_ops = {
-	.open = ion_vm_open,
-	.close = ion_vm_close,
-	.fault = ion_vm_fault
-};
 
 static int ion_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 {
@@ -663,15 +461,6 @@ static int ion_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 
 	if (!buffer->heap->ops->map_user)
 		return -EINVAL;
-
-	if (ion_buffer_fault_user_mappings(buffer)) {
-		vma->vm_flags |= VM_IO | VM_PFNMAP | VM_DONTEXPAND |
-				 VM_DONTDUMP | VM_MIXEDMAP;
-		vma->vm_private_data = buffer;
-		vma->vm_ops = &ion_vma_ops;
-		ion_vm_open(vma);
-		return 0;
-	}
 
 	if (!(buffer->flags & ION_FLAG_CACHED))
 		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
@@ -1000,28 +789,20 @@ struct ion_device *ion_device_create(long (*custom_ioctl)
 	if (!dev)
 		return ERR_PTR(-ENOMEM);
 
-	ion_sg_table_pool = KMEM_CACHE(sg_table, SLAB_HWCACHE_ALIGN);
-	if (!ion_sg_table_pool)
-		goto free_dev;
-
 	dev->dev.minor = MISC_DYNAMIC_MINOR;
 	dev->dev.name = "ion";
 	dev->dev.fops = &ion_fops;
 	dev->dev.parent = NULL;
 	ret = misc_register(&dev->dev);
-	if (ret)
-		goto free_table_pool;
+	if (ret) {
+		kfree(dev);
+		return ERR_PTR(ret);
+	}
 
 	dev->custom_ioctl = custom_ioctl;
 	init_rwsem(&dev->heap_lock);
 	plist_head_init(&dev->heaps);
 	return dev;
-
-free_table_pool:
-	kmem_cache_destroy(ion_sg_table_pool);
-free_dev:
-	kfree(dev);
-	return ERR_PTR(-ENOMEM);
 }
 
 void __init ion_reserve(struct ion_platform_data *data)
@@ -1048,7 +829,5 @@ void __init ion_reserve(struct ion_platform_data *data)
 
 struct ion_buffer *get_buffer(struct ion_handle *handle)
 {
-	struct ion_buffer *buffer = handle->buffer;
-
-	return buffer;
+	return handle->buffer;
 }

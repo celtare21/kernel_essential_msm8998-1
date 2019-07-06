@@ -78,14 +78,10 @@ struct ion_buffer {
 	size_t size;
 	void *priv_virt;
 	struct mutex kmap_lock;
-	struct mutex page_lock;
-	struct mutex vma_lock;
 	struct kref ref;
 	int kmap_cnt;
 	void *vaddr;
 	struct sg_table *sg_table;
-	struct page **pages;
-	struct list_head vmas;
 };
 void ion_buffer_destroy(struct ion_buffer *buffer);
 
