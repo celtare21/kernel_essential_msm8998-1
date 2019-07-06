@@ -34,6 +34,7 @@
 #include "../pinconf.h"
 #include "pinctrl-msm.h"
 #include "../pinctrl-utils.h"
+#include <linux/spmi.h>
 
 #define MAX_NR_GPIO 300
 #define PS_HOLD_OFFSET 0x820

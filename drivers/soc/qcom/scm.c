@@ -1194,7 +1194,7 @@ int scm_get_feat_version(u32 feat, u64 *scm_ret)
 EXPORT_SYMBOL(scm_get_feat_version);
 
 #define RESTORE_SEC_CFG    2
-int scm_restore_sec_cfg(u32 device_id, u32 spare, int *scm_ret)
+int scm_restore_sec_cfg(u32 device_id, u32 spare, u64 *scm_ret)
 {
 	struct scm_desc desc = {0};
 	int ret;
