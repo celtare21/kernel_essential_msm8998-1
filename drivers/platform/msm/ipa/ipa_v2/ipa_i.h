@@ -1956,8 +1956,13 @@ void ipa_flow_control(enum ipa_client_type ipa_client, bool enable,
 			uint32_t qmap_id);
 int ipa2_restore_suspend_handler(void);
 void ipa_sps_irq_control_all(bool enable);
+#ifdef CONFIG_IPA_WAKELOCK
 void ipa_inc_acquire_wakelock(enum ipa_wakelock_ref_client ref_client);
 void ipa_dec_release_wakelock(enum ipa_wakelock_ref_client ref_client);
+#else
+inline void ipa_inc_acquire_wakelock(enum ipa_wakelock_ref_client ref_client);
+inline void ipa_dec_release_wakelock(enum ipa_wakelock_ref_client ref_client);
+#endif
 int ipa_iommu_map(struct iommu_domain *domain, unsigned long iova,
 	phys_addr_t paddr, size_t size, int prot);
 int ipa2_rx_poll(u32 clnt_hdl, int budget);

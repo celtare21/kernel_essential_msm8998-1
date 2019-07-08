@@ -2112,8 +2112,13 @@ int ipa3_restore_suspend_handler(void);
 int ipa3_inject_dma_task_for_gsi(void);
 int ipa3_uc_panic_notifier(struct notifier_block *this,
 	unsigned long event, void *ptr);
+#ifdef CONFIG_IPA_WAKELOCK
 void ipa3_inc_acquire_wakelock(void);
 void ipa3_dec_release_wakelock(void);
+#else
+inline void ipa3_inc_acquire_wakelock(void);
+inline void ipa3_dec_release_wakelock(void);
+#endif
 int ipa3_load_fws(const struct firmware *firmware, phys_addr_t gsi_mem_base);
 int ipa3_register_ipa_ready_cb(void (*ipa_ready_cb)(void *), void *user_data);
 const char *ipa_hw_error_str(enum ipa3_hw_errors err_type);
