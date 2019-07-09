@@ -3817,11 +3817,11 @@ void ipa3_dec_release_wakelock(void)
 	spin_unlock_irqrestore(&ipa3_ctx->wakelock_ref_cnt.spinlock, flags);
 }
 #else
-inline void ipa3_inc_acquire_wakelock(void)
+void ipa3_inc_acquire_wakelock(void)
 {
 }
 
-inline void ipa3_dec_release_wakelock(void)
+void ipa3_dec_release_wakelock(void)
 {
 }
 #endif
