@@ -1248,7 +1248,8 @@ static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 	/* These apps burn through CPU in the background. Don't let them. */
 	if (oom_score_adj >= 700) {
 		if (!strcmp(task->comm, "id.GoogleCamera") ||
-		    !strcmp(task->comm, "ndroid.settings")) {
+		    !strcmp(task->comm, "ndroid.settings") ||
+                    !strcmp(task->comm, "eaurora.snapcam")) {
 			struct task_kill_info *kinfo;
 
 			kinfo = kmalloc(sizeof(*kinfo), GFP_ATOMIC);
