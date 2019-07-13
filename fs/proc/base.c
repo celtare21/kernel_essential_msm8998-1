@@ -97,17 +97,20 @@
 
 #include "../../lib/kstrtox.h"
 
-static struct task_struct *task_to_kill;
+struct task_kill_info {
+	struct task_struct *task;
+	struct work_struct work;
+};
 
 static void proc_kill_task(struct work_struct *work)
 {
-	struct task_struct *task = task_to_kill;
+	struct task_kill_info *kinfo = container_of(work, typeof(*kinfo), work);
+	struct task_struct *task = kinfo->task;
 
 	send_sig(SIGKILL, task, 0);
 	put_task_struct(task);
+	kfree(kinfo);
 }
-
-static DECLARE_WORK(task_kill_work, proc_kill_task);
 
 /* NOTE:
  *	Implementing inode permission operations in /proc is almost
@@ -1246,11 +1249,15 @@ static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 	if (oom_score_adj >= 700) {
 		if (!strcmp(task->comm, "id.GoogleCamera") ||
 		    !strcmp(task->comm, "ndroid.settings")) {
-			if (task != task_to_kill)
-				flush_work(&task_kill_work);
-			task_to_kill = task;
-			get_task_struct(task);
-			schedule_work(&task_kill_work);
+			struct task_kill_info *kinfo;
+
+			kinfo = kmalloc(sizeof(*kinfo), GFP_ATOMIC);
+			if (kinfo) {
+				get_task_struct(task);
+				kinfo->task = task;
+				INIT_WORK(&kinfo->work, proc_kill_task);
+				schedule_work(&kinfo->work);
+			}
 		}
 	}
 
