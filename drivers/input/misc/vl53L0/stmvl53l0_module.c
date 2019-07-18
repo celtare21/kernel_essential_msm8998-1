@@ -661,7 +661,7 @@ static void stmvl53l0_ps_read_measurement(struct stmvl53l0_data *data)
 		input_report_abs(data->input_dev_ps, ABS_WHEEL,
 				LimitCheckCurrent);
 	}
-	input_report_abs(data->input_dev_ps, ABS_PRESSURE,
+	input_report_abs(data->input_dev_ps, ABS_BRAKE,
 		data->rangeData.EffectiveSpadRtnCount);
 	input_sync(data->input_dev_ps);
 
@@ -2083,7 +2083,7 @@ int stmvl53l0_setup(struct stmvl53l0_data *data)
 	input_set_abs_params(data->input_dev_ps, ABS_HAT3Y, 0, 0xffffffff,
 		0, 0);
 
-	input_set_abs_params(data->input_dev_ps, ABS_PRESSURE, 0, 0xffffffff,
+	input_set_abs_params(data->input_dev_ps, ABS_BRAKE, 0, 0xffffffff,
 		0, 0);
 
 	input_set_abs_params(data->input_dev_ps, ABS_WHEEL , 0, 0xffffffff,
