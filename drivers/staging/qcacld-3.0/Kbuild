@@ -274,6 +274,7 @@ ifeq ($(CONFIG_ANDROID), y)
        # Flag to enable debugfs. Depends on CONFIG_DEBUG_FS in kernel
        # configuration.
        CONFIG_WLAN_DEBUGFS := y
+       CFLAGS_wlan_hdd_debugfs.o += -DCONFIG_DEBUG_FS
 
        CONFIG_WLAN_POWER_DEBUGFS := y
 endif

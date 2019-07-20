@@ -198,7 +198,9 @@ int msm_dma_map_sg_attrs(struct device *dev, struct scatterlist *sg, int nents,
 
 		*map = (typeof(*map)){
 			.dev = dev,
+			.dir = dir,
 			.meta = meta,
+			.nents = nents,
 			.lnode = LIST_HEAD_INIT(map->lnode),
 			.refcount = ATOMIC_INIT(1 + !!late_unmap),
 			.sgl = {
@@ -235,7 +237,6 @@ void msm_dma_unmap_sg(struct device *dev, struct scatterlist *sgl, int nents,
 		return;
 	}
 
-	map->dir = dir;
 	free_map = atomic_dec_and_test(&map->refcount);
 	if (free_map)
 		list_del(&map->lnode);
