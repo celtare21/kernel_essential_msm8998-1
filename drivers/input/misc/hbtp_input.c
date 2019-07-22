@@ -38,9 +38,6 @@
 #define HBTP_INPUT_NAME			"hbtp_input"
 #define DISP_COORDS_SIZE		2
 
-#undef  HBTP_MAX_FINGER
-#define HBTP_MAX_FINGER 10
-
 #define HBTP_PINCTRL_VALID_STATE_CNT		(2)
 #define HBTP_HOLD_DURATION_US			(10)
 #define HBTP_PINCTRL_DDIC_SEQ_NUM		(4)
@@ -335,9 +332,10 @@ static int hbtp_input_report_events(struct hbtp_data *hbtp_data,
 					MT_TOOL_FINGER, tch->active);
 
 			if (tch->active) {
+				tch->pressure *= 4;
 				input_report_abs(hbtp_data->input_dev,
 						ABS_MT_PRESSURE,
-						200);
+						tch->pressure);
 				input_report_abs(hbtp_data->input_dev,
 						ABS_MT_POSITION_X,
 						tch->x);
