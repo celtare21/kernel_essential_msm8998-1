@@ -142,10 +142,6 @@ static void sync_event_print(struct seq_file *s,
 	case KGSL_CMD_SYNCPOINT_TYPE_FENCE:
 		spin_lock_irqsave(&sync_event->handle_lock, flags);
 
-		seq_printf(s, "sync: [%pK] %s", sync_event->handle,
-		(sync_event->handle && sync_event->handle->fence)
-				? sync_event->handle->fence->name : "NULL");
-
 		spin_unlock_irqrestore(&sync_event->handle_lock, flags);
 		break;
 	default:
