@@ -1616,7 +1616,7 @@ enum Tfa98xx_Error tfaContWriteFilesVstep(int dev_idx, int prof_idx, int vstep_i
 char *tfaContGetString(nxpTfaDescPtr_t * dsc)
 {
 	if ( dsc->type != dscString)
-		return nostring;
+            return (char*)nostring;
 
 	return dsc->offset+(char*)g_cont;
 }
@@ -1667,7 +1667,7 @@ char *tfaContGetCommandString(uint32_t type)
 	else if(type == dscFilter)
 		return "filter";
 	else
-		return nostring;
+		return (char*)nostring;
 }
 
 /*	
@@ -1678,10 +1678,10 @@ char  *tfaContDeviceName(int dev_idx) {
 	nxpTfaDeviceList_t *dev;
 
 	if ( dev_idx >= tfa98xx_cnt_max_device() )
-		return errorname;
+		return (char*)errorname;
 
 	if ( (dev = tfaContDevice(dev_idx)) == NULL )
-		return errorname;
+		return (char*)errorname;
 
 	return tfaContGetString(&dev->name);
 }
@@ -1763,9 +1763,9 @@ char *tfaContProfileName(int dev_idx, int prof_idx) {
 	nxpTfaProfileList_t *prof;
 
 	if ( (dev_idx < 0) || (dev_idx >= tfa98xx_cnt_max_device()) )
-		return errorname;
+		return (char*)errorname;
 	if ( (prof_idx < 0) || (prof_idx >= tfaContMaxProfile(dev_idx)) )
-		return nonename;
+		return (char*)nonename;
 
 	// the Nth profiles for this device
 	prof=tfaContGetDevProfList(g_cont, dev_idx, prof_idx);
