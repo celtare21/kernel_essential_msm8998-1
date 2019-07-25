@@ -14,6 +14,7 @@
 
 #include <linux/kernel.h>
 #include <linux/cpuidle.h>
+#include <linux/module.h>
 #include <linux/jiffies.h>
 
 #include <asm/io.h>
@@ -174,6 +175,7 @@ static struct cpuidle_governor ladder_governor = {
 	.enable =	ladder_enable_device,
 	.select =	ladder_select_state,
 	.reflect =	ladder_reflect,
+	.owner =	THIS_MODULE,
 };
 
 /**
