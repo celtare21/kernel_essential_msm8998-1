@@ -1718,7 +1718,6 @@ retry:
 		goto retry;
 	}
 
-	next_task->on_rq = TASK_ON_RQ_MIGRATING;
 	deactivate_task(rq, next_task, 0);
 	clear_average_bw(&next_task->dl, &rq->dl);
 	next_task->on_rq = TASK_ON_RQ_MIGRATING;
@@ -1726,7 +1725,6 @@ retry:
 	next_task->on_rq = TASK_ON_RQ_QUEUED;
 	add_average_bw(&next_task->dl, &later_rq->dl);
 	activate_task(later_rq, next_task, 0);
-	next_task->on_rq = TASK_ON_RQ_QUEUED;
 	ret = 1;
 
 	resched_curr(later_rq);
