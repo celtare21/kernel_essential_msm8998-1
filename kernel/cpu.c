@@ -66,12 +66,6 @@ static int cpu_hotplug_disabled;
 
 DEFINE_STATIC_PERCPU_RWSEM(cpu_hotplug_lock);
 
-void cpu_hotplug_mutex_held(void)
-{
-        lockdep_assert_held(&cpu_hotplug.lock);
-}
-EXPORT_SYMBOL(cpu_hotplug_mutex_held);
-
 void cpus_read_lock(void)
 {
 	percpu_down_read(&cpu_hotplug_lock);

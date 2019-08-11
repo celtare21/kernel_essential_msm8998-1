@@ -242,7 +242,6 @@ static inline void smpboot_thread_init(void)
 extern struct bus_type cpu_subsys;
 
 #ifdef CONFIG_HOTPLUG_CPU
-extern void cpu_hotplug_mutex_held(void);
 extern void cpus_write_lock(void);
 extern void cpus_write_unlock(void);
 extern void cpus_read_lock(void);
@@ -271,7 +270,6 @@ static inline void cpu_hotplug_enable(void) { }
 
 #define hotcpu_notifier(fn, pri)        do { (void)(fn); } while (0)
 #define __hotcpu_notifier(fn, pri)      do { (void)(fn); } while (0)
-#define cpu_hotplug_mutex_held()        do { } while (0)
 /* These aren't inline functions due to a GCC bug. */
 #define register_hotcpu_notifier(nb)    ({ (void)(nb); 0; })
 #define __register_hotcpu_notifier(nb)  ({ (void)(nb); 0; })

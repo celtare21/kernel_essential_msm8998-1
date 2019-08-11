@@ -820,7 +820,7 @@ static void rebuild_sched_domains_unlocked(void)
 	cpumask_var_t *doms;
 	int ndoms;
 
-	cpu_hotplug_mutex_held();
+	lockdep_assert_cpus_held();
 	lockdep_assert_held(&cpuset_mutex);
 
 	/*
