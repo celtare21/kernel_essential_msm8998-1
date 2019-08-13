@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -114,7 +114,6 @@ enum {
 	PCM_MEDIA_FORMAT_V2 = 0,
 	PCM_MEDIA_FORMAT_V3,
 	PCM_MEDIA_FORMAT_V4,
-	PCM_MEDIA_FORMAT_V5,
 };
 
 /* PCM format modes in DSP */
@@ -266,17 +265,6 @@ int q6asm_audio_client_buf_alloc_contiguous(unsigned int dir
 int q6asm_audio_client_buf_free_contiguous(unsigned int dir,
 			struct audio_client *ac);
 
-int q6asm_set_pp_params(struct audio_client *ac,
-			struct mem_mapping_hdr *mem_hdr, u8 *param_data,
-			u32 param_size);
-
-int q6asm_pack_and_set_pp_param_in_band(struct audio_client *ac,
-					struct param_hdr_v3 param_hdr,
-					u8 *param_data);
-
-int q6asm_set_soft_volume_module_instance_ids(int instance,
-					      struct param_hdr_v3 *param_hdr);
-
 int q6asm_open_read(struct audio_client *ac, uint32_t format
 		/*, uint16_t bits_per_sample*/);
 
@@ -287,12 +275,6 @@ int q6asm_open_read_v3(struct audio_client *ac, uint32_t format,
 		       uint16_t bits_per_sample);
 
 int q6asm_open_read_v4(struct audio_client *ac, uint32_t format,
-		       uint16_t bits_per_sample, bool ts_mode);
-
-int q6asm_open_read_v5(struct audio_client *ac, uint32_t format,
-		       uint16_t bits_per_sample, bool ts_mode);
-
-int q6asm_open_read_with_retry(struct audio_client *ac, uint32_t format,
 		       uint16_t bits_per_sample, bool ts_mode);
 
 int q6asm_open_write(struct audio_client *ac, uint32_t format
@@ -308,12 +290,6 @@ int q6asm_open_write_v3(struct audio_client *ac, uint32_t format,
 			uint16_t bits_per_sample);
 
 int q6asm_open_write_v4(struct audio_client *ac, uint32_t format,
-			uint16_t bits_per_sample);
-
-int q6asm_open_write_v5(struct audio_client *ac, uint32_t format,
-			uint16_t bits_per_sample);
-
-int q6asm_open_write_with_retry(struct audio_client *ac, uint32_t format,
 			uint16_t bits_per_sample);
 
 int q6asm_stream_open_write_v2(struct audio_client *ac, uint32_t format,
@@ -341,9 +317,6 @@ int q6asm_open_read_write_v2(struct audio_client *ac, uint32_t rd_format,
 			     int topology);
 
 int q6asm_open_loopback_v2(struct audio_client *ac,
-			   uint16_t bits_per_sample);
-
-int q6asm_open_loopback_with_retry(struct audio_client *ac,
 			   uint16_t bits_per_sample);
 
 int q6asm_open_transcode_loopback(struct audio_client *ac,
@@ -466,13 +439,6 @@ int q6asm_enc_cfg_blk_pcm_format_support_v4(struct audio_client *ac,
 					    uint16_t endianness,
 					    uint16_t mode);
 
-int q6asm_enc_cfg_blk_pcm_format_support_v5(struct audio_client *ac,
-					    uint32_t rate, uint32_t channels,
-					    uint16_t bits_per_sample,
-					    uint16_t sample_word_size,
-					    uint16_t endianness,
-					    uint16_t mode);
-
 int q6asm_set_encdec_chan_map(struct audio_client *ac,
 		uint32_t num_channels);
 
@@ -560,15 +526,6 @@ int q6asm_media_format_block_multi_ch_pcm_v3(struct audio_client *ac,
 					     uint16_t sample_word_size);
 
 int q6asm_media_format_block_multi_ch_pcm_v4(struct audio_client *ac,
-					     uint32_t rate, uint32_t channels,
-					     bool use_default_chmap,
-					     char *channel_map,
-					     uint16_t bits_per_sample,
-					     uint16_t sample_word_size,
-					     uint16_t endianness,
-					     uint16_t mode);
-
-int q6asm_media_format_block_multi_ch_pcm_v5(struct audio_client *ac,
 					     uint32_t rate, uint32_t channels,
 					     bool use_default_chmap,
 					     char *channel_map,
@@ -736,5 +693,4 @@ uint8_t q6asm_get_stream_id_from_token(uint32_t token);
 int q6asm_adjust_session_clock(struct audio_client *ac,
 		uint32_t adjust_time_lsw,
 		uint32_t adjust_time_msw);
-int q6asm_get_svc_version(uint32_t service_id);
 #endif /* __Q6_ASM_H__ */
