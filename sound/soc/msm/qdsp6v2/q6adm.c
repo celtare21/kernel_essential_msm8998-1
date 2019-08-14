@@ -1387,7 +1387,7 @@ static int32_t adm_callback(struct apr_client_data *data, void *priv)
 			pr_debug("%s: APR_BASIC_RSP_RESULT id 0x%x\n",
 				__func__, payload[0]);
 			if (payload[1] != 0) {
-				pr_err("%s: cmd = 0x%x returned error = 0x%x\n",
+				pr_debug("%s: cmd = 0x%x returned error = 0x%x\n",
 					__func__, payload[0], payload[1]);
 			}
 			switch (payload[0]) {
@@ -2753,7 +2753,7 @@ static int adm_set_mtmx_params_v1(int port_idx, int copp_idx,
 		goto send_param_return;
 	} else if (atomic_read(&this_adm.copp.stat
 				[port_idx][copp_idx]) > 0) {
-		pr_err("%s: DSP returned error[%s]\n",
+		pr_debug("%s: DSP returned error[%s]\n",
 				__func__, adsp_err_get_err_str(
 				atomic_read(&this_adm.copp.stat
 				[port_idx][copp_idx])));
@@ -2781,7 +2781,7 @@ static void adm_enable_mtmx_limiter(int port_idx, int copp_idx)
 	rc = adm_set_mtmx_params_v1(port_idx, copp_idx,
 				    sizeof(adm_param), &adm_param);
 	if (rc < 0) {
-		pr_err("%s: adm_set_mtmx_params_v1 failed port_idx = 0x%x rc %d\n",
+		pr_debug("%s: adm_set_mtmx_params_v1 failed port_idx = 0x%x rc %d\n",
 			__func__, port_idx, rc);
 		goto done;
 	}
