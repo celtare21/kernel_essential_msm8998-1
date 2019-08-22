@@ -601,6 +601,9 @@
 		interrupt-parent = <&mdss_mdp>;
 		interrupts = <2 0>;
 
+		qcom,mdss-rot-qos-cpu-mask = <0xf>;
+		qcom,mdss-rot-qos-cpu-dma-latency = <75>;
+
 		/* VBIF QoS remapper settings*/
 		qcom,mdss-rot-vbif-qos-setting = <1 1 1 1>;
 
