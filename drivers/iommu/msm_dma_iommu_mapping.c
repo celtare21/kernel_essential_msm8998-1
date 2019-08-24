@@ -20,7 +20,7 @@ struct msm_iommu_meta {
 struct msm_iommu_map {
 	struct device *dev;
 	struct list_head lnode;
-	struct scatterlist sg;
+	struct scatterlist sgl;
 	enum dma_data_direction dir;
 	unsigned int nents;
 	int refcount;
@@ -59,7 +59,7 @@ static void msm_iommu_map_free(struct msm_iommu_meta *meta,
 		kfree(meta);
 	}
 
-	dma_unmap_sg(map->dev, &map->sg, map->nents, map->dir);
+	dma_unmap_sg(map->dev, &map->sgl, map->nents, map->dir);
 	kfree(map);
 }
 
@@ -79,7 +79,8 @@ int msm_dma_map_sg_attrs(struct device *dev, struct scatterlist *sg, int nents,
 	map = meta ? msm_iommu_map_lookup(meta, dev) : NULL;
 	if (map) {
 		map->refcount++;
-		*sg = map->sg;
+		sg->dma_address = map->sgl.dma_address;
+		sg->dma_length = map->sgl.dma_length;
 		if (is_device_dma_coherent(dev))
 			dmb(ish);
 	} else {
@@ -90,7 +91,8 @@ int msm_dma_map_sg_attrs(struct device *dev, struct scatterlist *sg, int nents,
 			map->dir = dir;
 			map->nents = nents;
 			map->refcount = 2 - not_lazy;
-			map->sg = *sg;
+			map->sgl.dma_address = sg->dma_address;
+			map->sgl.dma_length = sg->dma_length;
 
 			if (meta) {
 				meta->refcount++;
@@ -114,7 +116,7 @@ int msm_dma_map_sg_attrs(struct device *dev, struct scatterlist *sg, int nents,
 	return nents;
 }
 
-void msm_dma_unmap_sg(struct device *dev, struct scatterlist *sg, int nents,
+void msm_dma_unmap_sg(struct device *dev, struct scatterlist *sgl, int nents,
 		      enum dma_data_direction dir, struct dma_buf *dma_buf)
 {
 	struct msm_iommu_data *data = dma_buf->priv;
