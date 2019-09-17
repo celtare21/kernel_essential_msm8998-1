@@ -22,6 +22,7 @@
 #include <linux/sched.h>
 #include <linux/ratelimit.h>
 #include <linux/timer.h>
+#include <linux/sched.h>
 #include <linux/platform_device.h>
 #include <linux/msm_mhi.h>
 #ifdef CONFIG_DIAG_OVER_USB
@@ -1160,7 +1161,7 @@ static void diag_remote_exit(void)
 	return;
 }
 
-int diagfwd_bridge_init(bool use_mhi)
+int diagfwd_bridge_init(int xprt)
 {
 	return 0;
 }
@@ -3348,20 +3349,32 @@ exit:
 				DIAG_LOG(DIAG_DEBUG_DCI,
 				"diag: valid task doesn't exist for pid = %d\n",
 				entry->tgid);
+				put_pid(pid_struct);
 				continue;
 			}
-			if (task_s == entry->client)
-				if (entry->client->tgid != current->tgid)
+			if (task_s == entry->client) {
+				if (entry->client->tgid != current->tgid) {
+					put_task_struct(task_s);
+					put_pid(pid_struct);
 					continue;
-			if (!entry->in_service)
+				}
+			}
+			if (!entry->in_service) {
+				put_task_struct(task_s);
+				put_pid(pid_struct);
 				continue;
+			}
 			if (copy_to_user(buf + ret, &data_type, sizeof(int))) {
+				put_task_struct(task_s);
+				put_pid(pid_struct);
 				mutex_unlock(&driver->dci_mutex);
 				goto end;
 			}
 			ret += sizeof(int);
 			if (copy_to_user(buf + ret, &entry->client_info.token,
 				sizeof(int))) {
+				put_task_struct(task_s);
+				put_pid(pid_struct);
 				mutex_unlock(&driver->dci_mutex);
 				goto end;
 			}
@@ -3373,9 +3386,13 @@ exit:
 			atomic_dec(&driver->data_ready_notif[index]);
 			mutex_unlock(&driver->diagchar_mutex);
 			if (exit_stat == 1) {
+				put_task_struct(task_s);
+				put_pid(pid_struct);
 				mutex_unlock(&driver->dci_mutex);
 				goto end;
 			}
+			put_task_struct(task_s);
+			put_pid(pid_struct);
 		}
 		mutex_unlock(&driver->dci_mutex);
 		goto end;
@@ -3771,7 +3788,7 @@ static int diag_mhi_probe(struct platform_device *pdev)
 		diag_remote_exit();
 		return ret;
 	}
-	ret = diagfwd_bridge_init(true);
+	ret = diagfwd_bridge_init(1);
 	if (ret) {
 		diagfwd_bridge_exit();
 		return ret;
@@ -3804,7 +3821,7 @@ static int diagfwd_usb_probe(struct platform_device *pdev)
 		diag_remote_exit();
 		return ret;
 	}
-	ret = diagfwd_bridge_init(false);
+	ret = diagfwd_bridge_init(0);
 	if (ret) {
 		diagfwd_bridge_exit();
 		return ret;
@@ -3824,6 +3841,39 @@ static struct platform_driver diagfwd_usb_driver = {
 		.name = "DIAGFWD USB Platform",
 		.owner = THIS_MODULE,
 		.of_match_table = diagfwd_usb_table,
+	},
+};
+
+static int diagfwd_sdio_probe(struct platform_device *pdev)
+{
+	int ret;
+
+	driver->pdev = pdev;
+	ret = diag_remote_init();
+	if (ret) {
+		diag_remote_exit();
+		return ret;
+	}
+	ret = diagfwd_bridge_init(2);
+	if (ret) {
+		diagfwd_bridge_exit();
+		return ret;
+	}
+	pr_debug("diag: usb device is ready\n");
+	return 0;
+}
+
+static const struct of_device_id diagfwd_sdio_table[] = {
+	{.compatible = "qcom,diagfwd-sdio"},
+	{},
+};
+
+static struct platform_driver diagfwd_sdio_driver = {
+	.probe = diagfwd_sdio_probe,
+	.driver = {
+		.name = "DIAGFWD SDIO Platform",
+		.owner = THIS_MODULE,
+		.of_match_table = diagfwd_sdio_table,
 	},
 };
 
@@ -3954,6 +4004,7 @@ static int __init diagchar_init(void)
 	pr_debug("diagchar initialized now");
 	platform_driver_register(&diag_mhi_driver);
 	platform_driver_register(&diagfwd_usb_driver);
+	platform_driver_register(&diagfwd_sdio_driver);
 	return 0;
 
 fail:

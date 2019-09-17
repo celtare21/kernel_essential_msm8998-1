@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017 The Linux Foundation.
+/* Copyright (c) 2016-2017, 2019 The Linux Foundation.
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -360,7 +360,7 @@ unlock:
 
 int apr_tal_start_rx_rt(struct apr_svc_ch_dev *apr_ch)
 {
-	int rc;
+	int rc = 0;
 
 	if (!apr_ch || !apr_ch->handle) {
 		rc = -EINVAL;
@@ -376,7 +376,7 @@ exit:
 
 int apr_tal_end_rx_rt(struct apr_svc_ch_dev *apr_ch)
 {
-	int rc;
+	int rc = 0;
 
 	if (!apr_ch || !apr_ch->handle) {
 		rc = -EINVAL;

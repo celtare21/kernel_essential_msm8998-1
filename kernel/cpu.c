@@ -940,6 +940,11 @@ void init_cpu_online(const struct cpumask *src)
 	cpumask_copy(to_cpumask(cpu_online_bits), src);
 }
 
+void init_cpu_isolated(const struct cpumask *src)
+{
+	cpumask_copy(to_cpumask(cpu_isolated_bits), src);
+}
+
 enum cpu_mitigations cpu_mitigations = CPU_MITIGATIONS_AUTO;
 
 static int __init mitigations_parse_cmdline(char *arg)

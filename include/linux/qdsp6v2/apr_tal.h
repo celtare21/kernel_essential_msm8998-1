@@ -1,4 +1,5 @@
-/* Copyright (c) 2010-2011, 2016-2017 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2011, 2016-2017, 2019 The Linux Foundation.
+ * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -93,7 +94,8 @@ struct apr_svc_ch_dev {
 	bool               if_remote_intent_ready;
 };
 #else
-static inline int apr_tal_start_rx_rt(struct apr_svc_ch_dev *apr_ch) { return 0; }
+static inline int apr_tal_start_rx_rt(struct apr_svc_ch_dev *apr_ch)
+{ return 0; }
 static inline int apr_tal_end_rx_rt(struct apr_svc_ch_dev *apr_ch) { return 0; }
 
 struct apr_svc_ch_dev {
