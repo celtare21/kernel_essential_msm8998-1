@@ -429,4 +429,4 @@ obj-y += sdm660_cdc/
 obj-y += msm_sdw/
 
 # SmartAmp
-obj-$(CONFIG_SND_SOC_TFA9891)   += tfa9891/
+obj-$(CONFIG_SND_SOC_TFA9891)	+= tfa9891/

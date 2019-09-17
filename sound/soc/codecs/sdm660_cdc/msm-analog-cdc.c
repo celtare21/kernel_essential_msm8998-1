@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -49,10 +49,10 @@
 #define BUS_DOWN 1
 
 /*
- * 200 Milliseconds sufficient for DSP bring up in the lpass
+ * 50 Milliseconds sufficient for DSP bring up in the lpass
  * after Sub System Restart
  */
-#define ADSP_STATE_READY_TIMEOUT_MS 200
+#define ADSP_STATE_READY_TIMEOUT_MS 50
 
 #define EAR_PMD 0
 #define EAR_PMU 1
@@ -2619,17 +2619,6 @@ static int msm_anlg_cdc_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
-static void set_compander_mode(void *handle, int val)
-{
-	struct sdm660_cdc_priv *handle_cdc = handle;
-	struct snd_soc_codec *codec = handle_cdc->codec;
-
-	if (get_codec_version(handle_cdc) >= DIANGU) {
-		snd_soc_update_bits(codec,
-			MSM89XX_PMIC_ANALOG_RX_COM_BIAS_DAC,
-			0x08, val);
-	};
-}
 static void update_clkdiv(void *handle, int val)
 {
 	struct sdm660_cdc_priv *handle_cdc = handle;
@@ -3421,8 +3410,8 @@ static const struct snd_soc_dapm_widget msm_anlg_cdc_dapm_widgets[] = {
 		msm_anlg_cdc_hph_pa_event, SND_SOC_DAPM_PRE_PMU |
 		SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD |
 		SND_SOC_DAPM_POST_PMD),
-	SND_SOC_DAPM_PGA_E("SPK PA", MSM89XX_PMIC_ANALOG_SPKR_DRV_CTL,
-			7, 0, NULL, 0, msm_anlg_cdc_codec_enable_spk_pa,
+	SND_SOC_DAPM_PGA_E("SPK PA", SND_SOC_NOPM,
+			0, 0, NULL, 0, msm_anlg_cdc_codec_enable_spk_pa,
 			SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU |
 			SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD),
 	SND_SOC_DAPM_PGA_E("LINEOUT PA", MSM89XX_PMIC_ANALOG_RX_LO_EN_CTL,
@@ -3673,6 +3662,18 @@ static const struct sdm660_cdc_reg_mask_val
 	{MSM89XX_PMIC_ANALOG_RX_COM_OCP_COUNT, 0xFF, 0xFF},
 };
 
+static void msm_anlg_cdc_codec_init_cache(struct snd_soc_codec *codec)
+{
+	u32 i;
+
+	regcache_cache_only(codec->component.regmap, true);
+	/* update cache with POR values */
+	for (i = 0; i < ARRAY_SIZE(msm89xx_pmic_cdc_defaults); i++)
+		snd_soc_write(codec, msm89xx_pmic_cdc_defaults[i].reg,
+			      msm89xx_pmic_cdc_defaults[i].def);
+	regcache_cache_only(codec->component.regmap, false);
+}
+
 static void msm_anlg_cdc_codec_init_reg(struct snd_soc_codec *codec)
 {
 	u32 i;
@@ -3718,7 +3719,7 @@ static struct regulator *msm_anlg_cdc_find_regulator(
 			return sdm660_cdc->supplies[i].consumer;
 	}
 
-	dev_dbg(sdm660_cdc->dev, "Error: regulator not found:%s\n"
+	dev_err(sdm660_cdc->dev, "Error: regulator not found:%s\n"
 				, name);
 	return NULL;
 }
@@ -3805,11 +3806,12 @@ static int msm_anlg_cdc_device_down(struct snd_soc_codec *codec)
 	}
 	msm_anlg_cdc_boost_off(codec);
 	sdm660_cdc_priv->hph_mode = NORMAL_MODE;
+
+	/* 40ms to allow boost to discharge */
+	msleep(40);
 	/* Disable PA to avoid pop during codec bring up */
 	snd_soc_update_bits(codec, MSM89XX_PMIC_ANALOG_RX_HPH_CNP_EN,
 			0x30, 0x00);
-	/* 40ms to allow boost to discharge */
-	msleep(40);
 	snd_soc_update_bits(codec, MSM89XX_PMIC_ANALOG_SPKR_DRV_CTL,
 			0x80, 0x00);
 	snd_soc_write(codec,
@@ -4169,6 +4171,7 @@ static int msm_anlg_cdc_soc_probe(struct snd_soc_codec *codec)
 				  ARRAY_SIZE(hph_type_detect_controls));
 
 	msm_anlg_cdc_bringup(codec);
+	msm_anlg_cdc_codec_init_cache(codec);
 	msm_anlg_cdc_codec_init_reg(codec);
 	msm_anlg_cdc_update_reg_defaults(codec);
 
@@ -4575,8 +4578,7 @@ static int msm_anlg_cdc_probe(struct platform_device *pdev)
 	int adsp_state;
 
 	adsp_state = apr_get_subsys_state();
-	if (adsp_state != APR_SUBSYS_LOADED ||
-		!q6core_is_adsp_ready()) {
+	if (adsp_state != APR_SUBSYS_LOADED) {
 		dev_err(&pdev->dev, "Adsp is not loaded yet %d\n",
 			adsp_state);
 		return -EPROBE_DEFER;
@@ -4647,7 +4649,6 @@ static int msm_anlg_cdc_probe(struct platform_device *pdev)
 	BLOCKING_INIT_NOTIFIER_HEAD(&sdm660_cdc->notifier_mbhc);
 
 	sdm660_cdc->dig_plat_data.handle = (void *) sdm660_cdc;
-	sdm660_cdc->dig_plat_data.set_compander_mode = set_compander_mode;
 	sdm660_cdc->dig_plat_data.update_clkdiv = update_clkdiv;
 	sdm660_cdc->dig_plat_data.get_cdc_version = get_cdc_version;
 	sdm660_cdc->dig_plat_data.register_notifier =
