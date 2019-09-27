@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -132,10 +132,14 @@ struct ion_client *msm_ion_client_create(const char *name);
  * Gets the current flags for a handle. These flags indicate various options
  * of the buffer (caching, security, etc.)
  */
-int ion_handle_get_flags(struct ion_client *client, struct ion_handle *handle,
-				unsigned long *flags);
+static inline int ion_handle_get_flags(struct ion_client *client, void *handle,
+				       unsigned long *flags)
+{
+	struct ion_buffer *buffer = handle;
 
-
+	*flags = buffer->flags;
+	return 0;
+}
 
 /**
  * ion_handle_get_size - get the allocated size of a given handle
@@ -151,8 +155,15 @@ int ion_handle_get_flags(struct ion_client *client, struct ion_handle *handle,
  * You should *NOT* rely on this for any other usage.
  */
 
-int ion_handle_get_size(struct ion_client *client, struct ion_handle *handle,
-			size_t *size);
+static inline int ion_handle_get_size(struct ion_client *client, void *handle,
+				      size_t *size)
+{
+	struct ion_buffer *buffer = handle;
+
+	*size = buffer->size;
+	return 0;
+}
+
 /**
  * msm_ion_do_cache_op - do cache operations.
  *
@@ -175,7 +186,13 @@ int msm_ion_do_cache_offset_op(
 		void *vaddr, unsigned int offset, unsigned long len,
 		unsigned int cmd);
 
-bool is_buffer_hlos_assigned(struct ion_buffer *buffer);
+static inline struct sg_table *ion_sg_table(struct ion_client *client,
+					    void *handle)
+{
+	struct ion_buffer *buffer = handle;
+
+	return buffer->sg_table;
+}
 
 #else
 static inline struct ion_client *msm_ion_client_create(const char *name)
@@ -202,11 +219,6 @@ int msm_ion_do_cache_offset_op(
 		unsigned int cmd)
 {
 	return -ENODEV;
-}
-
-static bool is_buffer_hlos_assigned(struct ion_buffer *buffer)
-{
-	return true;
 }
 
 #endif /* CONFIG_ION */
