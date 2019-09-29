@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -207,7 +207,7 @@ static void kgsl_iommu_add_global(struct kgsl_mmu *mmu,
 		return;
 
 	if (WARN_ON(global_pt_count >= GLOBAL_PT_ENTRIES))
-                return;
+		return;
 
 	if (WARN_ON(size > KGSL_IOMMU_GLOBAL_MEM_SIZE))
 		return;
@@ -235,6 +235,7 @@ static void kgsl_iommu_add_global(struct kgsl_mmu *mmu,
 		KGSL_IOMMU_GLOBAL_MEM_BASE(mmu) + (bit << PAGE_SHIFT);
 
 	bitmap_set(global_map, bit, size >> PAGE_SHIFT);
+
 	memdesc->priv |= KGSL_MEMDESC_GLOBAL;
 
 	global_pt_entries[global_pt_count].memdesc = memdesc;
