@@ -37,8 +37,6 @@
 
 #include "ion.h"
 
-void ion_buffer_destroy(struct ion_buffer *buffer);
-
 /**
  * struct ion_heap_ops - ops to operate on a given heap
  * @allocate:		allocate memory
@@ -147,7 +145,7 @@ struct ion_heap {
  * returns a valid device or -PTR_ERR
  */
 struct ion_device *ion_device_create(long (*custom_ioctl)
-				     (void *client,
+				     (struct ion_client *client,
 				      unsigned int cmd,
 				      unsigned long arg));
 
@@ -420,25 +418,19 @@ int ion_page_pool_shrink(struct ion_page_pool *pool, gfp_t gfp_mask,
 void ion_pages_sync_for_device(struct device *dev, struct page *page,
 		size_t size, enum dma_data_direction dir);
 
-int __ion_walk_heaps(struct ion_device *dev, int heap_id,
-		     enum ion_heap_type type, void *data,
-		     int (*f)(struct ion_heap *heap, void *data));
-static inline int ion_walk_heaps(void *client, int heap_id,
-				 enum ion_heap_type type, void *data,
-				 int (*f)(struct ion_heap *heap, void *data))
-{
-	return __ion_walk_heaps(client, heap_id, type, data, f);
-}
+int ion_walk_heaps(struct ion_client *client, int heap_id,
+		   enum ion_heap_type type, void *data,
+		   int (*f)(struct ion_heap *heap, void *data));
 
-struct ion_buffer *ion_buffer_find_by_id(struct ion_device *dev, int id);
-static inline void *ion_handle_find_by_id(void *client, int id)
+struct ion_buffer *ion_buffer_find_by_id(struct ion_client *client, int id);
+static inline void *ion_handle_find_by_id(struct ion_client *client, int id)
 {
 	return ion_buffer_find_by_id(client, id);
 }
 
-static inline void ion_handle_put(void *buffer)
+static inline void ion_handle_put(struct ion_client *client, void *handle)
 {
-	ion_buffer_put(buffer);
+	ion_buffer_put(client, handle, true);
 }
 
 static inline bool ion_buffer_cached(struct ion_buffer *buffer)

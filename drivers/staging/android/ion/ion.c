@@ -18,7 +18,13 @@ struct ion_device {
 	struct rw_semaphore heap_rwsem;
 	struct idr buffers;
 	spinlock_t buffer_lock;
-	long (*custom_ioctl)(void *client, unsigned int cmd, unsigned long arg);
+	long (*custom_ioctl)(struct ion_client *client, unsigned int cmd,
+			     unsigned long arg);
+};
+
+struct ion_client {
+	struct ion_device *idev;
+	struct list_head buffer_list;
 };
 
 static void ion_buffer_free_work(struct work_struct *work)
@@ -26,15 +32,19 @@ static void ion_buffer_free_work(struct work_struct *work)
 	struct ion_buffer *buffer = container_of(work, typeof(*buffer), free);
 	struct ion_heap *heap = buffer->heap;
 
+	msm_dma_buf_freed(&buffer->iommu_data);
+	if (buffer->kmap_refcount)
+		heap->ops->unmap_kernel(heap, buffer);
 	heap->ops->unmap_dma(heap, buffer);
 	heap->ops->free(buffer);
 	kfree(buffer);
 }
 
-static struct ion_buffer *ion_buffer_create(struct ion_device *idev,
+static struct ion_buffer *ion_buffer_create(struct ion_client *client,
 					    struct ion_heap *heap, size_t len,
 					    size_t align, unsigned int flags)
 {
+	struct ion_device *idev = client->idev;
 	struct ion_buffer *buffer;
 	struct scatterlist *sg;
 	unsigned int i, nents;
@@ -45,12 +55,13 @@ static struct ion_buffer *ion_buffer_create(struct ion_device *idev,
 
 	*buffer = (typeof(*buffer)){
 		.idev = idev,
+		.client = client,
 		.flags = flags,
 		.heap = heap,
 		.size = len,
+		.refcount = 1,
 		.free = __WORK_INITIALIZER(buffer->free, ion_buffer_free_work),
 		.kmap_lock = __MUTEX_INITIALIZER(buffer->kmap_lock),
-		.refcount = ATOMIC_INIT(1),
 		.iommu_data = {
 			.map_list = LIST_HEAD_INIT(buffer->iommu_data.map_list),
 			.lock = __MUTEX_INITIALIZER(buffer->iommu_data.lock)
@@ -72,7 +83,9 @@ static struct ion_buffer *ion_buffer_create(struct ion_device *idev,
 
 	idr_preload(GFP_KERNEL);
 	spin_lock(&idev->buffer_lock);
-	buffer->id = idr_alloc(&idev->buffers, buffer, 1, 0, GFP_NOWAIT);
+	buffer->id = idr_alloc_cyclic(&idev->buffers, buffer, 1, 0, GFP_NOWAIT);
+	if (buffer->id > 0)
+		list_add(&buffer->lnode, &client->buffer_list);
 	spin_unlock(&idev->buffer_lock);
 	idr_preload_end();
 
@@ -104,6 +117,15 @@ free_buffer:
 	return ERR_PTR(-EINVAL);
 }
 
+static void ion_buffer_get(struct ion_buffer *buffer)
+{
+	struct ion_device *idev = buffer->idev;
+
+	spin_lock(&idev->buffer_lock);
+	buffer->refcount++;
+	spin_unlock(&idev->buffer_lock);
+}
+
 static void ion_buffer_free_rcu(struct rcu_head *head)
 {
 	struct ion_buffer *buffer = container_of(head, typeof(*buffer), rcu);
@@ -113,28 +135,64 @@ static void ion_buffer_free_rcu(struct rcu_head *head)
 
 void ion_buffer_destroy(struct ion_buffer *buffer)
 {
-	struct ion_device *idev = buffer->idev;
-
-	spin_lock(&idev->buffer_lock);
-	idr_remove(&idev->buffers, buffer->id);
-	spin_unlock(&idev->buffer_lock);
-
 	call_rcu(&buffer->rcu, ion_buffer_free_rcu);
 }
 
-void ion_buffer_put(struct ion_buffer *buffer)
+void ion_buffer_put(struct ion_client *client, struct ion_buffer *buffer,
+		    bool lock)
 {
+	struct ion_device *idev = buffer->idev;
 	struct ion_heap *heap = buffer->heap;
+	bool do_free;
 
-	if (atomic_dec_return(&buffer->refcount))
-		return;
+	if (lock)
+		spin_lock(&idev->buffer_lock);
 
-	msm_dma_buf_freed(&buffer->iommu_data);
+	if ((do_free = !--buffer->refcount)) {
+		idr_remove(&idev->buffers, buffer->id);
+		list_del(&buffer->lnode);
+	} else if (buffer->client == client) {
+		list_del_init(&buffer->lnode);
+	}
 
-	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
-		ion_heap_freelist_add(heap, buffer);
-	else
-		ion_buffer_destroy(buffer);
+	if (lock)
+		spin_unlock(&idev->buffer_lock);
+
+	if (do_free) {
+		if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
+			ion_heap_freelist_add(heap, buffer);
+		else
+			ion_buffer_destroy(buffer);
+	}
+}
+
+struct ion_client *ion_client_create(struct ion_device *idev)
+{
+	struct ion_client *client;
+
+	client = kmalloc(sizeof(*client), GFP_KERNEL);
+	if (!client)
+		return ERR_PTR(-ENOMEM);
+
+	*client = (typeof(*client)){
+		.idev = idev,
+		.buffer_list = LIST_HEAD_INIT(client->buffer_list)
+	};
+
+	return client;
+}
+
+void ion_client_destroy(struct ion_client *client)
+{
+	struct ion_device *idev = client->idev;
+	struct ion_buffer *buffer, *tmp;
+
+	spin_lock(&idev->buffer_lock);
+	list_for_each_entry_safe(buffer, tmp, &client->buffer_list, lnode)
+		ion_buffer_put(client, buffer, false);
+	spin_unlock(&idev->buffer_lock);
+
+	kfree(client);
 }
 
 void *__ion_map_kernel(struct ion_buffer *buffer)
@@ -146,16 +204,16 @@ void *__ion_map_kernel(struct ion_buffer *buffer)
 		return ERR_PTR(-ENODEV);
 
 	mutex_lock(&buffer->kmap_lock);
-	if (buffer->kmap_cnt) {
+	if (buffer->kmap_refcount) {
 		vaddr = buffer->vaddr;
-		buffer->kmap_cnt++;
+		buffer->kmap_refcount++;
 	} else {
 		vaddr = heap->ops->map_kernel(heap, buffer);
 		if (IS_ERR_OR_NULL(vaddr)) {
 			vaddr = ERR_PTR(-EINVAL);
 		} else {
 			buffer->vaddr = vaddr;
-			buffer->kmap_cnt++;
+			buffer->kmap_refcount++;
 		}
 	}
 	mutex_unlock(&buffer->kmap_lock);
@@ -168,13 +226,14 @@ void __ion_unmap_kernel(struct ion_buffer *buffer)
 	struct ion_heap *heap = buffer->heap;
 
 	mutex_lock(&buffer->kmap_lock);
-	if (!--buffer->kmap_cnt)
+	if (buffer->kmap_refcount && !--buffer->kmap_refcount)
 		heap->ops->unmap_kernel(heap, buffer);
 	mutex_unlock(&buffer->kmap_lock);
 }
 
-struct ion_buffer *ion_buffer_find_by_id(struct ion_device *idev, int id)
+struct ion_buffer *ion_buffer_find_by_id(struct ion_client *client, int id)
 {
+	struct ion_device *idev = client->idev;
 	struct ion_buffer *buffer;
 
 	rcu_read_lock();
@@ -184,9 +243,11 @@ struct ion_buffer *ion_buffer_find_by_id(struct ion_device *idev, int id)
 	return buffer ? buffer : ERR_PTR(-EINVAL);
 }
 
-struct ion_buffer *__ion_alloc(struct ion_device *idev, size_t len, size_t align,
-			       unsigned int heap_id_mask, unsigned int flags)
+struct ion_buffer *__ion_alloc(struct ion_client *client, size_t len,
+			       size_t align, unsigned int heap_id_mask,
+			       unsigned int flags)
 {
+	struct ion_device *idev = client->idev;
 	struct ion_buffer *buffer;
 	struct ion_heap *heap;
 
@@ -199,7 +260,7 @@ struct ion_buffer *__ion_alloc(struct ion_device *idev, size_t len, size_t align
 		if (!(BIT(heap->id) & heap_id_mask))
 			continue;
 
-		buffer = ion_buffer_create(idev, heap, len, align, flags);
+		buffer = ion_buffer_create(client, heap, len, align, flags);
 		if (!IS_ERR(buffer)) {
 			up_read(&idev->heap_rwsem);
 			return buffer;
@@ -292,7 +353,7 @@ static void ion_dma_buf_release(struct dma_buf *dmabuf)
 	struct ion_buffer *buffer = container_of(dmabuf->priv, typeof(*buffer),
 						 iommu_data);
 
-	ion_buffer_put(buffer);
+	ion_buffer_put(NULL, buffer, true);
 }
 
 static void *ion_dma_buf_kmap(struct dma_buf *dmabuf, unsigned long offset)
@@ -346,7 +407,7 @@ struct dma_buf *__ion_share_dma_buf(struct ion_buffer *buffer)
 
 	dmabuf = dma_buf_export(&exp_info);
 	if (!IS_ERR(dmabuf))
-		atomic_inc(&buffer->refcount);
+		ion_buffer_get(buffer);
 
 	return dmabuf;
 }
@@ -377,7 +438,7 @@ struct ion_buffer *__ion_import_dma_buf(int fd)
 		return ERR_CAST(dmabuf);
 
 	buffer = container_of(dmabuf->priv, typeof(*buffer), iommu_data);
-	atomic_inc(&buffer->refcount);
+	ion_buffer_get(buffer);
 	dma_buf_put(dmabuf);
 	return buffer;
 }
@@ -406,7 +467,8 @@ static long ion_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		struct ion_handle_data handle;
 		struct ion_custom_data custom;
 	} data;
-	struct ion_device *idev = file->private_data;
+	struct ion_client *client = file->private_data;
+	struct ion_device *idev = client->idev;
 	struct ion_buffer *buffer;
 	struct dma_buf *dmabuf;
 
@@ -428,7 +490,7 @@ static long ion_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case ION_IOC_ALLOC:
-		buffer = __ion_alloc(idev, data.allocation.len,
+		buffer = __ion_alloc(client, data.allocation.len,
 				     data.allocation.align,
 				     data.allocation.heap_id_mask,
 				     data.allocation.flags);
@@ -438,15 +500,15 @@ static long ion_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		data.allocation.handle = buffer->id;
 		break;
 	case ION_IOC_FREE:
-		buffer = ion_buffer_find_by_id(idev, data.handle.handle);
+		buffer = ion_buffer_find_by_id(client, data.handle.handle);
 		if (IS_ERR(buffer))
 			return PTR_ERR(buffer);
 
-		ion_buffer_put(buffer);
+		ion_buffer_put(client, buffer, true);
 		return 0;
 	case ION_IOC_SHARE:
 	case ION_IOC_MAP:
-		buffer = ion_buffer_find_by_id(idev, data.handle.handle);
+		buffer = ion_buffer_find_by_id(client, data.handle.handle);
 		if (IS_ERR(buffer))
 			return PTR_ERR(buffer);
 
@@ -465,13 +527,13 @@ static long ion_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		return ion_sync_for_device(data.fd.fd);
 	case ION_IOC_CUSTOM:
 		if (idev->custom_ioctl)
-			return idev->custom_ioctl(idev, data.custom.cmd,
+			return idev->custom_ioctl(client, data.custom.cmd,
 						  data.custom.arg);
 		return -ENOTTY;
 	case ION_IOC_CLEAN_CACHES:
 	case ION_IOC_INV_CACHES:
 	case ION_IOC_CLEAN_INV_CACHES:
-		return idev->custom_ioctl(idev, cmd, arg);
+		return idev->custom_ioctl(client, cmd, arg);
 	default:
 		return -ENOTTY;
 	}
@@ -480,7 +542,7 @@ static long ion_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		switch (cmd) {
 		case ION_IOC_ALLOC:
 		case ION_IOC_IMPORT:
-			ion_buffer_put(buffer);
+			ion_buffer_put(client, buffer, true);
 			break;
 		case ION_IOC_SHARE:
 		case ION_IOC_MAP:
@@ -500,14 +562,28 @@ static int ion_open(struct inode *inode, struct file *file)
 {
 	struct miscdevice *miscdev = file->private_data;
 	struct ion_device *idev = container_of(miscdev, typeof(*idev), dev);
+	struct ion_client *client;
 
-	file->private_data = idev;
+	client = ion_client_create(idev);
+	if (IS_ERR(client))
+		return PTR_ERR(client);
+
+	file->private_data = client;
+	return 0;
+}
+
+static int ion_release(struct inode *inode, struct file *file)
+{
+	struct ion_client *client = file->private_data;
+
+	ion_client_destroy(client);
 	return 0;
 }
 
 static const struct file_operations ion_fops = {
 	.owner = THIS_MODULE,
 	.open = ion_open,
+	.release = ion_release,
 	.unlocked_ioctl = ion_ioctl,
 	.compat_ioctl = compat_ion_ioctl
 };
@@ -530,10 +606,11 @@ void ion_device_add_heap(struct ion_device *idev, struct ion_heap *heap)
 	up_write(&idev->heap_rwsem);
 }
 
-int __ion_walk_heaps(struct ion_device *idev, int heap_id,
-		     enum ion_heap_type type, void *data,
-		     int (*f)(struct ion_heap *heap, void *data))
+int ion_walk_heaps(struct ion_client *client, int heap_id,
+		   enum ion_heap_type type, void *data,
+		   int (*f)(struct ion_heap *heap, void *data))
 {
+	struct ion_device *idev = client->idev;
 	struct ion_heap *heap;
 	int ret = 0;
 
@@ -550,8 +627,8 @@ int __ion_walk_heaps(struct ion_device *idev, int heap_id,
 }
 
 struct ion_device *ion_device_create(long (*custom_ioctl)
-				     (void *client, unsigned int cmd,
-				      unsigned long arg))
+				     (struct ion_client *client,
+				      unsigned int cmd, unsigned long arg))
 {
 	struct ion_device *idev;
 	int ret;
@@ -584,22 +661,17 @@ struct ion_device *ion_device_create(long (*custom_ioctl)
 
 void __init ion_reserve(struct ion_platform_data *data)
 {
-	phys_addr_t paddr;
 	int i;
 
 	for (i = 0; i < data->nr; i++) {
-		if (!data->heaps[i].size)
-			continue;
+		struct ion_platform_heap *pheap = &data->heaps[i];
 
-		if (data->heaps[i].base) {
-			memblock_reserve(data->heaps[i].base,
-					 data->heaps[i].size);
-		} else {
-			paddr = memblock_alloc_base(data->heaps[i].size,
-						    data->heaps[i].align,
-						    MEMBLOCK_ALLOC_ANYWHERE);
-			if (paddr)
-				data->heaps[i].base = paddr;
+		if (pheap->size) {
+			if (pheap->base)
+				memblock_reserve(pheap->base, pheap->size);
+			else
+				pheap->base = memblock_alloc_base(pheap->size,
+					pheap->align, MEMBLOCK_ALLOC_ANYWHERE);
 		}
 	}
 }

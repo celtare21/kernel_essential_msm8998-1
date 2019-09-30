@@ -31,9 +31,11 @@ struct ion_buffer;
 
 struct ion_buffer {
 	struct ion_device *idev;
+	struct ion_client *client;
 	struct ion_heap *heap;
 	struct sg_table *sg_table;
 	struct list_head list;
+	struct list_head lnode;
 	struct mutex kmap_lock;
 	struct rcu_head rcu;
 	struct work_struct free;
@@ -41,10 +43,10 @@ struct ion_buffer {
 	void *vaddr;
 	unsigned int flags;
 	unsigned int private_flags;
-	int id;
-	int kmap_cnt;
 	size_t size;
-	atomic_t refcount;
+	int id;
+	int refcount;
+	int kmap_refcount;
 	struct msm_iommu_data iommu_data;
 };
 
@@ -114,10 +116,7 @@ void ion_reserve(struct ion_platform_data *data);
  * ion_client_create() -  allocate a client and returns it
  * @dev:		the global ion device
  */
-static inline void *ion_client_create(struct ion_device *dev)
-{
-	return dev;
-}
+struct ion_client *ion_client_create(struct ion_device *idev);
 
 /**
  * ion_client_destroy() -  free's a client and all it's handles
@@ -126,9 +125,7 @@ static inline void *ion_client_create(struct ion_device *dev)
  * Free the provided client and all it's resources including
  * any handles it is holding.
  */
-static inline void ion_client_destroy(void *client)
-{
-}
+void ion_client_destroy(struct ion_client *client);
 
 /**
  * ion_alloc - allocate ion memory
@@ -146,11 +143,12 @@ static inline void ion_client_destroy(void *client)
  * Allocate memory in one of the heaps provided in heap mask and return
  * an opaque handle to it.
  */
-struct ion_buffer *__ion_alloc(struct ion_device *dev, size_t len,
+struct ion_buffer *__ion_alloc(struct ion_client *client, size_t len,
 			       size_t align, unsigned int heap_id_mask,
 			       unsigned int flags);
-static inline void *ion_alloc(void *client, size_t len, size_t align,
-			      unsigned int heap_id_mask, unsigned int flags)
+static inline void *ion_alloc(struct ion_client *client, size_t len,
+			      size_t align, unsigned int heap_id_mask,
+			      unsigned int flags)
 {
 	return __ion_alloc(client, len, align, heap_id_mask, flags);
 }
@@ -162,10 +160,12 @@ static inline void *ion_alloc(void *client, size_t len, size_t align,
  *
  * Free the provided handle.
  */
-void ion_buffer_put(struct ion_buffer *buffer);
+void ion_buffer_destroy(struct ion_buffer *buffer);
+void ion_buffer_put(struct ion_client *client, struct ion_buffer *buffer,
+		    bool lock);
 static inline void ion_free(struct ion_client *client, void *handle)
 {
-	ion_buffer_put(handle);
+	ion_buffer_put(client, handle, true);
 }
 
 /**
@@ -222,7 +222,8 @@ static inline void ion_unmap_kernel(struct ion_client *client, void *handle)
  * @handle:	the handle
  */
 struct dma_buf *__ion_share_dma_buf(struct ion_buffer *buffer);
-static inline struct dma_buf *ion_share_dma_buf(void *client, void *handle)
+static inline struct dma_buf *ion_share_dma_buf(struct ion_client *client,
+						void *handle)
 {
 	return __ion_share_dma_buf(handle);
 }
@@ -233,7 +234,7 @@ static inline struct dma_buf *ion_share_dma_buf(void *client, void *handle)
  * @handle:	the handle
  */
 int __ion_share_dma_buf_fd(struct ion_buffer *buffer);
-static inline int ion_share_dma_buf_fd(void *client, void *handle)
+static inline int ion_share_dma_buf_fd(struct ion_client *client, void *handle)
 {
 	return __ion_share_dma_buf_fd(handle);
 }
@@ -248,7 +249,7 @@ static inline int ion_share_dma_buf_fd(void *client, void *handle)
  * another exporter is passed in this function will return ERR_PTR(-EINVAL)
  */
 struct ion_buffer *__ion_import_dma_buf(int fd);
-static inline void *ion_import_dma_buf(void *client, int fd)
+static inline void *ion_import_dma_buf(struct ion_client *client, int fd)
 {
 	return __ion_import_dma_buf(fd);
 }

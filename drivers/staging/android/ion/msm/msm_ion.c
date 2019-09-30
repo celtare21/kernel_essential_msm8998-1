@@ -750,7 +750,7 @@ long msm_ion_custom_ioctl(struct ion_client *client,
 		up_read(&mm->mmap_sem);
 
 		if (!handle_exists)
-			ion_handle_put(handle);
+			ion_handle_put(client, handle);
 
 		if (ret < 0)
 			return ret;
