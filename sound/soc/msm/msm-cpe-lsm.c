@@ -2391,7 +2391,7 @@ done:
 	return err;
 }
 
-#if 0
+#ifdef CONFIG_COMPAT
 struct snd_lsm_sound_model_v2_32 {
 	compat_uptr_t data;
 	compat_uptr_t confidence_level;
@@ -2582,7 +2582,7 @@ static int msm_cpe_lsm_ioctl_compat(struct snd_pcm_substream *substream,
 					event_status->payload_size;
 				memcpy(udata_32->payload,
 				       event_status->payload,
-				       udata_32->payload_size);
+				       u_pld_size);
 			}
 		}
 

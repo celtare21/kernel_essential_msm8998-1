@@ -985,7 +985,7 @@ static int soc_bind_dai_link(struct snd_soc_card *card, int num)
 		rtd->platform = platform;
 	}
 	if (!rtd->platform) {
-		dev_dbg(card->dev, "ASoC: platform %s not registered\n",
+		dev_err(card->dev, "ASoC: platform %s not registered\n",
 			dai_link->platform_name);
 		return -EPROBE_DEFER;
 	}
@@ -3064,7 +3064,8 @@ static int snd_soc_codec_set_bias_level(struct snd_soc_dapm_context *dapm,
  */
 void snd_soc_card_change_online_state(struct snd_soc_card *soc_card, int online)
 {
-	snd_card_change_online_state(soc_card->snd_card, online);
+	if (soc_card && soc_card->snd_card)
+		snd_card_change_online_state(soc_card->snd_card, online);
 }
 EXPORT_SYMBOL(snd_soc_card_change_online_state);
 

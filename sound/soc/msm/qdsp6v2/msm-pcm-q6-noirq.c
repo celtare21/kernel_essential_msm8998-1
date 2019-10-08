@@ -52,6 +52,15 @@ struct snd_msm {
 #define CMD_EOS_MIN_TIMEOUT_LENGTH  50
 #define CMD_EOS_TIMEOUT_MULTIPLIER  (HZ * 50)
 
+#define ATRACE_END() \
+	trace_printk("tracing_mark_write: E\n")
+#define ATRACE_BEGIN(name) \
+	trace_printk("tracing_mark_write: B|%d|%s\n", current->tgid, name)
+#define ATRACE_FUNC() ATRACE_BEGIN(__func__)
+#define ATRACE_INT(name, value) \
+	trace_printk("tracing_mark_write: C|%d|%s|%d\n", \
+			current->tgid, name, (int)(value))
+
 #define SIO_PLAYBACK_MAX_PERIOD_SIZE PLAYBACK_MAX_PERIOD_SIZE
 #define SIO_PLAYBACK_MIN_PERIOD_SIZE 48
 #define SIO_PLAYBACK_MAX_NUM_PERIODS 512
@@ -415,7 +424,7 @@ static int msm_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	return ret;
 }
 
-
+#ifdef CONFIG_SND_HWDEP
 static int msm_pcm_mmap_fd(struct snd_pcm_substream *substream,
 			   struct snd_pcm_mmap_fd *mmap_fd)
 {
@@ -450,6 +459,7 @@ static int msm_pcm_mmap_fd(struct snd_pcm_substream *substream,
 	}
 	return mmap_fd->fd < 0 ? -EFAULT : 0;
 }
+#endif
 
 static int msm_pcm_ioctl(struct snd_pcm_substream *substream,
 			 unsigned int cmd, void *arg)
@@ -1033,6 +1043,7 @@ static int msm_pcm_add_app_type_controls(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
+#ifdef CONFIG_SND_HWDEP
 static int msm_pcm_hwdep_ioctl(struct snd_hwdep *hw, struct file *file,
 			       unsigned int cmd, unsigned long arg)
 {
@@ -1128,6 +1139,7 @@ static int msm_pcm_add_hwdep_dev(struct snd_soc_pcm_runtime *runtime)
 	hwdep->ops.ioctl_compat = msm_pcm_hwdep_compat_ioctl;
 	return 0;
 }
+#endif
 
 static int msm_asoc_pcm_new(struct snd_soc_pcm_runtime *rtd)
 {
@@ -1161,9 +1173,11 @@ static int msm_asoc_pcm_new(struct snd_soc_pcm_runtime *rtd)
 		pr_err("%s: Could not add app type controls failed %d\n",
 			__func__, ret);
 	}
+#ifdef CONFIG_SND_HWDEP
 	ret = msm_pcm_add_hwdep_dev(rtd);
 	if (ret)
 		pr_err("%s: Could not add hw dep node\n", __func__);
+#endif
 	pcm->nonatomic = true;
 exit:
 	return ret;
