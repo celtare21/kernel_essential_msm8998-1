@@ -665,7 +665,7 @@ int get_secure_vmid(unsigned long flags)
 	if (flags & ION_FLAG_CP_CAMERA_PREVIEW)
 		return VMID_CP_CAMERA_PREVIEW;
 	if (flags & ION_FLAG_CP_SPSS_SP_SHARED)
-		return ION_FLAG_CP_SPSS_SP_SHARED;
+		return VMID_CP_SPSS_SP_SHARED;
 	return -EINVAL;
 }
 /* fix up the cases where the ioctl direction bits are incorrect */
