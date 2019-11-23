@@ -345,6 +345,18 @@ static int hbtp_input_report_events(struct hbtp_data *hbtp_data,
 			if (tch->active) {
 				tch->pressure = fix_touch(tch);
 				input_report_abs(hbtp_data->input_dev,
+						ABS_MT_TOOL_TYPE,
+						tch->tool);
+				input_report_abs(hbtp_data->input_dev,
+						ABS_MT_TOUCH_MAJOR,
+						tch->major);
+				input_report_abs(hbtp_data->input_dev,
+						ABS_MT_TOUCH_MINOR,
+						tch->minor);
+				input_report_abs(hbtp_data->input_dev,
+						ABS_MT_ORIENTATION,
+						tch->orientation);
+				input_report_abs(hbtp_data->input_dev,
 						ABS_MT_PRESSURE,
 						tch->pressure);
 				input_report_abs(hbtp_data->input_dev,
