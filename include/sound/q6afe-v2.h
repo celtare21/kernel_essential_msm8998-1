@@ -517,7 +517,6 @@ int afe_tdm_port_start(u16 port_id, struct afe_tdm_port_config *tdm_port,
 void afe_set_routing_callback(routing_cb);
 int afe_get_av_dev_drift(struct afe_param_id_dev_timing_stats *timing_stats,
 		u16 port);
-int afe_get_svc_version(uint32_t service_id);
 int afe_request_dma_resources(uint8_t dma_type, uint8_t num_read_dma_channels,
 				uint8_t num_write_dma_channels);
 int afe_get_dma_idx(bool **ret_rddma_idx,
