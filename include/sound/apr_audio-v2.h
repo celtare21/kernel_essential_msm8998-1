@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License version 2 and
@@ -9543,8 +9543,6 @@ struct asm_eq_params {
 #define VSS_ICOMMON_CMD_GET_PARAM_V3 0x00013246
 #define VSS_ICOMMON_RSP_GET_PARAM_V3 0x00013247
 
-#define VSS_MAX_AVCS_NUM_SERVICES	25
-
 /** ID of the Bass Boost module.
     This module supports the following parameter IDs:
     - #AUDPROC_PARAM_ID_BASS_BOOST_ENABLE
@@ -10188,7 +10186,6 @@ struct asm_aptx_dec_fmt_blk_v2 {
 #define AVCS_CMDRSP_GET_FWK_VERSION (0x0001292D)
 
 #define AVCS_SERVICE_ID_ALL (0xFFFFFFFF)
-#define APRV2_IDS_SERVICE_ID_ADSP_CVP_V	(0xB)
 
 struct avcs_get_fwk_version {
 	/*
@@ -10247,9 +10244,9 @@ struct avs_svc_api_info {
 };
 
 struct avcs_fwk_ver_info {
-	struct avcs_get_fwk_version avcs_fwk_version;
+	struct avcs_get_fwk_version avcs_build;
 	struct avs_svc_api_info services[0];
-} __packed;
+};
 
 /* LSM Specific */
 #define VW_FEAT_DIM					(39)
