@@ -35,8 +35,6 @@
 #include <linux/fb.h>
 #endif
 
-#include <hbtp_fix.h>
-
 #define HBTP_INPUT_NAME			"hbtp_input"
 #define DISP_COORDS_SIZE		2
 
@@ -320,8 +318,10 @@ err_input_reg_dev:
 	return error;
 }
 
-static inline int fix_touch(struct hbtp_input_touch *tch)
+static inline __s32 fix_touch(struct hbtp_input_touch *tch)
 {
+	static __s32 a, b;
+
 	b = a;
 	a = tch->pressure;
 	if (a == 255)
