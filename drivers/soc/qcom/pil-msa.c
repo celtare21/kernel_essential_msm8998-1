@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -739,11 +739,11 @@ static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 
 	if (pil->subsys_vmid > 0) {
 		/**
-		 * In case of modem ssr, we need to assign memory back to linux.
-		 * This is not true after cold boot since linux already owns
-		 * it. Also for secure boot devices, modem memory has to be
-		 * released after MBA is booted
-		 */
+		  * In case of modem ssr,we need to assign memory back to linux.
+		  * This is not true after cold boot since linux already owns
+		  * it. Also for secure boot devices, modem memory has to be
+		  * released after MBA is booted
+		  */
 		if (pil->modem_ssr) {
 			ret = pil_assign_mem_to_linux(pil, phy_addr, phy_sz);
 			if (ret)
