@@ -10,6 +10,7 @@
 #include <linux/moduleparam.h>
 #include <linux/oom.h>
 #include <linux/sort.h>
+#include <linux/vmpressure.h>
 
 /* The minimum number of pages to free per reclaim */
 #define MIN_FREE_PAGES (CONFIG_ANDROID_SIMPLE_LMK_MINFREE * SZ_1M / PAGE_SIZE)
@@ -27,23 +28,21 @@ struct victim_info {
 };
 
 /* Pulled from the Android framework. Lower adj means higher priority. */
-static const short adj_prio[] = {
-	906, /* CACHED_APP_MAX_ADJ */
-	905, /* Cached app */
-	904, /* Cached app */
-	903, /* Cached app */
-	902, /* Cached app */
-	901, /* Cached app */
-	900, /* CACHED_APP_MIN_ADJ */
-	800, /* SERVICE_B_ADJ */
-	700, /* PREVIOUS_APP_ADJ */
-	600, /* HOME_APP_ADJ */
-	500, /* SERVICE_ADJ */
-	400, /* HEAVY_WEIGHT_APP_ADJ */
-	300, /* BACKUP_APP_ADJ */
-	200, /* PERCEPTIBLE_APP_ADJ */
-	100, /* VISIBLE_APP_ADJ */
-	0    /* FOREGROUND_APP_ADJ */
+static const short adjs[] = {
+	1000, /* CACHED_APP_MAX_ADJ + 1 */
+	950,  /* CACHED_APP_LMK_FIRST_ADJ */
+	900,  /* CACHED_APP_MIN_ADJ */
+	800,  /* SERVICE_B_ADJ */
+	700,  /* PREVIOUS_APP_ADJ */
+	600,  /* HOME_APP_ADJ */
+	500,  /* SERVICE_ADJ */
+	400,  /* HEAVY_WEIGHT_APP_ADJ */
+	300,  /* BACKUP_APP_ADJ */
+	250,  /* PERCEPTIBLE_LOW_APP_ADJ */
+	200,  /* PERCEPTIBLE_APP_ADJ */
+	100,  /* VISIBLE_APP_ADJ */
+	50,   /* PERCEPTIBLE_RECENT_FOREGROUND_APP_ADJ */
+	0     /* FOREGROUND_APP_ADJ */
 };
 
 static struct victim_info victims[MAX_VICTIMS];
@@ -74,7 +73,19 @@ static bool vtsk_is_duplicate(int vlen, struct task_struct *vtsk)
 	return false;
 }
 
-static unsigned long find_victims(int *vindex, short target_adj)
+static unsigned long get_total_mm_pages(struct mm_struct *mm)
+{
+	unsigned long pages = 0;
+	int i;
+
+	for (i = 0; i < NR_MM_COUNTERS; i++)
+		pages += get_mm_counter(mm, i);
+
+	return pages;
+}
+
+static unsigned long find_victims(int *vindex, short target_adj_min,
+				  short target_adj_max)
 {
 	unsigned long pages_found = 0;
 	int old_vindex = *vindex;
@@ -83,6 +94,7 @@ static unsigned long find_victims(int *vindex, short target_adj)
 	for_each_process(tsk) {
 		struct signal_struct *sig;
 		struct task_struct *vtsk;
+		short adj;
 
 		/*
 		 * Search for suitable tasks with the targeted importance (adj).
@@ -94,7 +106,8 @@ static unsigned long find_victims(int *vindex, short target_adj)
 		 * trying to lock a task that we locked earlier.
 		 */
 		sig = tsk->signal;
-		if (READ_ONCE(sig->oom_score_adj) != target_adj ||
+		adj = READ_ONCE(sig->oom_score_adj);
+		if (adj < target_adj_min || adj > target_adj_max - 1 ||
 		    sig->flags & (SIGNAL_GROUP_EXIT | SIGNAL_GROUP_COREDUMP) ||
 		    (thread_group_empty(tsk) && tsk->flags & PF_EXITING) ||
 		    vtsk_is_duplicate(*vindex, tsk))
@@ -107,7 +120,7 @@ static unsigned long find_victims(int *vindex, short target_adj)
 		/* Store this potential victim away for later */
 		victims[*vindex].tsk = vtsk;
 		victims[*vindex].mm = vtsk->mm;
-		victims[*vindex].size = get_mm_rss(vtsk->mm);
+		victims[*vindex].size = get_total_mm_pages(vtsk->mm);
 
 		/* Keep track of the number of pages that have been found */
 		pages_found += victims[*vindex].size;
@@ -144,11 +157,10 @@ static int process_victims(int vlen, unsigned long pages_needed)
 		/* The victim's mm lock is taken in find_victims; release it */
 		if (pages_found >= pages_needed) {
 			task_unlock(vtsk);
-			continue;
+		} else {
+			pages_found += victim->size;
+			nr_to_kill++;
 		}
-
-		pages_found += victim->size;
-		nr_to_kill++;
 	}
 
 	return nr_to_kill;
@@ -165,8 +177,8 @@ static void scan_and_kill(unsigned long pages_needed)
 	 * is guaranteed to be up to date.
 	 */
 	read_lock(&tasklist_lock);
-	for (i = 0; i < ARRAY_SIZE(adj_prio); i++) {
-		pages_found += find_victims(&nr_victims, adj_prio[i]);
+	for (i = 1; i < ARRAY_SIZE(adjs); i++) {
+		pages_found += find_victims(&nr_victims, adjs[i], adjs[i - 1]);
 		if (pages_found >= pages_needed || nr_victims == MAX_VICTIMS)
 			break;
 	}
@@ -248,19 +260,12 @@ static int simple_lmk_reclaim_thread(void *data)
 	sched_setscheduler_nocheck(current, SCHED_FIFO, &sched_max_rt_prio);
 
 	while (1) {
-		wait_event(oom_waitq, atomic_read_acquire(&needs_reclaim));
+		wait_event(oom_waitq, atomic_read(&needs_reclaim));
 		scan_and_kill(MIN_FREE_PAGES);
 		atomic_set_release(&needs_reclaim, 0);
 	}
 
 	return 0;
-}
-
-void simple_lmk_decide_reclaim(int kswapd_priority)
-{
-	if (kswapd_priority == CONFIG_ANDROID_SIMPLE_LMK_AGGRESSION &&
-	    !atomic_cmpxchg(&needs_reclaim, 0, 1))
-		wake_up(&oom_waitq);
 }
 
 void simple_lmk_mm_freed(struct mm_struct *mm)
@@ -269,14 +274,30 @@ void simple_lmk_mm_freed(struct mm_struct *mm)
 
 	read_lock(&mm_free_lock);
 	for (i = 0; i < victims_to_kill; i++) {
-		if (cmpxchg(&victims[i].mm, mm, NULL) == mm) {
-			if (atomic_inc_return(&nr_killed) == victims_to_kill)
-				complete(&reclaim_done);
-			break;
-		}
+		if (victims[i].mm != mm)
+			continue;
+
+		victims[i].mm = NULL;
+		if (atomic_inc_return_relaxed(&nr_killed) == victims_to_kill)
+			complete(&reclaim_done);
+		break;
 	}
 	read_unlock(&mm_free_lock);
 }
+
+static int simple_lmk_vmpressure_cb(struct notifier_block *nb,
+				    unsigned long pressure, void *data)
+{
+	if (pressure == 100 && !atomic_cmpxchg_acquire(&needs_reclaim, 0, 1))
+		wake_up(&oom_waitq);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block vmpressure_notif = {
+	.notifier_call = simple_lmk_vmpressure_cb,
+	.priority = INT_MAX
+};
 
 /* Initialize Simple LMK when lmkd in Android writes to the minfree parameter */
 static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
@@ -288,6 +309,7 @@ static int simple_lmk_init_set(const char *val, const struct kernel_param *kp)
 		thread = kthread_run_perf_critical(simple_lmk_reclaim_thread,
 						   NULL, "simple_lmkd");
 		BUG_ON(IS_ERR(thread));
+		BUG_ON(vmpressure_notifier_register(&vmpressure_notif));
 	}
 
 	return 0;
